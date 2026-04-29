@@ -49,6 +49,8 @@ export const transactionRequestSchema = z
     paymentStatus: z.enum(["paid", "credit", "unpaid"]),
     partyName: optionalText,
     partyPhone: optionalText,
+    inventoryItemId: optionalText,
+    inventoryQuantity: z.coerce.number().int().positive().optional(),
     costOfGoods: z.coerce.number().finite().nonnegative().optional(),
     occurredAt: optionalText,
     dueAt: optionalText,
@@ -107,6 +109,14 @@ export const transactionRequestSchema = z
         code: "custom",
         path: ["destinationAccountId"],
         message: "Choose two different accounts for a transfer.",
+      });
+    }
+
+    if (value.inventoryItemId && value.type !== "sale") {
+      context.addIssue({
+        code: "custom",
+        path: ["inventoryItemId"],
+        message: "Products can only be attached to sales.",
       });
     }
   });

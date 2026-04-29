@@ -50,6 +50,8 @@ export async function POST(request: Request) {
         paymentStatus: body.paymentStatus,
         partyName: body.partyName,
         partyPhone: body.partyPhone,
+        inventoryItemId: body.inventoryItemId,
+        inventoryQuantity: body.inventoryQuantity,
         costOfGoods: body.costOfGoods,
         occurredAt: body.occurredAt,
         dueAt: body.dueAt,

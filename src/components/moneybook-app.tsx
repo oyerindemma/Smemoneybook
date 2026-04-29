@@ -322,6 +322,7 @@ export function MoneybookApp() {
     itemId: string,
     direction: "in" | "out",
     quantity: number,
+    note?: string,
   ) {
     const response = await fetch(
       `/api/inventory/${itemId}/${direction === "in" ? "stock-in" : "stock-out"}`,
@@ -329,7 +330,7 @@ export function MoneybookApp() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity }),
+        body: JSON.stringify({ quantity, note }),
       },
     );
     const payload = (await response.json().catch(() => null)) as {
@@ -383,6 +384,7 @@ export function MoneybookApp() {
           <QuickCapture
             key={activeAction ?? "empty"}
             accounts={state.accounts}
+            items={state.items}
             activeAction={activeAction}
             lastUsedAccountId={lastUsedAccountId}
             onActionSelect={chooseAction}

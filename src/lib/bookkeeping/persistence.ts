@@ -114,7 +114,10 @@ export async function getDashboardState(businessId: string): Promise<MoneybookSt
         },
         orderBy: { createdAt: "desc" },
       },
-      items: { orderBy: { updatedAt: "desc" } },
+      items: {
+        orderBy: { updatedAt: "desc" },
+        include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
+      },
       auditLogs: { orderBy: { createdAt: "desc" }, take: 20 },
     },
   });
@@ -156,20 +159,14 @@ export async function recordPersistentTransaction({
       throw new Error("Choose a valid money account.");
     }
 
-    const movement = createMoneyMovement(input);
-    const duplicateFingerprint = buildDuplicateFingerprint(
-      input,
-      movement.transaction.occurredAt,
-    );
-
-    const existing = await tx.transaction.findFirst({
+    const existingByKey = await tx.transaction.findFirst({
       where: {
         businessId: business.id,
-        OR: [{ idempotencyKey: input.idempotencyKey }, { duplicateFingerprint }],
+        idempotencyKey: input.idempotencyKey,
       },
     });
 
-    if (existing) {
+    if (existingByKey) {
       return;
     }
 
@@ -183,11 +180,73 @@ export async function recordPersistentTransaction({
       }
     }
 
-    const type = toDbTransactionType(movement.transaction.type);
-    const paymentStatus = toDbPaymentStatus(movement.transaction.paymentStatus);
-    const amount = new Prisma.Decimal(movement.transaction.amount);
-    const costOfGoods = new Prisma.Decimal(movement.transaction.costOfGoods);
-    const profit = new Prisma.Decimal(movement.transaction.profit);
+    let inventoryItem:
+      | {
+          id: string;
+          name: string;
+          sellingPrice: Prisma.Decimal;
+          costPrice: Prisma.Decimal;
+          quantityOnHand: number;
+        }
+      | null = null;
+    let inventoryQuantity = input.inventoryQuantity ?? 0;
+
+    if (input.inventoryItemId) {
+      inventoryItem = await tx.inventoryItem.findFirst({
+        where: { id: input.inventoryItemId, businessId: business.id },
+      });
+
+      if (!inventoryItem) {
+        throw new Error("Choose a valid product.");
+      }
+
+      if (input.type !== "sale") {
+        throw new Error("Products can only be attached to sales.");
+      }
+
+      if (inventoryQuantity <= 0) {
+        inventoryQuantity = 1;
+      }
+
+      if (inventoryItem.quantityOnHand < inventoryQuantity) {
+        throw new Error("You do not have enough stock for this sale.");
+      }
+
+      input.amount = inventoryItem.sellingPrice.toNumber() * inventoryQuantity;
+      input.costOfGoods = inventoryItem.costPrice.toNumber() * inventoryQuantity;
+    }
+
+    const movementWithInventory = createMoneyMovement(input);
+    const duplicateFingerprint = buildDuplicateFingerprint(
+      input,
+      movementWithInventory.transaction.occurredAt,
+    );
+    const existingByFingerprint = await tx.transaction.findFirst({
+      where: {
+        businessId: business.id,
+        duplicateFingerprint,
+      },
+    });
+
+    if (existingByFingerprint) {
+      return;
+    }
+
+    const inventoryAwareAmount = new Prisma.Decimal(
+      movementWithInventory.transaction.amount,
+    );
+    const inventoryAwareCostOfGoods = new Prisma.Decimal(
+      movementWithInventory.transaction.costOfGoods,
+    );
+    const inventoryAwareProfit = new Prisma.Decimal(
+      movementWithInventory.transaction.profit,
+    );
+
+    const type = toDbTransactionType(movementWithInventory.transaction.type);
+    const paymentStatus = toDbPaymentStatus(movementWithInventory.transaction.paymentStatus);
+    const amount = inventoryAwareAmount;
+    const costOfGoods = inventoryAwareCostOfGoods;
+    const profit = inventoryAwareProfit;
 
     const party = await findOrCreateParty({
       tx,
@@ -207,32 +266,52 @@ export async function recordPersistentTransaction({
         amount,
         costOfGoods,
         profit,
-        description: movement.transaction.description,
-        category: movement.transaction.category,
+        description: movementWithInventory.transaction.description,
+        category: movementWithInventory.transaction.category,
         customerId: party.customerId,
         supplierId: party.supplierId,
-        occurredAt: movement.transaction.occurredAt,
+        inventoryItemId: inventoryItem?.id,
+        inventoryQuantity: inventoryItem ? inventoryQuantity : undefined,
+        occurredAt: movementWithInventory.transaction.occurredAt,
       },
     });
 
-    if (movement.accountDelta > 0) {
+    if (inventoryItem) {
+      await tx.inventoryItem.update({
+        where: { id: inventoryItem.id },
+        data: { quantityOnHand: { decrement: inventoryQuantity } },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          itemId: inventoryItem.id,
+          accountId: input.accountId,
+          transactionId: transaction.id,
+          type: InventoryMovementType.STOCK_OUT,
+          quantity: inventoryQuantity,
+          note: `Sold via ${transaction.description}`,
+        },
+      });
+    }
+
+    if (movementWithInventory.accountDelta > 0) {
       await tx.account.update({
         where: { id: input.accountId },
         data: { balance: { increment: amount } },
       });
     }
 
-    if (movement.accountDelta < 0) {
+    if (movementWithInventory.accountDelta < 0) {
       await tx.account.update({
         where: { id: input.accountId },
         data: { balance: { decrement: amount.abs() } },
       });
     }
 
-    if (movement.destinationAccountDelta && input.destinationAccountId) {
+    if (movementWithInventory.destinationAccountDelta && input.destinationAccountId) {
       await tx.account.update({
         where: { id: input.destinationAccountId },
-        data: { balance: { increment: movement.destinationAccountDelta } },
+        data: { balance: { increment: movementWithInventory.destinationAccountDelta } },
       });
     }
 
@@ -240,7 +319,7 @@ export async function recordPersistentTransaction({
       tx,
       businessId: business.id,
       transactionId: transaction.id,
-      debt: movement.debt,
+      debt: movementWithInventory.debt,
       dueAt: input.dueAt,
       customerId: party.customerId,
       supplierId: party.supplierId,
@@ -316,7 +395,7 @@ export async function reverseTransactionForUser({
   await getPrisma().$transaction(async (tx) => {
     const original = await tx.transaction.findFirst({
       where: { id: transactionId, businessId: business.id },
-      include: { reversalTransaction: true },
+      include: { reversalTransaction: true, inventoryItem: true },
     });
 
     if (!original) {
@@ -349,6 +428,23 @@ export async function reverseTransactionForUser({
         original.destinationAccountId,
         movement.destinationAccountDelta,
       );
+    }
+
+    if (original.inventoryItemId && original.inventoryQuantity) {
+      await tx.inventoryItem.update({
+        where: { id: original.inventoryItemId },
+        data: { quantityOnHand: { increment: original.inventoryQuantity } },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          itemId: original.inventoryItemId,
+          accountId: original.accountId,
+          type: InventoryMovementType.ADJUSTMENT,
+          quantity: original.inventoryQuantity,
+          note: `Restored by reversing ${original.description}`,
+        },
+      });
     }
 
     const reversal = await tx.transaction.create({
@@ -825,6 +921,7 @@ export async function getInventoryForUser(userId: string) {
 
   const items = await getPrisma().inventoryItem.findMany({
     where: { businessId: business.id },
+    include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -1237,6 +1334,8 @@ function mapTransaction(transaction: {
   amount: Prisma.Decimal;
   accountId: string;
   destinationAccountId: string | null;
+  inventoryItemId: string | null;
+  inventoryQuantity: number | null;
   description: string;
   category: string | null;
   paymentStatus: PaymentStatus;
@@ -1254,6 +1353,8 @@ function mapTransaction(transaction: {
     amount: transaction.amount.toNumber(),
     accountId: transaction.accountId,
     destinationAccountId: transaction.destinationAccountId ?? undefined,
+    inventoryItemId: transaction.inventoryItemId ?? undefined,
+    inventoryQuantity: transaction.inventoryQuantity ?? undefined,
     description: transaction.description,
     category: transaction.category ?? undefined,
     paymentStatus: transaction.paymentStatus.toLowerCase() as Transaction["paymentStatus"],
@@ -1325,6 +1426,13 @@ function mapInventoryItem(item: {
   costPrice: Prisma.Decimal;
   quantityOnHand: number;
   lowStockLevel: number;
+  movements?: Array<{
+    id: string;
+    type: InventoryMovementType;
+    quantity: number;
+    note: string | null;
+    createdAt: Date;
+  }>;
 }): InventoryItem {
   const sellingPrice = item.sellingPrice.toNumber();
   const costPrice = item.costPrice.toNumber();
@@ -1339,6 +1447,14 @@ function mapInventoryItem(item: {
     lowStockLevel: item.lowStockLevel,
     profitPerItem: sellingPrice - costPrice,
     isLowStock: item.quantityOnHand <= item.lowStockLevel,
+    movements:
+      item.movements?.map((movement) => ({
+        id: movement.id,
+        type: movement.type.toLowerCase() as InventoryItem["movements"][number]["type"],
+        quantity: movement.quantity,
+        note: movement.note ?? undefined,
+        createdAt: movement.createdAt.toISOString(),
+      })) ?? [],
   };
 }
 

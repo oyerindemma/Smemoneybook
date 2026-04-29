@@ -17,11 +17,20 @@ export function InventoryPanel({
     quantityOnHand: number;
     lowStockLevel: number;
   }) => void;
-  onMove: (itemId: string, direction: "in" | "out", quantity: number) => void;
+  onMove: (
+    itemId: string,
+    direction: "in" | "out",
+    quantity: number,
+    note?: string,
+  ) => void;
 }) {
   const [selectedItemId, setSelectedItemId] = useState(items[0]?.id ?? "");
+  const [query, setQuery] = useState("");
   const lowStockCount = items.filter((item) => item.isLowStock).length;
   const movementItemId = selectedItemId || items[0]?.id || "";
+  const visibleItems = items.filter((item) =>
+    `${item.name} ${item.sku ?? ""}`.toLowerCase().includes(query.toLowerCase()),
+  );
 
   function submitProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,7 +50,12 @@ export function InventoryPanel({
     const form = new FormData(event.currentTarget);
     const itemId = String(form.get("itemId") || movementItemId);
     const direction = String(form.get("direction")) === "out" ? "out" : "in";
-    onMove(itemId, direction, Number(form.get("quantity")));
+    onMove(
+      itemId,
+      direction,
+      Number(form.get("quantity")),
+      String(form.get("reason") || "").trim() || undefined,
+    );
     event.currentTarget.reset();
   }
 
@@ -52,7 +66,13 @@ export function InventoryPanel({
           <p className="text-sm text-black/55">Products</p>
           <h2 className="text-xl font-semibold">Stock on hand</h2>
         </div>
-        <p className="rounded-xl bg-[#F5F3EF] px-3 py-2 text-sm font-semibold text-black/70">
+        <p
+          className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+            lowStockCount > 0
+              ? "bg-red-50 text-red-700"
+              : "bg-[#F5F3EF] text-black/70"
+          }`}
+        >
           {lowStockCount} low
         </p>
       </div>
@@ -119,7 +139,7 @@ export function InventoryPanel({
               </option>
             ))}
           </select>
-          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_96px]">
+        <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_96px]">
             <select
               className="h-11 rounded-xl border border-black/10 bg-white px-3 text-sm"
               name="direction"
@@ -135,6 +155,11 @@ export function InventoryPanel({
               required
               type="number"
             />
+            <input
+              className="h-11 rounded-xl border border-black/10 px-3 text-sm"
+              name="reason"
+              placeholder="Reason"
+            />
             <button className="h-11 rounded-xl bg-ink text-sm font-semibold text-white" type="submit">
               Save
             </button>
@@ -142,13 +167,22 @@ export function InventoryPanel({
         </form>
       ) : null}
 
+      <input
+        className="mt-4 h-11 w-full rounded-xl border border-black/10 px-3 text-sm"
+        placeholder="Search products"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+
       <div className="mt-4 divide-y divide-black/10">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <p className="rounded-xl bg-[#F5F3EF] p-4 text-sm text-black/60">
-            Add your first product to see stock and profit.
+            {items.length === 0
+              ? "Add your first product to see stock and profit."
+              : "No product matches your search."}
           </p>
         ) : (
-          items.slice(0, 6).map((item) => (
+          visibleItems.slice(0, 8).map((item) => (
             <div key={item.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -162,6 +196,16 @@ export function InventoryPanel({
                 <p className="mt-1 text-sm text-black/55">
                   {item.quantityOnHand} left · Profit {formatNaira(item.profitPerItem)} each
                 </p>
+                {item.movements.length > 0 ? (
+                  <div className="mt-2 space-y-1">
+                    {item.movements.slice(0, 3).map((movement) => (
+                      <p key={movement.id} className="text-xs text-black/50">
+                        {movement.type.replace("_", " ")} · {movement.quantity} ·{" "}
+                        {movement.note ?? "No reason"}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <p className="text-sm font-semibold text-black/70">
                 Sell {formatNaira(item.sellingPrice)}

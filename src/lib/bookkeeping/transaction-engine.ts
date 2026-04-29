@@ -22,6 +22,8 @@ export type TransactionInput = {
   paymentStatus: PaymentStatus;
   partyName?: string;
   partyPhone?: string;
+  inventoryItemId?: string;
+  inventoryQuantity?: number;
   costOfGoods?: number;
   occurredAt?: string;
   dueAt?: string;
@@ -71,6 +73,15 @@ export type InventoryItem = {
   lowStockLevel: number;
   profitPerItem: number;
   isLowStock: boolean;
+  movements: InventoryMovement[];
+};
+
+export type InventoryMovement = {
+  id: string;
+  type: "stock_in" | "stock_out" | "adjustment";
+  quantity: number;
+  note?: string;
+  createdAt: string;
 };
 
 export type MonthlyReport = {

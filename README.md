@@ -49,6 +49,7 @@ This repo now has the Phase 1 guardrails for safe beta work:
 - A backend money-domain service in `src/lib/bookkeeping/domain.ts` that owns balance movement, debt creation instructions and profit rules.
 - Phase 2 money hardening: append-only reversals, transfer persistence, account opening balances, dated records, expense categories and duplicate fingerprints.
 - Phase 3 people workflow: dedicated customer/supplier pages, phone and due dates, partial collections, supplier settlement, overdue states and reminder event history.
+- Phase 4 inventory-sales workflow: product-linked sales, automatic stock reduction, profit from item cost price, stock movement reasons, search, low-stock states and movement history.
 - Unit tests for core money rules.
 - API integration coverage for transaction validation and handoff to persistence.
 - A Playwright smoke test for the home shell.
@@ -109,6 +110,14 @@ Use this only for local or staging databases.
 - Remaining balances, not original debt amounts, drive dashboard debt totals.
 - Reminder actions are stored as debt events with a channel field (`manual`, `whatsapp`, `sms`) so WhatsApp/SMS delivery can be attached later.
 - Due dates produce overdue states while debts remain open.
+
+## Inventory Rules
+
+- Product sales attach an inventory item and quantity to the transaction.
+- Selling from inventory reduces stock automatically and records a stock-out movement linked to the sale.
+- Profit for product sales is calculated from item cost price multiplied by quantity.
+- Manual stock in/out entries require a quantity and can store an adjustment reason.
+- Reversing a product sale restores the sold quantity through an adjustment movement.
 
 ## Deployment Notes
 

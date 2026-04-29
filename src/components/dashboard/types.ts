@@ -29,6 +29,8 @@ export type CaptureFormData = {
   paymentStatus: PaymentStatus;
   partyName?: string;
   partyPhone?: string;
+  inventoryItemId?: string;
+  inventoryQuantity?: number;
   occurredAt?: string;
   dueAt?: string;
 };

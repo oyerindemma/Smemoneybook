@@ -4,9 +4,11 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import type {
   Account,
   CaptureFormData,
+  InventoryItem,
   QuickAction,
 } from "@/components/dashboard/types";
 import type { PaymentStatus } from "@/lib/bookkeeping/transaction-engine";
+import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 
 const expenseCategories = [
   "Stock purchase",
@@ -23,18 +25,22 @@ const expenseCategories = [
 
 export function QuickCapture({
   accounts,
+  items,
   activeAction,
   lastUsedAccountId,
   onActionSelect,
   onSubmit,
 }: {
   accounts: Account[];
+  items: InventoryItem[];
   activeAction: QuickAction | null;
   lastUsedAccountId: string;
   onActionSelect: (action: QuickAction) => void;
   onSubmit: (formData: CaptureFormData) => void;
 }) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [itemQuantity, setItemQuantity] = useState(1);
   const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -58,10 +64,17 @@ export function QuickCapture({
     const occurredAt = String(form.get("occurredAt") || "").trim();
     const partyPhone = String(form.get("partyPhone") || "").trim();
     const dueAt = String(form.get("dueAt") || "").trim();
+    const inventoryItemId = String(form.get("inventoryItemId") || "").trim();
+    const inventoryQuantity = Number(form.get("inventoryQuantity") || 0);
+    const selectedItem = items.find((item) => item.id === inventoryItemId);
+    const itemSaleAmount =
+      type === "sale" && selectedItem && inventoryQuantity > 0
+        ? selectedItem.sellingPrice * inventoryQuantity
+        : amount;
 
     onSubmit({
       type,
-      amount,
+      amount: itemSaleAmount,
       accountId: String(form.get("accountId")),
       destinationAccountId:
         type === "transfer" ? String(form.get("destinationAccountId")) : undefined,
@@ -76,17 +89,23 @@ export function QuickCapture({
       paymentStatus: type === "transfer" ? "paid" : paymentStatus,
       partyName: type === "transfer" || paymentStatus === "paid" ? undefined : note || undefined,
       partyPhone: partyPhone || undefined,
+      inventoryItemId: inventoryItemId || undefined,
+      inventoryQuantity:
+        inventoryItemId && inventoryQuantity > 0 ? inventoryQuantity : undefined,
       occurredAt: occurredAt || undefined,
       dueAt: dueAt || undefined,
     });
 
     event.currentTarget.reset();
     setPaymentStatus("paid");
+    setSelectedItemId("");
+    setItemQuantity(1);
     amountRef.current?.focus();
   }
 
   const isMoneyIn = activeAction === "sale";
   const isTransfer = activeAction === "transfer";
+  const selectedItem = items.find((item) => item.id === selectedItemId);
   const defaultDestinationAccountId =
     accounts.find((account) => account.id !== lastUsedAccountId)?.id ?? accounts[0]?.id;
   const handleActionSelect = (action: QuickAction) => {
@@ -143,10 +162,51 @@ export function QuickCapture({
               type="number"
               min="1"
               inputMode="numeric"
-              placeholder="25000"
-              required
+              placeholder={
+                selectedItem
+                  ? String(selectedItem.sellingPrice * Math.max(itemQuantity, 1))
+                  : "25000"
+              }
+              required={!selectedItem}
             />
           </label>
+
+          {isMoneyIn && items.length > 0 ? (
+            <div className="grid gap-3 rounded-xl bg-[#F5F3EF] p-3 sm:grid-cols-[1fr_120px]">
+              <label className="grid gap-2 text-sm font-medium">
+                Product sold
+                <select
+                  className="h-12 rounded-xl border border-black/10 bg-white px-3 focus:focus-ring"
+                  name="inventoryItemId"
+                  value={selectedItemId}
+                  onChange={(event) => setSelectedItemId(event.target.value)}
+                >
+                  <option value="">No product</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({item.quantityOnHand} left)
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Qty
+                <input
+                  className="h-12 rounded-xl border border-black/10 px-3 focus:focus-ring"
+                  min="1"
+                  name="inventoryQuantity"
+                  type="number"
+                  value={itemQuantity}
+                  onChange={(event) => setItemQuantity(Number(event.target.value))}
+                />
+              </label>
+              {selectedItem ? (
+                <p className="text-sm text-black/60 sm:col-span-2">
+                  Sale total {formatProductTotal(selectedItem.sellingPrice, itemQuantity)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <label className="grid gap-2 text-sm font-medium">
             {isTransfer ? "From account" : "Account"}
@@ -287,4 +347,8 @@ export function QuickCapture({
       ) : null}
     </section>
   );
+}
+
+function formatProductTotal(price: number, quantity: number) {
+  return formatNaira(price * Math.max(quantity || 1, 1));
 }

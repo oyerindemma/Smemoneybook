@@ -68,8 +68,12 @@ describe("/api/transactions", () => {
         category: undefined,
         paymentStatus: "paid",
         partyName: undefined,
+        partyPhone: undefined,
+        inventoryItemId: undefined,
+        inventoryQuantity: undefined,
         costOfGoods: 9_000,
         occurredAt: undefined,
+        dueAt: undefined,
       },
     });
   });
@@ -98,6 +102,35 @@ describe("/api/transactions", () => {
           type: "transfer",
           accountId: "cash",
           destinationAccountId: "bank",
+        }),
+      }),
+    );
+  });
+
+  it("accepts product sale metadata", async () => {
+    const { POST } = await import("@/app/api/transactions/route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          idempotencyKey: "product-sale-1",
+          type: "sale",
+          amount: "36000",
+          accountId: "cash",
+          description: "Ankara shirt sale",
+          paymentStatus: "paid",
+          inventoryItemId: "item_1",
+          inventoryQuantity: "2",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(recordPersistentTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          inventoryItemId: "item_1",
+          inventoryQuantity: 2,
         }),
       }),
     );
