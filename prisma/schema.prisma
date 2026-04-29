@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String           @id @default(cuid())
+  name      String
+  email     String           @unique
+  password  String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  members   BusinessMember[]
+  auditLogs AuditLog[]
+  sessions  Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Business {
+  id           String              @id @default(cuid())
+  name         String
+  country      String              @default("NG")
+  currency     String              @default("NGN")
+  vatRate      Decimal             @default(7.5)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  members      BusinessMember[]
+  accounts     Account[]
+  customers    Customer[]
+  suppliers    Supplier[]
+  transactions Transaction[]
+  debts        Debt[]
+  items        InventoryItem[]
+  taxRuns      TaxRun[]
+  auditLogs    AuditLog[]
+}
+
+model BusinessMember {
+  id         String   @id @default(cuid())
+  role       Role     @default(OWNER)
+  userId     String
+  businessId String
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+}
+
+model Account {
+  id                String              @id @default(cuid())
+  name              String
+  type              AccountType
+  openingBalance    Decimal             @default(0)
+  balance           Decimal             @default(0)
+  businessId        String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions      Transaction[]       @relation("TransactionAccount")
+  transferReceipts  Transaction[]       @relation("TransferDestination")
+  inventoryMovement InventoryMovement[]
+}
+
+model Transaction {
+  id                   String          @id @default(cuid())
+  idempotencyKey        String
+  type                 TransactionType
+  amount               Decimal
+  costOfGoods          Decimal         @default(0)
+  profit               Decimal         @default(0)
+  description          String
+  category             String?
+  paymentStatus        PaymentStatus   @default(PAID)
+  occurredAt           DateTime        @default(now())
+  businessId           String
+  accountId            String
+  destinationAccountId String?
+  customerId           String?
+  supplierId           String?
+  business             Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account              Account         @relation("TransactionAccount", fields: [accountId], references: [id])
+  destinationAccount   Account?        @relation("TransferDestination", fields: [destinationAccountId], references: [id])
+  customer             Customer?       @relation(fields: [customerId], references: [id])
+  supplier             Supplier?       @relation(fields: [supplierId], references: [id])
+  debts                Debt[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, occurredAt])
+}
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?
+  businessId   String
+  createdAt    DateTime      @default(now())
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  debts        Debt[]
+}
+
+model Supplier {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?
+  businessId   String
+  createdAt    DateTime      @default(now())
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  debts        Debt[]
+}
+
+model Debt {
+  id                  String      @id @default(cuid())
+  type                DebtType
+  amount              Decimal
+  paidAmount          Decimal     @default(0)
+  status              DebtStatus  @default(OPEN)
+  dueAt               DateTime?
+  businessId          String
+  customerId          String?
+  supplierId          String?
+  sourceTransactionId String
+  createdAt           DateTime    @default(now())
+  business            Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer            Customer?   @relation(fields: [customerId], references: [id])
+  supplier            Supplier?   @relation(fields: [supplierId], references: [id])
+  sourceTransaction   Transaction @relation(fields: [sourceTransactionId], references: [id])
+
+  @@index([businessId, status])
+}
+
+model InventoryItem {
+  id             String              @id @default(cuid())
+  name           String
+  sku            String?
+  sellingPrice   Decimal
+  costPrice      Decimal
+  quantityOnHand Int                 @default(0)
+  lowStockLevel  Int                 @default(5)
+  businessId     String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  movements      InventoryMovement[]
+
+  @@unique([businessId, sku])
+}
+
+model InventoryMovement {
+  id          String                @id @default(cuid())
+  type        InventoryMovementType
+  quantity    Int
+  note        String?
+  itemId      String
+  accountId   String?
+  createdAt   DateTime              @default(now())
+  item        InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  account     Account?              @relation(fields: [accountId], references: [id])
+}
+
+model TaxRun {
+  id         String    @id @default(cuid())
+  month      Int
+  year       Int
+  vatRate    Decimal
+  salesTotal Decimal
+  vatTotal   Decimal
+  status     TaxStatus @default(DRAFT)
+  businessId String
+  createdAt  DateTime  @default(now())
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, month, year])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  message    String
+  metadata   Json?
+  businessId String
+  actorId    String?
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([businessId, createdAt])
+}
+
+enum Role {
+  OWNER
+  STAFF
+  ACCOUNTANT
+}
+
+enum AccountType {
+  CASH
+  BANK
+  POS
+  MOBILE_MONEY
+}
+
+enum TransactionType {
+  SALE
+  EXPENSE
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum PaymentStatus {
+  PAID
+  CREDIT
+  UNPAID
+}
+
+enum DebtType {
+  CUSTOMER_OWES_BUSINESS
+  BUSINESS_OWES_SUPPLIER
+}
+
+enum DebtStatus {
+  OPEN
+  SETTLED
+}
+
+enum InventoryMovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+}
+
+enum TaxStatus {
+  DRAFT
+  FINAL
+}

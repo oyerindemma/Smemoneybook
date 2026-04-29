@@ -1,0 +1,43 @@
+import { createSession } from "@/lib/auth/session";
+import { hashPassword } from "@/lib/auth/password";
+import { databaseErrorMessage, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { parseJsonBody, registerRequestSchema } from "@/lib/api/validation";
+import { createBusinessForUser } from "@/lib/bookkeeping/persistence";
+import { getPrisma } from "@/lib/prisma";
+
+export const runtime = "nodejs";
+
+export async function POST(request: Request) {
+  try {
+    const { name, email, password, businessName } = await parseJsonBody(
+      request,
+      registerRequestSchema,
+    );
+
+    const existing = await getPrisma().user.findUnique({ where: { email } });
+    if (existing) {
+      return jsonError("An account already exists for this email.", 409);
+    }
+
+    const user = await getPrisma().user.create({
+      data: {
+        name,
+        email,
+        password: await hashPassword(password),
+      },
+    });
+
+    await createBusinessForUser(user.id, businessName);
+    await createSession(user.id);
+
+    return Response.json({
+      user: { id: user.id, name: user.name, email: user.email },
+    });
+  } catch (error) {
+    console.error(error);
+    const setupMessage = databaseErrorMessage(error);
+    return setupMessage
+      ? jsonError(setupMessage, 503)
+      : jsonErrorFromUnknown(error, "Could not create your account right now.");
+  }
+}

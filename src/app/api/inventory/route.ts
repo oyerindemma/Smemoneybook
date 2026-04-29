@@ -1,0 +1,50 @@
+import { requireUser } from "@/lib/auth/session";
+import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { inventoryItemRequestSchema, parseJsonBody } from "@/lib/api/validation";
+import {
+  createInventoryItemForUser,
+  getInventoryForUser,
+} from "@/lib/bookkeeping/persistence";
+
+export const runtime = "nodejs";
+
+export async function GET() {
+  try {
+    const user = await requireUser();
+    const items = await getInventoryForUser(user.id);
+
+    if (!items) {
+      return jsonError("Create a business to track products.", 404);
+    }
+
+    return Response.json({ items });
+  } catch (error) {
+    if (error instanceof Response) {
+      return jsonError("Sign in to continue.", error.status);
+    }
+
+    console.error(error);
+    return jsonError("Could not load products.", 500);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await requireUser();
+    const body = await parseJsonBody(request, inventoryItemRequestSchema);
+
+    const state = await createInventoryItemForUser({
+      userId: user.id,
+      ...body,
+    });
+
+    return Response.json({ state }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Response) {
+      return jsonError("Sign in to continue.", error.status);
+    }
+
+    console.error(error);
+    return jsonErrorFromUnknown(error, "Could not add product.");
+  }
+}
