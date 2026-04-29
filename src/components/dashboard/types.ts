@@ -28,7 +28,9 @@ export type CaptureFormData = {
   category?: string;
   paymentStatus: PaymentStatus;
   partyName?: string;
+  partyPhone?: string;
   occurredAt?: string;
+  dueAt?: string;
 };
 
 export type { Account, Debt, InventoryItem, MonthlyReport, Transaction };

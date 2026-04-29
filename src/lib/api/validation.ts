@@ -48,8 +48,10 @@ export const transactionRequestSchema = z
     category: optionalText,
     paymentStatus: z.enum(["paid", "credit", "unpaid"]),
     partyName: optionalText,
+    partyPhone: optionalText,
     costOfGoods: z.coerce.number().finite().nonnegative().optional(),
     occurredAt: optionalText,
+    dueAt: optionalText,
   })
   .superRefine((value, context) => {
     if (value.type === "sale" && value.paymentStatus === "unpaid") {
@@ -73,6 +75,14 @@ export const transactionRequestSchema = z
         code: "custom",
         path: ["occurredAt"],
         message: "Choose a valid transaction date.",
+      });
+    }
+
+    if (value.dueAt && Number.isNaN(Date.parse(value.dueAt))) {
+      context.addIssue({
+        code: "custom",
+        path: ["dueAt"],
+        message: "Choose a valid due date.",
       });
     }
 
@@ -127,7 +137,19 @@ export const inventoryMovementRequestSchema = z.object({
 
 export const collectDebtRequestSchema = z.object({
   accountId: requiredText("Account"),
+  amount: z.coerce.number().finite().positive().optional(),
   idempotencyKey: optionalText,
+});
+
+export const settleSupplierDebtRequestSchema = z.object({
+  accountId: requiredText("Account"),
+  amount: z.coerce.number().finite().positive().optional(),
+  idempotencyKey: optionalText,
+});
+
+export const remindDebtRequestSchema = z.object({
+  channel: z.enum(["manual", "whatsapp", "sms"]).default("manual"),
+  note: optionalText,
 });
 
 export const monthYearSearchSchema = z.object({

@@ -1,17 +1,24 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError } from "@/lib/api/http";
+import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { parseJsonBody, remindDebtRequestSchema } from "@/lib/api/validation";
 import { remindDebtForUser } from "@/lib/bookkeeping/persistence";
 
 export const runtime = "nodejs";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await requireUser();
     const { id } = await params;
-    const result = await remindDebtForUser({ userId: user.id, debtId: id });
+    const body = await parseJsonBody(request, remindDebtRequestSchema);
+    const result = await remindDebtForUser({
+      userId: user.id,
+      debtId: id,
+      channel: body.channel,
+      note: body.note,
+    });
 
     return Response.json(result);
   } catch (error) {
@@ -20,6 +27,6 @@ export async function POST(
     }
 
     console.error(error);
-    return jsonError(error instanceof Error ? error.message : "Could not note reminder.", 500);
+    return jsonErrorFromUnknown(error, "Could not note reminder.");
   }
 }

@@ -21,8 +21,10 @@ export type TransactionInput = {
   category?: string;
   paymentStatus: PaymentStatus;
   partyName?: string;
+  partyPhone?: string;
   costOfGoods?: number;
   occurredAt?: string;
+  dueAt?: string;
 };
 
 export type Transaction = TransactionInput & {
@@ -39,10 +41,24 @@ export type Debt = {
   id: string;
   type: DebtType;
   partyName: string;
+  partyPhone?: string;
   amount: number;
+  paidAmount: number;
+  remainingAmount: number;
   sourceTransactionId: string;
   dueAt?: string;
   status: "open" | "settled";
+  isOverdue: boolean;
+  events: DebtEvent[];
+};
+
+export type DebtEvent = {
+  id: string;
+  type: "reminder" | "customer_collection" | "supplier_settlement" | "note";
+  amount?: number;
+  note?: string;
+  channel?: string;
+  createdAt: string;
 };
 
 export type InventoryItem = {
@@ -213,10 +229,10 @@ export function getDashboardSummary(state: MoneybookState) {
   const balance = state.accounts.reduce((sum, account) => sum + account.balance, 0);
   const customerDebt = state.debts
     .filter((debt) => debt.type === "customer_owes_business")
-    .reduce((sum, debt) => sum + debt.amount, 0);
+    .reduce((sum, debt) => sum + debt.remainingAmount, 0);
   const supplierDebt = state.debts
     .filter((debt) => debt.type === "business_owes_supplier")
-    .reduce((sum, debt) => sum + debt.amount, 0);
+    .reduce((sum, debt) => sum + debt.remainingAmount, 0);
 
   return {
     balance,
@@ -262,9 +278,15 @@ function createDebtFromTransaction(transaction: Transaction): Debt | null {
       id: cryptoId("debt"),
       type: "customer_owes_business",
       partyName: transaction.partyName || "Customer",
+      partyPhone: transaction.partyPhone,
       amount: transaction.amount,
+      paidAmount: 0,
+      remainingAmount: transaction.amount,
       sourceTransactionId: transaction.id,
+      dueAt: transaction.dueAt,
       status: "open",
+      isOverdue: false,
+      events: [],
     };
   }
 
@@ -273,9 +295,15 @@ function createDebtFromTransaction(transaction: Transaction): Debt | null {
       id: cryptoId("debt"),
       type: "business_owes_supplier",
       partyName: transaction.partyName || "Supplier",
+      partyPhone: transaction.partyPhone,
       amount: transaction.amount,
+      paidAmount: 0,
+      remainingAmount: transaction.amount,
       sourceTransactionId: transaction.id,
+      dueAt: transaction.dueAt,
       status: "open",
+      isOverdue: false,
+      events: [],
     };
   }
 

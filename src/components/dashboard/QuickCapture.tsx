@@ -56,6 +56,8 @@ export function QuickCapture({
           : "sale";
     const category = String(form.get("category") || "").trim();
     const occurredAt = String(form.get("occurredAt") || "").trim();
+    const partyPhone = String(form.get("partyPhone") || "").trim();
+    const dueAt = String(form.get("dueAt") || "").trim();
 
     onSubmit({
       type,
@@ -73,7 +75,9 @@ export function QuickCapture({
       category: category || undefined,
       paymentStatus: type === "transfer" ? "paid" : paymentStatus,
       partyName: type === "transfer" || paymentStatus === "paid" ? undefined : note || undefined,
+      partyPhone: partyPhone || undefined,
       occurredAt: occurredAt || undefined,
+      dueAt: dueAt || undefined,
     });
 
     event.currentTarget.reset();
@@ -203,6 +207,28 @@ export function QuickCapture({
                 ))}
               </select>
             </label>
+          ) : null}
+
+          {!isTransfer && paymentStatus !== "paid" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium">
+                Phone
+                <input
+                  className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
+                  name="partyPhone"
+                  placeholder="Optional"
+                  type="tel"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium">
+                Due date
+                <input
+                  className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
+                  name="dueAt"
+                  type="date"
+                />
+              </label>
+            </div>
           ) : null}
 
           <label className="grid gap-2 text-sm font-medium">

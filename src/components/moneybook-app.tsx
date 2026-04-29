@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, Search, Store } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AccountsList } from "@/components/dashboard/AccountsList";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -138,10 +139,15 @@ export function MoneybookApp() {
     setLoadStatus("signed_out");
   }
 
-  async function handleRemindDebt(debtId: string) {
+  async function handleRemindDebt(
+    debtId: string,
+    channel: "manual" | "whatsapp" | "sms",
+  ) {
     const response = await fetch(`/api/debts/${debtId}/remind`, {
       method: "POST",
       credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel }),
     });
     const payload = (await response.json().catch(() => null)) as {
       message?: string;
@@ -153,14 +159,23 @@ export function MoneybookApp() {
       if (payload?.state) {
         setState(payload.state);
       }
-      setNotice(payload?.message ?? "Reminder noted.");
+      setNotice(
+        payload?.message ??
+          (channel === "manual"
+            ? "Reminder noted."
+            : `${channel.toUpperCase()} reminder prepared.`),
+      );
       return;
     }
 
     setNotice(payload?.error ?? "Could not note reminder.");
   }
 
-  async function handleCollectDebt(debtId: string, accountId: string) {
+  async function handleCollectDebt(
+    debtId: string,
+    accountId: string,
+    amount?: number,
+  ) {
     if (!accountId) {
       setNotice("Choose where the collected money entered.");
       return;
@@ -172,6 +187,7 @@ export function MoneybookApp() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         accountId,
+        amount,
         idempotencyKey: `collect-${(transactionSequence += 1)}`,
       }),
     });
@@ -187,6 +203,40 @@ export function MoneybookApp() {
     }
 
     setNotice(payload?.error ?? "Could not collect this money.");
+  }
+
+  async function handleSettleSupplierDebt(
+    debtId: string,
+    accountId: string,
+    amount?: number,
+  ) {
+    if (!accountId) {
+      setNotice("Choose where the money left from.");
+      return;
+    }
+
+    const response = await fetch(`/api/debts/${debtId}/settle`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accountId,
+        amount,
+        idempotencyKey: `settle-${(transactionSequence += 1)}`,
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      state?: MoneybookState;
+      error?: string;
+    } | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setNotice("Supplier payment saved.");
+      return;
+    }
+
+    setNotice(payload?.error ?? "Could not settle this supplier bill.");
   }
 
   async function handleCreateAccount(input: {
@@ -363,6 +413,7 @@ export function MoneybookApp() {
             accounts={state.accounts}
             debts={state.debts}
             onCollect={handleCollectDebt}
+            onSettleSupplier={handleSettleSupplierDebt}
             onRemind={handleRemindDebt}
           />
         </div>
@@ -409,6 +460,18 @@ function ShellHeader({
         </div>
 
         <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 md:flex">
+          <Link
+            className="h-10 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-black/65 hover:bg-[#F5F3EF]"
+            href="/customers"
+          >
+            Customers
+          </Link>
+          <Link
+            className="h-10 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-black/65 hover:bg-[#F5F3EF]"
+            href="/suppliers"
+          >
+            Suppliers
+          </Link>
           <div className="flex max-w-sm items-center gap-2 rounded-xl border border-black/10 bg-[#F5F3EF] px-3 py-2 text-sm text-black/60">
             <Search size={16} aria-hidden="true" />
             <span className="truncate">{notice}</span>

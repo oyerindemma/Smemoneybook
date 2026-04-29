@@ -48,6 +48,7 @@ This repo now has the Phase 1 guardrails for safe beta work:
 - Shared Zod request validation for auth, business, transaction, inventory, debt collection and report period inputs.
 - A backend money-domain service in `src/lib/bookkeeping/domain.ts` that owns balance movement, debt creation instructions and profit rules.
 - Phase 2 money hardening: append-only reversals, transfer persistence, account opening balances, dated records, expense categories and duplicate fingerprints.
+- Phase 3 people workflow: dedicated customer/supplier pages, phone and due dates, partial collections, supplier settlement, overdue states and reminder event history.
 - Unit tests for core money rules.
 - API integration coverage for transaction validation and handoff to persistence.
 - A Playwright smoke test for the home shell.
@@ -100,6 +101,14 @@ Use this only for local or staging databases.
 - Transfers create one transaction with a source account and destination account; balances move in opposite directions.
 - Account opening balances are stored separately from current balances.
 - Duplicate protection uses both idempotency keys and a server-side fingerprint for same-minute matching entries.
+
+## Debt Control Rules
+
+- Credit sales create customer debts; unpaid expenses create supplier bills.
+- Debts can be partially collected or partially settled.
+- Remaining balances, not original debt amounts, drive dashboard debt totals.
+- Reminder actions are stored as debt events with a channel field (`manual`, `whatsapp`, `sms`) so WhatsApp/SMS delivery can be attached later.
+- Due dates produce overdue states while debts remain open.
 
 ## Deployment Notes
 

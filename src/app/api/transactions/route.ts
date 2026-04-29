@@ -49,8 +49,10 @@ export async function POST(request: Request) {
         category: body.category,
         paymentStatus: body.paymentStatus,
         partyName: body.partyName,
+        partyPhone: body.partyPhone,
         costOfGoods: body.costOfGoods,
         occurredAt: body.occurredAt,
+        dueAt: body.dueAt,
       },
     });
 

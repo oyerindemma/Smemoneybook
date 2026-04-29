@@ -17,6 +17,7 @@ model User {
   members   BusinessMember[]
   auditLogs AuditLog[]
   sessions  Session[]
+  DebtEvent DebtEvent[]
 }
 
 model Session {
@@ -146,8 +147,24 @@ model Debt {
   customer            Customer?   @relation(fields: [customerId], references: [id])
   supplier            Supplier?   @relation(fields: [supplierId], references: [id])
   sourceTransaction   Transaction @relation(fields: [sourceTransactionId], references: [id])
+  events              DebtEvent[]
 
   @@index([businessId, status])
+}
+
+model DebtEvent {
+  id        String        @id @default(cuid())
+  type      DebtEventType
+  amount    Decimal?
+  note      String?
+  channel   String?
+  debtId    String
+  actorId   String?
+  createdAt DateTime      @default(now())
+  debt      Debt          @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  actor     User?         @relation(fields: [actorId], references: [id])
+
+  @@index([debtId, createdAt])
 }
 
 model InventoryItem {
@@ -242,6 +259,13 @@ enum DebtType {
 enum DebtStatus {
   OPEN
   SETTLED
+}
+
+enum DebtEventType {
+  REMINDER
+  CUSTOMER_COLLECTION
+  SUPPLIER_SETTLEMENT
+  NOTE
 }
 
 enum InventoryMovementType {

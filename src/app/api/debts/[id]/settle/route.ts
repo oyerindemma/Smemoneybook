@@ -1,7 +1,10 @@
 import { requireUser } from "@/lib/auth/session";
 import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
-import { collectDebtRequestSchema, parseJsonBody } from "@/lib/api/validation";
-import { collectDebtForUser } from "@/lib/bookkeeping/persistence";
+import {
+  parseJsonBody,
+  settleSupplierDebtRequestSchema,
+} from "@/lib/api/validation";
+import { settleSupplierDebtForUser } from "@/lib/bookkeeping/persistence";
 
 export const runtime = "nodejs";
 
@@ -12,9 +15,8 @@ export async function POST(
   try {
     const user = await requireUser();
     const { id } = await params;
-    const body = await parseJsonBody(request, collectDebtRequestSchema);
-
-    const state = await collectDebtForUser({
+    const body = await parseJsonBody(request, settleSupplierDebtRequestSchema);
+    const state = await settleSupplierDebtForUser({
       userId: user.id,
       debtId: id,
       accountId: body.accountId,
@@ -29,6 +31,6 @@ export async function POST(
     }
 
     console.error(error);
-    return jsonErrorFromUnknown(error, "Could not collect this money.");
+    return jsonErrorFromUnknown(error, "Could not settle this supplier bill.");
   }
 }

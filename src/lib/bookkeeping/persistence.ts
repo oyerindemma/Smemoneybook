@@ -1,5 +1,6 @@
 import {
   AccountType,
+  DebtEventType,
   DebtStatus,
   DebtType,
   InventoryMovementType,
@@ -106,7 +107,11 @@ export async function getDashboardState(businessId: string): Promise<MoneybookSt
       },
       debts: {
         where: { status: DebtStatus.OPEN },
-        include: { customer: true, supplier: true },
+        include: {
+          customer: true,
+          supplier: true,
+          events: { orderBy: { createdAt: "desc" }, take: 5 },
+        },
         orderBy: { createdAt: "desc" },
       },
       items: { orderBy: { updatedAt: "desc" } },
@@ -236,6 +241,7 @@ export async function recordPersistentTransaction({
       businessId: business.id,
       transactionId: transaction.id,
       debt: movement.debt,
+      dueAt: input.dueAt,
       customerId: party.customerId,
       supplierId: party.supplierId,
     });
@@ -408,19 +414,97 @@ export async function getOpenDebtsForUser(userId: string) {
       businessId: business.id,
       status: DebtStatus.OPEN,
     },
-    include: { customer: true, supplier: true },
+    include: {
+      customer: true,
+      supplier: true,
+      events: { orderBy: { createdAt: "desc" }, take: 5 },
+    },
     orderBy: { createdAt: "desc" },
   });
 
   return debts.map(mapDebt);
 }
 
+export async function getCustomerControlForUser(userId: string) {
+  const business = await getFirstBusinessForUser(userId);
+
+  if (!business) {
+    return null;
+  }
+
+  const customers = await getPrisma().customer.findMany({
+    where: { businessId: business.id },
+    include: {
+      debts: {
+        where: { status: DebtStatus.OPEN },
+        include: {
+          customer: true,
+          supplier: true,
+          events: { orderBy: { createdAt: "desc" }, take: 3 },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return customers.map((customer) => {
+    const debts = customer.debts.map(mapDebt);
+    return {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      openDebtTotal: debts.reduce((sum, debt) => sum + debt.remainingAmount, 0),
+      overdueCount: debts.filter((debt) => debt.isOverdue).length,
+      debts,
+    };
+  });
+}
+
+export async function getSupplierControlForUser(userId: string) {
+  const business = await getFirstBusinessForUser(userId);
+
+  if (!business) {
+    return null;
+  }
+
+  const suppliers = await getPrisma().supplier.findMany({
+    where: { businessId: business.id },
+    include: {
+      debts: {
+        where: { status: DebtStatus.OPEN },
+        include: {
+          customer: true,
+          supplier: true,
+          events: { orderBy: { createdAt: "desc" }, take: 3 },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return suppliers.map((supplier) => {
+    const debts = supplier.debts.map(mapDebt);
+    return {
+      id: supplier.id,
+      name: supplier.name,
+      phone: supplier.phone,
+      openDebtTotal: debts.reduce((sum, debt) => sum + debt.remainingAmount, 0),
+      overdueCount: debts.filter((debt) => debt.isOverdue).length,
+      debts,
+    };
+  });
+}
+
 export async function remindDebtForUser({
   userId,
   debtId,
+  channel = "manual",
+  note,
 }: {
   userId: string;
   debtId: string;
+  channel?: "manual" | "whatsapp" | "sms";
+  note?: string;
 }) {
   const business = await getFirstBusinessForUser(userId);
 
@@ -435,14 +519,24 @@ export async function remindDebtForUser({
       status: DebtStatus.OPEN,
       type: DebtType.CUSTOMER_OWES_BUSINESS,
     },
-    include: { customer: true },
+    include: { customer: true, supplier: true },
   });
 
   if (!debt) {
     throw new Error("This person is no longer on your collection list.");
   }
 
-  const partyName = debt.customer?.name ?? "Customer";
+  const partyName = debt.customer?.name ?? debt.supplier?.name ?? "Customer";
+
+  await getPrisma().debtEvent.create({
+    data: {
+      debtId,
+      actorId: userId,
+      type: DebtEventType.REMINDER,
+      channel,
+      note: note || `Reminder prepared via ${channel}.`,
+    },
+  });
 
   await getPrisma().auditLog.create({
     data: {
@@ -453,6 +547,8 @@ export async function remindDebtForUser({
       metadata: {
         debtId,
         amount: debt.amount.toNumber(),
+        channel,
+        note,
       },
     },
   });
@@ -468,11 +564,13 @@ export async function collectDebtForUser({
   debtId,
   accountId,
   idempotencyKey,
+  amount,
 }: {
   userId: string;
   debtId: string;
   accountId: string;
   idempotencyKey: string;
+  amount?: number;
 }) {
   const business = await getFirstBusinessForUser(userId);
 
@@ -519,8 +617,16 @@ export async function collectDebtForUser({
       return;
     }
 
-    const amount = debt.amount.minus(debt.paidAmount);
-    const movement = createDebtCollectionMovement(amount.toNumber());
+    const remaining = debt.amount.minus(debt.paidAmount);
+    const amountToCollect = amount
+      ? Prisma.Decimal.min(new Prisma.Decimal(amount), remaining)
+      : remaining;
+
+    if (amountToCollect.lte(0)) {
+      throw new Error("Enter an amount to collect.");
+    }
+
+    const movement = createDebtCollectionMovement(amountToCollect.toNumber());
     const partyName = debt.customer?.name ?? "Customer";
 
     await tx.account.update({
@@ -534,7 +640,7 @@ export async function collectDebtForUser({
         accountId,
         customerId: debt.customerId,
         idempotencyKey,
-        duplicateFingerprint: `collect-${debt.id}`,
+        duplicateFingerprint: `collect-${debt.id}-${debt.paidAmount.toString()}-${amountToCollect.toString()}`,
         type: toDbTransactionType(movement.transaction.type),
         paymentStatus: toDbPaymentStatus(movement.transaction.paymentStatus),
         amount: movement.transaction.amount,
@@ -548,8 +654,20 @@ export async function collectDebtForUser({
     await tx.debt.update({
       where: { id: debt.id },
       data: {
-        paidAmount: debt.amount,
-        status: DebtStatus.SETTLED,
+        paidAmount: { increment: amountToCollect },
+        status: debt.paidAmount.plus(amountToCollect).gte(debt.amount)
+          ? DebtStatus.SETTLED
+          : DebtStatus.OPEN,
+      },
+    });
+
+    await tx.debtEvent.create({
+      data: {
+        debtId,
+        actorId: userId,
+        type: DebtEventType.CUSTOMER_COLLECTION,
+        amount: amountToCollect,
+        note: `Collected into ${account.name}.`,
       },
     });
 
@@ -558,11 +676,138 @@ export async function collectDebtForUser({
         businessId: business.id,
         actorId: userId,
         action: "debt.collected",
-        message: `Collected ${formatNaira(amount.toNumber())} from ${partyName}.`,
+        message: `Collected ${formatNaira(amountToCollect.toNumber())} from ${partyName}.`,
         metadata: {
           debtId,
           transactionId: transaction.id,
           accountId,
+          amount: amountToCollect.toNumber(),
+        },
+      },
+    });
+  });
+
+  return getDashboardState(business.id);
+}
+
+export async function settleSupplierDebtForUser({
+  userId,
+  debtId,
+  accountId,
+  idempotencyKey,
+  amount,
+}: {
+  userId: string;
+  debtId: string;
+  accountId: string;
+  idempotencyKey: string;
+  amount?: number;
+}) {
+  const business = await getFirstBusinessForUser(userId);
+
+  if (!business) {
+    throw new Error("Create a business before settling supplier bills.");
+  }
+
+  await getPrisma().$transaction(async (tx) => {
+    const debt = await tx.debt.findFirst({
+      where: {
+        id: debtId,
+        businessId: business.id,
+        status: DebtStatus.OPEN,
+        type: DebtType.BUSINESS_OWES_SUPPLIER,
+      },
+      include: { supplier: true },
+    });
+
+    if (!debt) {
+      throw new Error("This supplier bill is no longer open.");
+    }
+
+    const account = await tx.account.findFirst({
+      where: { id: accountId, businessId: business.id },
+    });
+
+    if (!account) {
+      throw new Error("Choose where the money left from.");
+    }
+
+    const existing = await tx.transaction.findUnique({
+      where: {
+        businessId_idempotencyKey: {
+          businessId: business.id,
+          idempotencyKey,
+        },
+      },
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const remaining = debt.amount.minus(debt.paidAmount);
+    const amountToPay = amount
+      ? Prisma.Decimal.min(new Prisma.Decimal(amount), remaining)
+      : remaining;
+
+    if (amountToPay.lte(0)) {
+      throw new Error("Enter an amount to pay.");
+    }
+
+    const supplierName = debt.supplier?.name ?? "Supplier";
+
+    await tx.account.update({
+      where: { id: accountId },
+      data: { balance: { decrement: amountToPay } },
+    });
+
+    const transaction = await tx.transaction.create({
+      data: {
+        businessId: business.id,
+        accountId,
+        supplierId: debt.supplierId,
+        idempotencyKey,
+        duplicateFingerprint: `settle-${debt.id}-${debt.paidAmount.toString()}-${amountToPay.toString()}`,
+        type: TransactionType.EXPENSE,
+        paymentStatus: PaymentStatus.PAID,
+        amount: amountToPay,
+        costOfGoods: 0,
+        profit: 0,
+        description: `Paid ${supplierName}`,
+      },
+    });
+
+    await tx.debt.update({
+      where: { id: debt.id },
+      data: {
+        paidAmount: { increment: amountToPay },
+        status: debt.paidAmount.plus(amountToPay).gte(debt.amount)
+          ? DebtStatus.SETTLED
+          : DebtStatus.OPEN,
+      },
+    });
+
+    await tx.debtEvent.create({
+      data: {
+        debtId,
+        actorId: userId,
+        type: DebtEventType.SUPPLIER_SETTLEMENT,
+        amount: amountToPay,
+        note: `Paid from ${account.name}.`,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        businessId: business.id,
+        actorId: userId,
+        action: "debt.supplier_settled",
+        message: `Paid ${formatNaira(amountToPay.toNumber())} to ${supplierName}.`,
+        metadata: {
+          debtId,
+          transactionId: transaction.id,
+          accountId,
+          amount: amountToPay.toNumber(),
         },
       },
     });
@@ -902,14 +1147,14 @@ async function findOrCreateParty({
 
   if (input.type === "sale" && input.paymentStatus === "credit") {
     const customer = await tx.customer.create({
-      data: { businessId, name: partyName },
+      data: { businessId, name: partyName, phone: input.partyPhone },
     });
     return { customerId: customer.id, supplierId: undefined };
   }
 
   if (input.type === "expense" && input.paymentStatus === "unpaid") {
     const supplier = await tx.supplier.create({
-      data: { businessId, name: partyName },
+      data: { businessId, name: partyName, phone: input.partyPhone },
     });
     return { customerId: undefined, supplierId: supplier.id };
   }
@@ -922,6 +1167,7 @@ async function createDebtIfNeeded({
   businessId,
   transactionId,
   debt,
+  dueAt,
   customerId,
   supplierId,
 }: {
@@ -929,6 +1175,7 @@ async function createDebtIfNeeded({
   businessId: string;
   transactionId: string;
   debt?: MoneyMovement["debt"];
+  dueAt?: string;
   customerId?: string;
   supplierId?: string;
 }) {
@@ -944,6 +1191,7 @@ async function createDebtIfNeeded({
       sourceTransactionId: transactionId,
       type: toDbDebtType(debt.type),
       amount: debt.amount,
+      dueAt: dueAt ? new Date(dueAt) : undefined,
     },
   });
 }
@@ -1025,20 +1273,47 @@ function mapDebt(debt: {
   id: string;
   type: DebtType;
   amount: Prisma.Decimal;
+  paidAmount: Prisma.Decimal;
   sourceTransactionId: string;
   dueAt: Date | null;
   status: DebtStatus;
-  customer: { name: string } | null;
-  supplier: { name: string } | null;
+  customer: { name: string; phone: string | null } | null;
+  supplier: { name: string; phone: string | null } | null;
+  events?: Array<{
+    id: string;
+    type: DebtEventType;
+    amount: Prisma.Decimal | null;
+    note: string | null;
+    channel: string | null;
+    createdAt: Date;
+  }>;
 }): Debt {
+  const amount = debt.amount.toNumber();
+  const paidAmount = debt.paidAmount.toNumber();
+  const dueAt = debt.dueAt?.toISOString();
+
   return {
     id: debt.id,
     type: debt.type.toLowerCase() as Debt["type"],
     partyName: debt.customer?.name ?? debt.supplier?.name ?? "Someone",
-    amount: debt.amount.toNumber(),
+    partyPhone: debt.customer?.phone ?? debt.supplier?.phone ?? undefined,
+    amount,
+    paidAmount,
+    remainingAmount: Math.max(amount - paidAmount, 0),
     sourceTransactionId: debt.sourceTransactionId,
-    dueAt: debt.dueAt?.toISOString(),
+    dueAt,
     status: debt.status.toLowerCase() as Debt["status"],
+    isOverdue:
+      debt.status === DebtStatus.OPEN && debt.dueAt ? debt.dueAt < new Date() : false,
+    events:
+      debt.events?.map((event) => ({
+        id: event.id,
+        type: event.type.toLowerCase() as Debt["events"][number]["type"],
+        amount: event.amount?.toNumber(),
+        note: event.note ?? undefined,
+        channel: event.channel ?? undefined,
+        createdAt: event.createdAt.toISOString(),
+      })) ?? [],
   };
 }
 
