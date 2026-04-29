@@ -12,6 +12,7 @@ import {
 } from "@prisma/client";
 import type {
   Account,
+  AgingBuckets,
   Debt,
   InventoryItem,
   MonthlyReport,
@@ -1054,10 +1055,14 @@ export async function getMonthlyReportForUser({
   userId,
   month,
   year,
+  period = "month",
+  date,
 }: {
   userId: string;
   month: number;
   year: number;
+  period?: MonthlyReport["period"];
+  date?: Date;
 }): Promise<MonthlyReport | null> {
   const business = await getFirstBusinessForUser(userId);
 
@@ -1065,18 +1070,24 @@ export async function getMonthlyReportForUser({
     return null;
   }
 
-  return getMonthlyReport({ businessId: business.id, month, year });
+  return getMonthlyReport({ businessId: business.id, month, year, period, date });
 }
 
 export async function getMonthlyReport({
   businessId,
   month,
   year,
+  period = "month",
+  date,
 }: {
   businessId: string;
   month: number;
   year: number;
+  period?: MonthlyReport["period"];
+  date?: Date;
 }): Promise<MonthlyReport> {
+  const range = getReportRange({ period, month, year, date });
+  const previousRange = getPreviousReportRange(range);
   const business = await getPrisma().business.findUniqueOrThrow({
     where: { id: businessId },
     select: {
@@ -1085,27 +1096,36 @@ export async function getMonthlyReport({
       transactions: {
         where: {
           occurredAt: {
-            gte: new Date(Date.UTC(year, month - 1, 1)),
-            lt: new Date(Date.UTC(year, month, 1)),
+            gte: range.start,
+            lt: range.end,
           },
         },
         include: {
           reversesTransaction: true,
           reversalTransaction: { select: { id: true } },
+          inventoryItem: true,
         },
       },
       debts: {
-        where: {
-          createdAt: {
-            gte: new Date(Date.UTC(year, month - 1, 1)),
-            lt: new Date(Date.UTC(year, month, 1)),
-          },
-        },
+        where: { status: DebtStatus.OPEN },
       },
+    },
+  });
+  const previousTransactions = await getPrisma().transaction.findMany({
+    where: {
+      businessId,
+      occurredAt: { gte: previousRange.start, lt: previousRange.end },
+    },
+    include: {
+      reversesTransaction: true,
+      reversalTransaction: { select: { id: true } },
     },
   });
 
   const activeTransactions = business.transactions.filter(
+    (transaction) => !transaction.reversalTransaction,
+  );
+  const activePreviousTransactions = previousTransactions.filter(
     (transaction) => !transaction.reversalTransaction,
   );
   const salesTotal = activeTransactions.reduce((sum, transaction) => {
@@ -1122,6 +1142,27 @@ export async function getMonthlyReport({
 
     return sum;
   }, new Prisma.Decimal(0));
+  const cashReceivedTotal = activeTransactions.reduce((sum, transaction) => {
+    if (transaction.type === TransactionType.SALE && transaction.paymentStatus === PaymentStatus.PAID) {
+      return sum.plus(transaction.amount);
+    }
+
+    if (
+      transaction.type === TransactionType.ADJUSTMENT &&
+      transaction.reversesTransaction?.type === TransactionType.SALE
+    ) {
+      return sum.minus(transaction.amount);
+    }
+
+    return sum;
+  }, new Prisma.Decimal(0));
+  const creditSalesTotal = activeTransactions
+    .filter(
+      (transaction) =>
+        transaction.type === TransactionType.SALE &&
+        transaction.paymentStatus === PaymentStatus.CREDIT,
+    )
+    .reduce((sum, transaction) => sum.plus(transaction.amount), new Prisma.Decimal(0));
   const expensesTotal = activeTransactions.reduce((sum, transaction) => {
     if (transaction.type === TransactionType.EXPENSE) {
       return sum.plus(transaction.amount);
@@ -1149,27 +1190,70 @@ export async function getMonthlyReport({
       (debt) =>
         debt.type === DebtType.CUSTOMER_OWES_BUSINESS && debt.status === DebtStatus.OPEN,
     )
-    .reduce((sum, debt) => sum.plus(debt.amount), new Prisma.Decimal(0));
+    .reduce((sum, debt) => sum.plus(debt.amount.minus(debt.paidAmount)), new Prisma.Decimal(0));
   const supplierDebtTotal = business.debts
     .filter(
       (debt) =>
         debt.type === DebtType.BUSINESS_OWES_SUPPLIER && debt.status === DebtStatus.OPEN,
     )
-    .reduce((sum, debt) => sum.plus(debt.amount), new Prisma.Decimal(0));
+    .reduce((sum, debt) => sum.plus(debt.amount.minus(debt.paidAmount)), new Prisma.Decimal(0));
   const vatRate = business.vatRate.toNumber();
-  const vatTotal = salesTotal.mul(vatRate).div(100);
+  const taxableSalesTotal = activeTransactions.reduce((sum, transaction) => {
+    const category = transaction.category?.toLowerCase() ?? "";
+
+    if (transaction.type !== TransactionType.SALE || category.includes("non-taxable")) {
+      return sum;
+    }
+
+    return sum.plus(transaction.amount);
+  }, new Prisma.Decimal(0));
+  const nonTaxableSalesTotal = salesTotal.minus(taxableSalesTotal);
+  const vatTotal = taxableSalesTotal.mul(vatRate).div(100);
+  const previousExpensesTotal = activePreviousTransactions
+    .filter((transaction) => transaction.type === TransactionType.EXPENSE)
+    .reduce((sum, transaction) => sum.plus(transaction.amount), new Prisma.Decimal(0));
+  const topProduct = getTopProduct(activeTransactions);
+  const receivablesAging = getDebtAging(
+    business.debts.filter((debt) => debt.type === DebtType.CUSTOMER_OWES_BUSINESS),
+  );
+  const payablesAging = getDebtAging(
+    business.debts.filter((debt) => debt.type === DebtType.BUSINESS_OWES_SUPPLIER),
+  );
+  const profitTotal = saleProfit.minus(expensesTotal);
+  const insights = buildReportInsights({
+    salesTotal: salesTotal.toNumber(),
+    cashReceivedTotal: cashReceivedTotal.toNumber(),
+    creditSalesTotal: creditSalesTotal.toNumber(),
+    expensesTotal: expensesTotal.toNumber(),
+    previousExpensesTotal: previousExpensesTotal.toNumber(),
+    customerDebtTotal: customerDebtTotal.toNumber(),
+    supplierDebtTotal: supplierDebtTotal.toNumber(),
+    topProduct,
+  });
 
   return {
     businessName: business.name,
+    period,
+    periodLabel: range.label,
+    periodStart: range.start.toISOString(),
+    periodEnd: range.end.toISOString(),
     month,
     year,
     vatRate,
     salesTotal: salesTotal.toNumber(),
+    cashReceivedTotal: cashReceivedTotal.toNumber(),
+    creditSalesTotal: creditSalesTotal.toNumber(),
     expensesTotal: expensesTotal.toNumber(),
-    profitTotal: saleProfit.minus(expensesTotal).toNumber(),
+    profitTotal: profitTotal.toNumber(),
+    taxableSalesTotal: taxableSalesTotal.toNumber(),
+    nonTaxableSalesTotal: nonTaxableSalesTotal.toNumber(),
     vatTotal: vatTotal.toNumber(),
     customerDebtTotal: customerDebtTotal.toNumber(),
     supplierDebtTotal: supplierDebtTotal.toNumber(),
+    receivablesAging,
+    payablesAging,
+    topProduct,
+    insights,
     transactionCount: activeTransactions.length,
     generatedAt: new Date().toISOString(),
   };
@@ -1225,6 +1309,233 @@ export async function saveTaxRunForUser({
   });
 
   return report;
+}
+
+export async function saveReportSnapshotForUser({
+  userId,
+  month,
+  year,
+  period = "month",
+  date,
+}: {
+  userId: string;
+  month: number;
+  year: number;
+  period?: MonthlyReport["period"];
+  date?: Date;
+}) {
+  const business = await getFirstBusinessForUser(userId);
+
+  if (!business) {
+    throw new Error("Create a business before saving reports.");
+  }
+
+  const report = await getMonthlyReport({
+    businessId: business.id,
+    month,
+    year,
+    period,
+    date,
+  });
+
+  await getPrisma().reportSnapshot.create({
+    data: {
+      businessId: business.id,
+      actorId: userId,
+      period,
+      periodStart: new Date(report.periodStart),
+      periodEnd: new Date(report.periodEnd),
+      data: JSON.parse(JSON.stringify(report)) as Prisma.JsonObject,
+    },
+  });
+
+  await getPrisma().auditLog.create({
+    data: {
+      businessId: business.id,
+      actorId: userId,
+      action: "report.snapshot.saved",
+      message: `${report.periodLabel} report snapshot saved.`,
+    },
+  });
+
+  return report;
+}
+
+function getReportRange({
+  period,
+  month,
+  year,
+  date,
+}: {
+  period: MonthlyReport["period"];
+  month: number;
+  year: number;
+  date?: Date;
+}) {
+  if (period === "day") {
+    const day = date ?? new Date();
+    const start = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return {
+      start,
+      end,
+      label: new Intl.DateTimeFormat("en-NG", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(start),
+    };
+  }
+
+  if (period === "week") {
+    const selected = date ?? new Date();
+    const start = new Date(
+      Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), selected.getUTCDate()),
+    );
+    const day = start.getUTCDay() || 7;
+    start.setUTCDate(start.getUTCDate() - day + 1);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 7);
+    return {
+      start,
+      end,
+      label: `Week of ${new Intl.DateTimeFormat("en-NG", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(start)}`,
+    };
+  }
+
+  return {
+    start: new Date(Date.UTC(year, month - 1, 1)),
+    end: new Date(Date.UTC(year, month, 1)),
+    label: `${year}-${String(month).padStart(2, "0")}`,
+  };
+}
+
+function getPreviousReportRange(range: { start: Date; end: Date }) {
+  const duration = range.end.getTime() - range.start.getTime();
+  return {
+    start: new Date(range.start.getTime() - duration),
+    end: new Date(range.start),
+  };
+}
+
+function getDebtAging(
+  debts: Array<{
+    amount: Prisma.Decimal;
+    paidAmount: Prisma.Decimal;
+    dueAt: Date | null;
+    createdAt: Date;
+  }>,
+): AgingBuckets {
+  const buckets: AgingBuckets = {
+    current: 0,
+    days31To60: 0,
+    days61To90: 0,
+    over90: 0,
+  };
+  const now = new Date();
+
+  debts.forEach((debt) => {
+    const remaining = debt.amount.minus(debt.paidAmount).toNumber();
+    const ageDate = debt.dueAt ?? debt.createdAt;
+    const ageDays = Math.floor((now.getTime() - ageDate.getTime()) / 86_400_000);
+
+    if (ageDays <= 30) {
+      buckets.current += remaining;
+    } else if (ageDays <= 60) {
+      buckets.days31To60 += remaining;
+    } else if (ageDays <= 90) {
+      buckets.days61To90 += remaining;
+    } else {
+      buckets.over90 += remaining;
+    }
+  });
+
+  return buckets;
+}
+
+function getTopProduct(
+  transactions: Array<{
+    type: TransactionType;
+    amount: Prisma.Decimal;
+    profit: Prisma.Decimal;
+    inventoryQuantity: number | null;
+    inventoryItem: { name: string } | null;
+  }>,
+): MonthlyReport["topProduct"] {
+  const products = new Map<
+    string,
+    { name: string; quantity: number; salesTotal: number; profitTotal: number }
+  >();
+
+  transactions.forEach((transaction) => {
+    if (transaction.type !== TransactionType.SALE || !transaction.inventoryItem) {
+      return;
+    }
+
+    const current =
+      products.get(transaction.inventoryItem.name) ?? {
+        name: transaction.inventoryItem.name,
+        quantity: 0,
+        salesTotal: 0,
+        profitTotal: 0,
+      };
+    current.quantity += transaction.inventoryQuantity ?? 0;
+    current.salesTotal += transaction.amount.toNumber();
+    current.profitTotal += transaction.profit.toNumber();
+    products.set(current.name, current);
+  });
+
+  return [...products.values()].sort((a, b) => b.salesTotal - a.salesTotal)[0];
+}
+
+function buildReportInsights(input: {
+  salesTotal: number;
+  cashReceivedTotal: number;
+  creditSalesTotal: number;
+  expensesTotal: number;
+  previousExpensesTotal: number;
+  customerDebtTotal: number;
+  supplierDebtTotal: number;
+  topProduct?: MonthlyReport["topProduct"];
+}) {
+  const insights: string[] = [];
+
+  if (input.salesTotal > 0) {
+    insights.push(`You made ${formatNaira(input.salesTotal)} in sales for this period.`);
+  }
+
+  if (input.creditSalesTotal > 0) {
+    insights.push(
+      `${formatNaira(input.creditSalesTotal)} of sales is still customer credit.`,
+    );
+  }
+
+  if (input.previousExpensesTotal > 0 && input.expensesTotal > input.previousExpensesTotal) {
+    insights.push("Expenses rose compared with the previous period.");
+  }
+
+  if (input.customerDebtTotal > 0) {
+    insights.push(`Customers still owe ${formatNaira(input.customerDebtTotal)}.`);
+  }
+
+  if (input.supplierDebtTotal > 0) {
+    insights.push(`Open supplier bills are ${formatNaira(input.supplierDebtTotal)}.`);
+  }
+
+  if (input.topProduct) {
+    insights.push(`${input.topProduct.name} is your top product for this period.`);
+  }
+
+  if (insights.length === 0) {
+    insights.push("No major movement yet for this period.");
+  }
+
+  return insights;
 }
 
 async function findOrCreateParty({

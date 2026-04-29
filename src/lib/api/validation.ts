@@ -167,6 +167,13 @@ export const monthYearSearchSchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
 });
 
+export const reportPeriodSearchSchema = z.object({
+  period: z.enum(["day", "week", "month"]).default("month"),
+  date: optionalText,
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});
+
 export async function parseJsonBody<T extends z.ZodType>(
   request: Request,
   schema: T,
@@ -194,4 +201,31 @@ export function parseMonthYear(request: Request) {
   }
 
   return result.data;
+}
+
+export function parseReportPeriod(request: Request) {
+  const url = new URL(request.url);
+  const now = new Date();
+  const result = reportPeriodSearchSchema.safeParse({
+    period: url.searchParams.get("period") ?? "month",
+    date: url.searchParams.get("date") ?? undefined,
+    month: url.searchParams.get("month") ?? undefined,
+    year: url.searchParams.get("year") ?? undefined,
+  });
+
+  if (!result.success) {
+    throw new RequestValidationError(result.error.issues[0]?.message ?? "Choose a valid period.");
+  }
+
+  const period = result.data.period;
+  const date = result.data.date ? new Date(result.data.date) : now;
+
+  if (Number.isNaN(date.getTime())) {
+    throw new RequestValidationError("Choose a valid report date.");
+  }
+
+  const month = result.data.month ?? date.getUTCMonth() + 1;
+  const year = result.data.year ?? date.getUTCFullYear();
+
+  return { period, date, month, year };
 }

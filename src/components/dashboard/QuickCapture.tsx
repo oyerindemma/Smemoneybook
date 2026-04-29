@@ -269,6 +269,20 @@ export function QuickCapture({
             </label>
           ) : null}
 
+          {activeAction === "sale" ? (
+            <label className="grid gap-2 text-sm font-medium">
+              VAT type
+              <select
+                className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+                name="category"
+                defaultValue="Taxable sale"
+              >
+                <option value="Taxable sale">Taxable sale</option>
+                <option value="Non-taxable sale">Non-taxable sale</option>
+              </select>
+            </label>
+          ) : null}
+
           {!isTransfer && paymentStatus !== "paid" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium">

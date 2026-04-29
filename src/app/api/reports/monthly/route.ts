@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth/session";
 import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
-import { parseMonthYear } from "@/lib/api/validation";
+import { parseReportPeriod } from "@/lib/api/validation";
 import { getMonthlyReportForUser } from "@/lib/bookkeeping/persistence";
 
 export const runtime = "nodejs";
@@ -8,8 +8,14 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const { month, year } = getMonthYear(request);
-    const report = await getMonthlyReportForUser({ userId: user.id, month, year });
+    const { month, year, period, date } = getReportPeriod(request);
+    const report = await getMonthlyReportForUser({
+      userId: user.id,
+      month,
+      year,
+      period,
+      date,
+    });
 
     if (!report) {
       return jsonError("Create a business to see monthly reports.", 404);
@@ -27,5 +33,10 @@ export async function GET(request: Request) {
 }
 
 export function getMonthYear(request: Request) {
-  return parseMonthYear(request);
+  const { month, year } = parseReportPeriod(request);
+  return { month, year };
+}
+
+export function getReportPeriod(request: Request) {
+  return parseReportPeriod(request);
 }

@@ -50,6 +50,7 @@ This repo now has the Phase 1 guardrails for safe beta work:
 - Phase 2 money hardening: append-only reversals, transfer persistence, account opening balances, dated records, expense categories and duplicate fingerprints.
 - Phase 3 people workflow: dedicated customer/supplier pages, phone and due dates, partial collections, supplier settlement, overdue states and reminder event history.
 - Phase 4 inventory-sales workflow: product-linked sales, automatic stock reduction, profit from item cost price, stock movement reasons, search, low-stock states and movement history.
+- Phase 5 reporting upgrade: daily/weekly/monthly filters, cash-vs-credit sales, aging, VAT taxability, PDF export, saved snapshots and plain-language owner insights.
 - Unit tests for core money rules.
 - API integration coverage for transaction validation and handoff to persistence.
 - A Playwright smoke test for the home shell.
@@ -118,6 +119,14 @@ Use this only for local or staging databases.
 - Profit for product sales is calculated from item cost price multiplied by quantity.
 - Manual stock in/out entries require a quantity and can store an adjustment reason.
 - Reversing a product sale restores the sold quantity through an adjustment movement.
+
+## Reporting Rules
+
+- Reports support daily, weekly and monthly periods.
+- Sales are split into cash received and customer credit.
+- VAT estimates use taxable sales only; sales marked `Non-taxable sale` are excluded.
+- Receivables and payables aging use remaining open balances.
+- Report snapshots store the full generated summary as JSON for later review.
 
 ## Deployment Notes
 

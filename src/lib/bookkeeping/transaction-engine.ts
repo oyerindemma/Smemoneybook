@@ -86,17 +86,41 @@ export type InventoryMovement = {
 
 export type MonthlyReport = {
   businessName: string;
+  period: "day" | "week" | "month";
+  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
   month: number;
   year: number;
   vatRate: number;
   salesTotal: number;
+  cashReceivedTotal: number;
+  creditSalesTotal: number;
   expensesTotal: number;
   profitTotal: number;
+  taxableSalesTotal: number;
+  nonTaxableSalesTotal: number;
   vatTotal: number;
   customerDebtTotal: number;
   supplierDebtTotal: number;
+  receivablesAging: AgingBuckets;
+  payablesAging: AgingBuckets;
+  topProduct?: {
+    name: string;
+    quantity: number;
+    salesTotal: number;
+    profitTotal: number;
+  };
+  insights: string[];
   transactionCount: number;
   generatedAt: string;
+};
+
+export type AgingBuckets = {
+  current: number;
+  days31To60: number;
+  days61To90: number;
+  over90: number;
 };
 
 export type AuditLog = {

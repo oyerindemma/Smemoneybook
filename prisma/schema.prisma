@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id        String           @id @default(cuid())
-  name      String
-  email     String           @unique
-  password  String
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  members   BusinessMember[]
-  auditLogs AuditLog[]
-  sessions  Session[]
-  DebtEvent DebtEvent[]
+  id             String           @id @default(cuid())
+  name           String
+  email          String           @unique
+  password       String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  members        BusinessMember[]
+  auditLogs      AuditLog[]
+  sessions       Session[]
+  DebtEvent      DebtEvent[]
+  ReportSnapshot ReportSnapshot[]
 }
 
 model Session {
@@ -32,22 +33,23 @@ model Session {
 }
 
 model Business {
-  id           String           @id @default(cuid())
-  name         String
-  country      String           @default("NG")
-  currency     String           @default("NGN")
-  vatRate      Decimal          @default(7.5)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  members      BusinessMember[]
-  accounts     Account[]
-  customers    Customer[]
-  suppliers    Supplier[]
-  transactions Transaction[]
-  debts        Debt[]
-  items        InventoryItem[]
-  taxRuns      TaxRun[]
-  auditLogs    AuditLog[]
+  id              String           @id @default(cuid())
+  name            String
+  country         String           @default("NG")
+  currency        String           @default("NGN")
+  vatRate         Decimal          @default(7.5)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  members         BusinessMember[]
+  accounts        Account[]
+  customers       Customer[]
+  suppliers       Supplier[]
+  transactions    Transaction[]
+  debts           Debt[]
+  items           InventoryItem[]
+  taxRuns         TaxRun[]
+  reportSnapshots ReportSnapshot[]
+  auditLogs       AuditLog[]
 }
 
 model BusinessMember {
@@ -216,6 +218,21 @@ model TaxRun {
   business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@unique([businessId, month, year])
+}
+
+model ReportSnapshot {
+  id          String   @id @default(cuid())
+  period      String
+  periodStart DateTime
+  periodEnd   DateTime
+  data        Json
+  businessId  String
+  actorId     String?
+  createdAt   DateTime @default(now())
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor       User?    @relation(fields: [actorId], references: [id])
+
+  @@index([businessId, periodStart, periodEnd])
 }
 
 model AuditLog {
