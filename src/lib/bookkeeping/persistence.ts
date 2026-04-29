@@ -19,8 +19,10 @@ import type {
   TransactionInput,
 } from "@/lib/bookkeeping/transaction-engine";
 import {
+  buildDuplicateFingerprint,
   createDebtCollectionMovement,
   createMoneyMovement,
+  createReversalMovement,
   type MoneyMovement,
 } from "@/lib/bookkeeping/domain";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
@@ -94,7 +96,14 @@ export async function getDashboardState(businessId: string): Promise<MoneybookSt
     where: { id: businessId },
     include: {
       accounts: { orderBy: { createdAt: "asc" } },
-      transactions: { orderBy: { occurredAt: "desc" }, take: 50 },
+      transactions: {
+        orderBy: { occurredAt: "desc" },
+        take: 50,
+        include: {
+          reversesTransaction: { select: { type: true } },
+          reversalTransaction: { select: { id: true } },
+        },
+      },
       debts: {
         where: { status: DebtStatus.OPEN },
         include: { customer: true, supplier: true },
@@ -142,12 +151,16 @@ export async function recordPersistentTransaction({
       throw new Error("Choose a valid money account.");
     }
 
-    const existing = await tx.transaction.findUnique({
+    const movement = createMoneyMovement(input);
+    const duplicateFingerprint = buildDuplicateFingerprint(
+      input,
+      movement.transaction.occurredAt,
+    );
+
+    const existing = await tx.transaction.findFirst({
       where: {
-        businessId_idempotencyKey: {
-          businessId: business.id,
-          idempotencyKey: input.idempotencyKey,
-        },
+        businessId: business.id,
+        OR: [{ idempotencyKey: input.idempotencyKey }, { duplicateFingerprint }],
       },
     });
 
@@ -155,7 +168,16 @@ export async function recordPersistentTransaction({
       return;
     }
 
-    const movement = createMoneyMovement(input);
+    if (input.destinationAccountId) {
+      const destinationAccount = await tx.account.findFirst({
+        where: { id: input.destinationAccountId, businessId: business.id },
+      });
+
+      if (!destinationAccount) {
+        throw new Error("Choose where the transfer is going.");
+      }
+    }
+
     const type = toDbTransactionType(movement.transaction.type);
     const paymentStatus = toDbPaymentStatus(movement.transaction.paymentStatus);
     const amount = new Prisma.Decimal(movement.transaction.amount);
@@ -172,7 +194,9 @@ export async function recordPersistentTransaction({
       data: {
         businessId: business.id,
         accountId: input.accountId,
+        destinationAccountId: input.destinationAccountId,
         idempotencyKey: input.idempotencyKey,
+        duplicateFingerprint,
         type,
         paymentStatus,
         amount,
@@ -200,6 +224,13 @@ export async function recordPersistentTransaction({
       });
     }
 
+    if (movement.destinationAccountDelta && input.destinationAccountId) {
+      await tx.account.update({
+        where: { id: input.destinationAccountId },
+        data: { balance: { increment: movement.destinationAccountDelta } },
+      });
+    }
+
     await createDebtIfNeeded({
       tx,
       businessId: business.id,
@@ -215,6 +246,149 @@ export async function recordPersistentTransaction({
         actorId: userId,
         action: `transaction.${input.type}`,
         message: `${input.type === "sale" ? "Money in" : "Money out"} saved for ${formatNaira(input.amount)}.`,
+      },
+    });
+  });
+
+  return getDashboardState(business.id);
+}
+
+export async function createAccountForUser({
+  userId,
+  name,
+  type,
+  openingBalance,
+}: {
+  userId: string;
+  name: string;
+  type: Account["type"];
+  openingBalance: number;
+}) {
+  const business = await getFirstBusinessForUser(userId);
+
+  if (!business) {
+    throw new Error("Create a business before adding accounts.");
+  }
+
+  await getPrisma().account.create({
+    data: {
+      businessId: business.id,
+      name,
+      type: toDbAccountType(type),
+      openingBalance,
+      balance: openingBalance,
+    },
+  });
+
+  await getPrisma().auditLog.create({
+    data: {
+      businessId: business.id,
+      actorId: userId,
+      action: "account.created",
+      message: `${name} account opened with ${formatNaira(openingBalance)}.`,
+    },
+  });
+
+  return getDashboardState(business.id);
+}
+
+export async function reverseTransactionForUser({
+  userId,
+  transactionId,
+  reason,
+}: {
+  userId: string;
+  transactionId: string;
+  reason?: string;
+}) {
+  const business = await getFirstBusinessForUser(userId);
+
+  if (!business) {
+    throw new Error("Create a business before reversing records.");
+  }
+
+  await getPrisma().$transaction(async (tx) => {
+    const original = await tx.transaction.findFirst({
+      where: { id: transactionId, businessId: business.id },
+      include: { reversalTransaction: true },
+    });
+
+    if (!original) {
+      throw new Error("This record could not be found.");
+    }
+
+    if (original.reversesTransactionId || original.type === TransactionType.ADJUSTMENT) {
+      throw new Error("This record is already a correction entry.");
+    }
+
+    if (original.reversalTransaction) {
+      throw new Error("This record has already been reversed.");
+    }
+
+    const movement = createReversalMovement({
+      type: original.type.toLowerCase() as TransactionInput["type"],
+      amount: original.amount.toNumber(),
+      profit: original.profit.toNumber(),
+      paymentStatus: original.paymentStatus.toLowerCase() as TransactionInput["paymentStatus"],
+      description: original.description,
+      accountId: original.accountId,
+      destinationAccountId: original.destinationAccountId,
+    });
+
+    await applyAccountDelta(tx, original.accountId, movement.accountDelta);
+
+    if (movement.destinationAccountDelta && original.destinationAccountId) {
+      await applyAccountDelta(
+        tx,
+        original.destinationAccountId,
+        movement.destinationAccountDelta,
+      );
+    }
+
+    const reversal = await tx.transaction.create({
+      data: {
+        businessId: business.id,
+        accountId: original.accountId,
+        destinationAccountId: original.destinationAccountId,
+        idempotencyKey: `reversal-${original.id}`,
+        duplicateFingerprint: `reversal-${original.id}`,
+        type: TransactionType.ADJUSTMENT,
+        paymentStatus: PaymentStatus.PAID,
+        amount: movement.transaction.amount,
+        costOfGoods: movement.transaction.costOfGoods,
+        profit: movement.transaction.profit,
+        description: reason
+          ? `${movement.transaction.description} (${reason})`
+          : movement.transaction.description,
+        category: movement.transaction.category,
+        occurredAt: movement.transaction.occurredAt,
+        reversesTransactionId: original.id,
+      },
+    });
+
+    await tx.debt.updateMany({
+      where: {
+        businessId: business.id,
+        sourceTransactionId: original.id,
+        status: DebtStatus.OPEN,
+      },
+      data: {
+        status: DebtStatus.SETTLED,
+        paidAmount: original.amount,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        businessId: business.id,
+        actorId: userId,
+        action: "transaction.reversed",
+        message: `${original.description} was reversed.`,
+        metadata: {
+          originalTransactionId: original.id,
+          reversalTransactionId: reversal.id,
+          reason,
+        },
       },
     });
   });
@@ -360,6 +534,7 @@ export async function collectDebtForUser({
         accountId,
         customerId: debt.customerId,
         idempotencyKey,
+        duplicateFingerprint: `collect-${debt.id}`,
         type: toDbTransactionType(movement.transaction.type),
         paymentStatus: toDbPaymentStatus(movement.transaction.paymentStatus),
         amount: movement.transaction.amount,
@@ -572,6 +747,10 @@ export async function getMonthlyReport({
             lt: new Date(Date.UTC(year, month, 1)),
           },
         },
+        include: {
+          reversesTransaction: true,
+          reversalTransaction: { select: { id: true } },
+        },
       },
       debts: {
         where: {
@@ -584,20 +763,56 @@ export async function getMonthlyReport({
     },
   });
 
-  const salesTotal = business.transactions
-    .filter((transaction) => transaction.type === TransactionType.SALE)
-    .reduce((sum, transaction) => sum.plus(transaction.amount), new Prisma.Decimal(0));
-  const expensesTotal = business.transactions
-    .filter((transaction) => transaction.type === TransactionType.EXPENSE)
-    .reduce((sum, transaction) => sum.plus(transaction.amount), new Prisma.Decimal(0));
-  const saleProfit = business.transactions
-    .filter((transaction) => transaction.type === TransactionType.SALE)
+  const activeTransactions = business.transactions.filter(
+    (transaction) => !transaction.reversalTransaction,
+  );
+  const salesTotal = activeTransactions.reduce((sum, transaction) => {
+    if (transaction.type === TransactionType.SALE) {
+      return sum.plus(transaction.amount);
+    }
+
+    if (
+      transaction.type === TransactionType.ADJUSTMENT &&
+      transaction.reversesTransaction?.type === TransactionType.SALE
+    ) {
+      return sum.minus(transaction.amount);
+    }
+
+    return sum;
+  }, new Prisma.Decimal(0));
+  const expensesTotal = activeTransactions.reduce((sum, transaction) => {
+    if (transaction.type === TransactionType.EXPENSE) {
+      return sum.plus(transaction.amount);
+    }
+
+    if (
+      transaction.type === TransactionType.ADJUSTMENT &&
+      transaction.reversesTransaction?.type === TransactionType.EXPENSE
+    ) {
+      return sum.minus(transaction.amount);
+    }
+
+    return sum;
+  }, new Prisma.Decimal(0));
+  const saleProfit = activeTransactions
+    .filter(
+      (transaction) =>
+        transaction.type === TransactionType.SALE ||
+        (transaction.type === TransactionType.ADJUSTMENT &&
+          transaction.reversesTransaction?.type === TransactionType.SALE),
+    )
     .reduce((sum, transaction) => sum.plus(transaction.profit), new Prisma.Decimal(0));
   const customerDebtTotal = business.debts
-    .filter((debt) => debt.type === DebtType.CUSTOMER_OWES_BUSINESS)
+    .filter(
+      (debt) =>
+        debt.type === DebtType.CUSTOMER_OWES_BUSINESS && debt.status === DebtStatus.OPEN,
+    )
     .reduce((sum, debt) => sum.plus(debt.amount), new Prisma.Decimal(0));
   const supplierDebtTotal = business.debts
-    .filter((debt) => debt.type === DebtType.BUSINESS_OWES_SUPPLIER)
+    .filter(
+      (debt) =>
+        debt.type === DebtType.BUSINESS_OWES_SUPPLIER && debt.status === DebtStatus.OPEN,
+    )
     .reduce((sum, debt) => sum.plus(debt.amount), new Prisma.Decimal(0));
   const vatRate = business.vatRate.toNumber();
   const vatTotal = salesTotal.mul(vatRate).div(100);
@@ -613,7 +828,7 @@ export async function getMonthlyReport({
     vatTotal: vatTotal.toNumber(),
     customerDebtTotal: customerDebtTotal.toNumber(),
     supplierDebtTotal: supplierDebtTotal.toNumber(),
-    transactionCount: business.transactions.length,
+    transactionCount: activeTransactions.length,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -733,16 +948,36 @@ async function createDebtIfNeeded({
   });
 }
 
+async function applyAccountDelta(
+  tx: PrismaTransaction,
+  accountId: string,
+  delta: number,
+) {
+  if (delta === 0) {
+    return;
+  }
+
+  await tx.account.update({
+    where: { id: accountId },
+    data:
+      delta > 0
+        ? { balance: { increment: delta } }
+        : { balance: { decrement: Math.abs(delta) } },
+  });
+}
+
 function mapAccount(account: {
   id: string;
   name: string;
   type: AccountType;
+  openingBalance: Prisma.Decimal;
   balance: Prisma.Decimal;
 }): Account {
   return {
     id: account.id,
     name: account.name,
     type: account.type.toLowerCase() as Account["type"],
+    openingBalance: account.openingBalance.toNumber(),
     balance: account.balance.toNumber(),
   };
 }
@@ -760,6 +995,9 @@ function mapTransaction(transaction: {
   costOfGoods: Prisma.Decimal;
   profit: Prisma.Decimal;
   occurredAt: Date;
+  reversesTransactionId: string | null;
+  reversesTransaction?: { type: TransactionType } | null;
+  reversalTransaction?: { id: string } | null;
 }): Transaction {
   return {
     id: transaction.id,
@@ -774,6 +1012,12 @@ function mapTransaction(transaction: {
     costOfGoods: transaction.costOfGoods.toNumber(),
     profit: transaction.profit.toNumber(),
     occurredAt: transaction.occurredAt.toISOString(),
+    isReversal: Boolean(transaction.reversesTransactionId),
+    reversedByTransactionId: transaction.reversalTransaction?.id,
+    reversesTransactionId: transaction.reversesTransactionId ?? undefined,
+    reversesTransactionType: transaction.reversesTransaction?.type.toLowerCase() as
+      | Transaction["type"]
+      | undefined,
   };
 }
 
@@ -833,4 +1077,8 @@ function toDbPaymentStatus(status: TransactionInput["paymentStatus"]) {
 
 function toDbDebtType(type: Debt["type"]) {
   return type.toUpperCase() as DebtType;
+}
+
+function toDbAccountType(type: Account["type"]) {
+  return type.toUpperCase() as AccountType;
 }

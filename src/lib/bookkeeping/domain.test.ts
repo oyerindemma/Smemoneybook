@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildDuplicateFingerprint,
   createDebtCollectionMovement,
   createMoneyMovement,
+  createReversalMovement,
 } from "@/lib/bookkeeping/domain";
 
 describe("money domain", () => {
@@ -88,5 +90,52 @@ describe("money domain", () => {
     expect(movement.accountDelta).toBe(7_500);
     expect(movement.transaction.type).toBe("sale");
     expect(movement.transaction.paymentStatus).toBe("paid");
+  });
+
+  it("moves money between two accounts without creating income or expense", () => {
+    const movement = createMoneyMovement({
+      idempotencyKey: "transfer-1",
+      type: "transfer",
+      amount: 50_000,
+      accountId: "cash",
+      destinationAccountId: "bank",
+      description: "Cash deposit",
+      paymentStatus: "paid",
+    });
+
+    expect(movement.accountDelta).toBe(-50_000);
+    expect(movement.destinationAccountDelta).toBe(50_000);
+    expect(movement.debt).toBeUndefined();
+  });
+
+  it("creates correction movement that reverses a paid sale", () => {
+    const movement = createReversalMovement({
+      type: "sale",
+      amount: 15_000,
+      profit: 6_000,
+      paymentStatus: "paid",
+      description: "Wrong sale",
+      accountId: "cash",
+    });
+
+    expect(movement.transaction.type).toBe("adjustment");
+    expect(movement.accountDelta).toBe(-15_000);
+    expect(movement.transaction.profit).toBe(-6_000);
+  });
+
+  it("creates stable duplicate fingerprints by minute", () => {
+    const input = {
+      idempotencyKey: "ui-1",
+      type: "expense" as const,
+      amount: 3_000,
+      accountId: "cash",
+      description: "Fuel",
+      paymentStatus: "paid" as const,
+      category: "Fuel",
+    };
+
+    expect(buildDuplicateFingerprint(input, new Date("2026-04-30T10:20:15Z"))).toBe(
+      buildDuplicateFingerprint(input, new Date("2026-04-30T10:20:55Z")),
+    );
   });
 });

@@ -47,6 +47,7 @@ This repo now has the Phase 1 guardrails for safe beta work:
 - Git initialized with generated files, dependencies and local secrets ignored.
 - Shared Zod request validation for auth, business, transaction, inventory, debt collection and report period inputs.
 - A backend money-domain service in `src/lib/bookkeeping/domain.ts` that owns balance movement, debt creation instructions and profit rules.
+- Phase 2 money hardening: append-only reversals, transfer persistence, account opening balances, dated records, expense categories and duplicate fingerprints.
 - Unit tests for core money rules.
 - API integration coverage for transaction validation and handoff to persistence.
 - A Playwright smoke test for the home shell.
@@ -91,6 +92,14 @@ Use this only for local or staging databases.
 - Review the generated SQL in `prisma/migrations/*/migration.sql`.
 - Run `npm run ci` before deploying.
 - Never point local seed/demo commands at production data.
+
+## Money Record Rules
+
+- Transactions are append-only from the product perspective.
+- Wrong records are corrected by creating a reversal adjustment that links back to the original transaction.
+- Transfers create one transaction with a source account and destination account; balances move in opposite directions.
+- Account opening balances are stored separately from current balances.
+- Duplicate protection uses both idempotency keys and a server-side fingerprint for same-minute matching entries.
 
 ## Deployment Notes
 

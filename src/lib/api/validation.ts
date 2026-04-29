@@ -40,9 +40,10 @@ export const businessRequestSchema = z.object({
 export const transactionRequestSchema = z
   .object({
     idempotencyKey: optionalText,
-    type: z.enum(["sale", "expense"]),
+    type: z.enum(["sale", "expense", "transfer"]),
     amount: z.coerce.number().finite().positive("Enter an amount greater than zero."),
     accountId: requiredText("Account"),
+    destinationAccountId: optionalText,
     description: optionalText.default("Activity"),
     category: optionalText,
     paymentStatus: z.enum(["paid", "credit", "unpaid"]),
@@ -74,7 +75,41 @@ export const transactionRequestSchema = z
         message: "Choose a valid transaction date.",
       });
     }
+
+    if (value.type === "transfer" && !value.destinationAccountId) {
+      context.addIssue({
+        code: "custom",
+        path: ["destinationAccountId"],
+        message: "Choose where the transfer is going.",
+      });
+    }
+
+    if (value.type === "transfer" && value.paymentStatus !== "paid") {
+      context.addIssue({
+        code: "custom",
+        path: ["paymentStatus"],
+        message: "Transfers must move money now.",
+      });
+    }
+
+    if (value.type === "transfer" && value.destinationAccountId === value.accountId) {
+      context.addIssue({
+        code: "custom",
+        path: ["destinationAccountId"],
+        message: "Choose two different accounts for a transfer.",
+      });
+    }
   });
+
+export const accountRequestSchema = z.object({
+  name: requiredText("Account name"),
+  type: z.enum(["cash", "bank", "pos", "mobile_money"]),
+  openingBalance: z.coerce.number().finite().nonnegative().default(0),
+});
+
+export const reversalRequestSchema = z.object({
+  reason: optionalText,
+});
 
 export const inventoryItemRequestSchema = z.object({
   name: requiredText("Product name"),

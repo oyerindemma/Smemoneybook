@@ -100,6 +100,8 @@ export function MoneybookApp() {
       setNotice(
         formData.type === "sale"
           ? "Money in saved. Your balance is updated."
+          : formData.type === "transfer"
+            ? "Transfer saved. Both accounts are updated."
           : "Money out saved. Your balance is updated.",
       );
       void saveTransaction({ ...formData, idempotencyKey });
@@ -185,6 +187,58 @@ export function MoneybookApp() {
     }
 
     setNotice(payload?.error ?? "Could not collect this money.");
+  }
+
+  async function handleCreateAccount(input: {
+    name: string;
+    type: "cash" | "bank" | "pos" | "mobile_money";
+    openingBalance: number;
+  }) {
+    const response = await fetch("/api/accounts", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      state?: MoneybookState;
+      error?: string;
+    } | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setNotice("Account added.");
+      return;
+    }
+
+    setNotice(payload?.error ?? "Could not add this account.");
+  }
+
+  async function handleReverseTransaction(transactionId: string) {
+    const reason = window.prompt("Why are you reversing this record?");
+
+    if (reason === null) {
+      return;
+    }
+
+    const response = await fetch(`/api/transactions/${transactionId}/reverse`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      state?: MoneybookState;
+      error?: string;
+    } | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setNotice("Record reversed with a correction entry.");
+      return;
+    }
+
+    setNotice(payload?.error ?? "Could not reverse this record.");
   }
 
   async function handleCreateInventoryItem(input: {
@@ -290,7 +344,10 @@ export function MoneybookApp() {
           summary={todaySummary}
           transactionCount={getTodayTransactionCount(state)}
         />
-        <ActivityFeed transactions={state.transactions} />
+        <ActivityFeed
+          transactions={state.transactions}
+          onReverse={handleReverseTransaction}
+        />
 
         <InventoryPanel
           items={state.items}
@@ -301,7 +358,7 @@ export function MoneybookApp() {
         <ReportsPanel onNotice={setNotice} />
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <AccountsList accounts={state.accounts} />
+          <AccountsList accounts={state.accounts} onCreate={handleCreateAccount} />
           <DebtList
             accounts={state.accounts}
             debts={state.debts}
@@ -538,6 +595,13 @@ function RecordMoneyModal({
             onClick={() => onActionSelect("expense")}
           >
             <span className="px-4">- I spent money</span>
+          </button>
+          <button
+            className="h-14 rounded-xl bg-lagoon text-left text-base font-semibold text-white"
+            type="button"
+            onClick={() => onActionSelect("transfer")}
+          >
+            <span className="px-4">Move money</span>
           </button>
         </div>
       </div>

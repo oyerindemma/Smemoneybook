@@ -63,6 +63,7 @@ describe("/api/transactions", () => {
         type: "sale",
         amount: 15_000,
         accountId: "cash",
+        destinationAccountId: undefined,
         description: "Walk-in sale",
         category: undefined,
         paymentStatus: "paid",
@@ -71,5 +72,34 @@ describe("/api/transactions", () => {
         occurredAt: undefined,
       },
     });
+  });
+
+  it("accepts transfers with a destination account", async () => {
+    const { POST } = await import("@/app/api/transactions/route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          idempotencyKey: "transfer-1",
+          type: "transfer",
+          amount: "20000",
+          accountId: "cash",
+          destinationAccountId: "bank",
+          description: "Bank deposit",
+          paymentStatus: "paid",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(recordPersistentTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          type: "transfer",
+          accountId: "cash",
+          destinationAccountId: "bank",
+        }),
+      }),
+    );
   });
 });

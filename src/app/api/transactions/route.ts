@@ -44,6 +44,7 @@ export async function POST(request: Request) {
         type: body.type,
         amount: body.amount,
         accountId: body.accountId,
+        destinationAccountId: body.destinationAccountId,
         description: body.description,
         category: body.category,
         paymentStatus: body.paymentStatus,

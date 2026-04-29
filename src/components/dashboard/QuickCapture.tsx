@@ -8,6 +8,19 @@ import type {
 } from "@/components/dashboard/types";
 import type { PaymentStatus } from "@/lib/bookkeeping/transaction-engine";
 
+const expenseCategories = [
+  "Stock purchase",
+  "Transport",
+  "Rent",
+  "Utilities",
+  "Salary",
+  "Fuel",
+  "Repairs",
+  "Marketing",
+  "Bank charges",
+  "Other",
+];
+
 export function QuickCapture({
   accounts,
   activeAction,
@@ -35,15 +48,32 @@ export function QuickCapture({
     const form = new FormData(event.currentTarget);
     const note = String(form.get("note") || "").trim();
     const amount = Number(form.get("amount"));
-    const type = activeAction === "expense" ? "expense" : "sale";
+    const type =
+      activeAction === "expense"
+        ? "expense"
+        : activeAction === "transfer"
+          ? "transfer"
+          : "sale";
+    const category = String(form.get("category") || "").trim();
+    const occurredAt = String(form.get("occurredAt") || "").trim();
 
     onSubmit({
       type,
       amount,
       accountId: String(form.get("accountId")),
-      description: note || (type === "sale" ? "Money in" : "Money out"),
-      paymentStatus,
-      partyName: paymentStatus === "paid" ? undefined : note || undefined,
+      destinationAccountId:
+        type === "transfer" ? String(form.get("destinationAccountId")) : undefined,
+      description:
+        note ||
+        (type === "sale"
+          ? "Money in"
+          : type === "transfer"
+            ? "Money transfer"
+            : "Money out"),
+      category: category || undefined,
+      paymentStatus: type === "transfer" ? "paid" : paymentStatus,
+      partyName: type === "transfer" || paymentStatus === "paid" ? undefined : note || undefined,
+      occurredAt: occurredAt || undefined,
     });
 
     event.currentTarget.reset();
@@ -52,6 +82,9 @@ export function QuickCapture({
   }
 
   const isMoneyIn = activeAction === "sale";
+  const isTransfer = activeAction === "transfer";
+  const defaultDestinationAccountId =
+    accounts.find((account) => account.id !== lastUsedAccountId)?.id ?? accounts[0]?.id;
   const handleActionSelect = (action: QuickAction) => {
     setPaymentStatus("paid");
     onActionSelect(action);
@@ -59,7 +92,7 @@ export function QuickCapture({
 
   return (
     <section className="rounded-xl bg-white p-4 shadow-soft sm:p-6">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <button
           className={`h-14 rounded-xl text-base font-semibold ${
             activeAction === "sale"
@@ -82,6 +115,17 @@ export function QuickCapture({
         >
           - I spent money
         </button>
+        <button
+          className={`h-14 rounded-xl text-base font-semibold ${
+            activeAction === "transfer"
+              ? "bg-lagoon text-white"
+              : "border border-black/10 bg-[#F5F3EF] text-black/75"
+          }`}
+          type="button"
+          onClick={() => handleActionSelect("transfer")}
+        >
+          Move money
+        </button>
       </div>
 
       {activeAction ? (
@@ -101,7 +145,7 @@ export function QuickCapture({
           </label>
 
           <label className="grid gap-2 text-sm font-medium">
-            Account
+            {isTransfer ? "From account" : "Account"}
             <select
               className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
               name="accountId"
@@ -116,17 +160,67 @@ export function QuickCapture({
             </select>
           </label>
 
+          {isTransfer ? (
+            <label className="grid gap-2 text-sm font-medium">
+              To account
+              <select
+                className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+                name="destinationAccountId"
+                defaultValue={defaultDestinationAccountId}
+                required
+              >
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className="grid gap-2 text-sm font-medium">
+            Date
+            <input
+              className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
+              name="occurredAt"
+              type="date"
+            />
+          </label>
+
+          {activeAction === "expense" ? (
+            <label className="grid gap-2 text-sm font-medium">
+              Category
+              <select
+                className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+                name="category"
+                defaultValue=""
+              >
+                <option value="">Choose category</option>
+                {expenseCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
           <label className="grid gap-2 text-sm font-medium">
             Note
             <input
               className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
               name="note"
               placeholder={
-                isMoneyIn ? "Optional, e.g. Amina Stores" : "Optional, e.g. fuel"
+                isMoneyIn
+                  ? "Optional, e.g. Amina Stores"
+                  : isTransfer
+                    ? "Optional, e.g. POS settlement"
+                    : "Optional, e.g. fuel"
               }
             />
           </label>
 
+          {!isTransfer ? (
           <div className="grid gap-2 rounded-xl bg-[#F5F3EF] p-3">
             {(isMoneyIn
               ? [
@@ -153,6 +247,7 @@ export function QuickCapture({
               </button>
             ))}
           </div>
+          ) : null}
 
           <div className="sticky bottom-20 z-20 -mx-4 bg-white/95 px-4 py-3 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0">
             <button

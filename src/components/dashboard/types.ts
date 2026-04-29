@@ -8,7 +8,7 @@ import type {
   TransactionType,
 } from "@/lib/bookkeeping/transaction-engine";
 
-export type QuickAction = "sale" | "expense";
+export type QuickAction = "sale" | "expense" | "transfer";
 
 export type DashboardSummary = {
   balance: number;
@@ -23,9 +23,12 @@ export type CaptureFormData = {
   type: TransactionType;
   amount: number;
   accountId: string;
+  destinationAccountId?: string;
   description: string;
+  category?: string;
   paymentStatus: PaymentStatus;
   partyName?: string;
+  occurredAt?: string;
 };
 
 export type { Account, Debt, InventoryItem, MonthlyReport, Transaction };

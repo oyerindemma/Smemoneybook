@@ -31,13 +31,13 @@ model Session {
 }
 
 model Business {
-  id           String              @id @default(cuid())
+  id           String           @id @default(cuid())
   name         String
-  country      String              @default("NG")
-  currency     String              @default("NGN")
-  vatRate      Decimal             @default(7.5)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  country      String           @default("NG")
+  currency     String           @default("NGN")
+  vatRate      Decimal          @default(7.5)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   members      BusinessMember[]
   accounts     Account[]
   customers    Customer[]
@@ -77,29 +77,34 @@ model Account {
 }
 
 model Transaction {
-  id                   String          @id @default(cuid())
+  id                    String          @id @default(cuid())
   idempotencyKey        String
-  type                 TransactionType
-  amount               Decimal
-  costOfGoods          Decimal         @default(0)
-  profit               Decimal         @default(0)
-  description          String
-  category             String?
-  paymentStatus        PaymentStatus   @default(PAID)
-  occurredAt           DateTime        @default(now())
-  businessId           String
-  accountId            String
-  destinationAccountId String?
-  customerId           String?
-  supplierId           String?
-  business             Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  account              Account         @relation("TransactionAccount", fields: [accountId], references: [id])
-  destinationAccount   Account?        @relation("TransferDestination", fields: [destinationAccountId], references: [id])
-  customer             Customer?       @relation(fields: [customerId], references: [id])
-  supplier             Supplier?       @relation(fields: [supplierId], references: [id])
-  debts                Debt[]
+  duplicateFingerprint  String?
+  type                  TransactionType
+  amount                Decimal
+  costOfGoods           Decimal         @default(0)
+  profit                Decimal         @default(0)
+  description           String
+  category              String?
+  paymentStatus         PaymentStatus   @default(PAID)
+  occurredAt            DateTime        @default(now())
+  businessId            String
+  accountId             String
+  destinationAccountId  String?
+  customerId            String?
+  supplierId            String?
+  reversesTransactionId String?         @unique
+  business              Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account               Account         @relation("TransactionAccount", fields: [accountId], references: [id])
+  destinationAccount    Account?        @relation("TransferDestination", fields: [destinationAccountId], references: [id])
+  customer              Customer?       @relation(fields: [customerId], references: [id])
+  supplier              Supplier?       @relation(fields: [supplierId], references: [id])
+  reversesTransaction   Transaction?    @relation("TransactionReversal", fields: [reversesTransactionId], references: [id])
+  reversalTransaction   Transaction?    @relation("TransactionReversal")
+  debts                 Debt[]
 
   @@unique([businessId, idempotencyKey])
+  @@unique([businessId, duplicateFingerprint])
   @@index([businessId, occurredAt])
 }
 
@@ -163,15 +168,15 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id          String                @id @default(cuid())
-  type        InventoryMovementType
-  quantity    Int
-  note        String?
-  itemId      String
-  accountId   String?
-  createdAt   DateTime              @default(now())
-  item        InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  account     Account?              @relation(fields: [accountId], references: [id])
+  id        String                @id @default(cuid())
+  type      InventoryMovementType
+  quantity  Int
+  note      String?
+  itemId    String
+  accountId String?
+  createdAt DateTime              @default(now())
+  item      InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  account   Account?              @relation(fields: [accountId], references: [id])
 }
 
 model TaxRun {

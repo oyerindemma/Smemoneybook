@@ -17,6 +17,7 @@ export type MoneyMovement = {
     occurredAt: Date;
   };
   accountDelta: number;
+  destinationAccountDelta?: number;
   debt?: {
     type: DebtType;
     amount: number;
@@ -32,6 +33,7 @@ export function createMoneyMovement(input: TransactionInput, now = new Date()): 
   const paymentStatus = input.paymentStatus;
   const isPaidSale = type === "sale" && paymentStatus === "paid";
   const isPaidExpense = type === "expense" && paymentStatus === "paid";
+  const isTransfer = type === "transfer";
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : now;
 
   return {
@@ -45,7 +47,8 @@ export function createMoneyMovement(input: TransactionInput, now = new Date()): 
       category: input.category?.trim() || undefined,
       occurredAt,
     },
-    accountDelta: isPaidSale ? amount : isPaidExpense ? -amount : 0,
+    accountDelta: isTransfer ? -amount : isPaidSale ? amount : isPaidExpense ? -amount : 0,
+    destinationAccountDelta: isTransfer ? amount : undefined,
     debt: getDebtInstruction(input),
   };
 }
@@ -69,6 +72,55 @@ export function createDebtCollectionMovement(amount: number, now = new Date()): 
   };
 }
 
+export function createReversalMovement(original: {
+  type: TransactionType;
+  amount: number;
+  profit: number;
+  paymentStatus: PaymentStatus;
+  description: string;
+  accountId: string;
+  destinationAccountId?: string | null;
+}): MoneyMovement {
+  const accountDelta = getOriginalAccountDelta(original) * -1;
+
+  return {
+    transaction: {
+      type: "adjustment",
+      paymentStatus: "paid",
+      amount: original.amount,
+      costOfGoods: 0,
+      profit: -original.profit,
+      description: `Reversal: ${original.description}`,
+      category: "Reversal",
+      occurredAt: new Date(),
+    },
+    accountDelta,
+    destinationAccountDelta:
+      original.type === "transfer" && original.destinationAccountId
+        ? original.amount * -1
+        : undefined,
+  };
+}
+
+export function buildDuplicateFingerprint(
+  input: TransactionInput,
+  occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date(),
+) {
+  const minute = new Date(occurredAt);
+  minute.setSeconds(0, 0);
+
+  return [
+    input.type,
+    input.amount.toFixed(2),
+    input.accountId,
+    input.destinationAccountId ?? "",
+    input.paymentStatus,
+    input.description.trim().toLowerCase(),
+    input.category?.trim().toLowerCase() ?? "",
+    minute.toISOString(),
+  ].join("|");
+}
+
 function validateMoneyInput(input: TransactionInput) {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("Amount must be greater than zero.");
@@ -86,6 +138,18 @@ function validateMoneyInput(input: TransactionInput) {
     throw new Error("Expenses are either paid now or supplier bills.");
   }
 
+  if (input.type === "transfer" && !input.destinationAccountId) {
+    throw new Error("Choose where the transfer is going.");
+  }
+
+  if (input.type === "transfer" && input.paymentStatus !== "paid") {
+    throw new Error("Transfers must move money now.");
+  }
+
+  if (input.type === "transfer" && input.destinationAccountId === input.accountId) {
+    throw new Error("Choose two different accounts for a transfer.");
+  }
+
   if (input.costOfGoods !== undefined && input.costOfGoods < 0) {
     throw new Error("Cost of goods cannot be negative.");
   }
@@ -93,6 +157,26 @@ function validateMoneyInput(input: TransactionInput) {
   if (input.occurredAt && Number.isNaN(Date.parse(input.occurredAt))) {
     throw new Error("Choose a valid transaction date.");
   }
+}
+
+function getOriginalAccountDelta(original: {
+  type: TransactionType;
+  amount: number;
+  paymentStatus: PaymentStatus;
+}) {
+  if (original.type === "sale" && original.paymentStatus === "paid") {
+    return original.amount;
+  }
+
+  if (original.type === "expense" && original.paymentStatus === "paid") {
+    return -original.amount;
+  }
+
+  if (original.type === "transfer") {
+    return -original.amount;
+  }
+
+  return 0;
 }
 
 function getDebtInstruction(input: TransactionInput): MoneyMovement["debt"] {

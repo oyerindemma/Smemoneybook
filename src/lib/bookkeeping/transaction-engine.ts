@@ -7,6 +7,7 @@ export type Account = {
   id: string;
   name: string;
   type: AccountType;
+  openingBalance: number;
   balance: number;
 };
 
@@ -28,6 +29,10 @@ export type Transaction = TransactionInput & {
   id: string;
   profit: number;
   occurredAt: string;
+  isReversal?: boolean;
+  reversedByTransactionId?: string;
+  reversesTransactionId?: string;
+  reversesTransactionType?: TransactionType;
 };
 
 export type Debt = {
@@ -87,9 +92,9 @@ export function createDefaultBusiness(name: string): MoneybookState {
   return {
     businessName: name,
     accounts: [
-      { id: "cash", name: "Cash", type: "cash", balance: 125000 },
-      { id: "bank", name: "Bank", type: "bank", balance: 840000 },
-      { id: "pos", name: "POS", type: "pos", balance: 180000 },
+      { id: "cash", name: "Cash", type: "cash", openingBalance: 125000, balance: 125000 },
+      { id: "bank", name: "Bank", type: "bank", openingBalance: 840000, balance: 840000 },
+      { id: "pos", name: "POS", type: "pos", openingBalance: 180000, balance: 180000 },
     ],
     transactions: [],
     debts: [],
@@ -124,6 +129,16 @@ export function recordTransaction(
   const account = state.accounts.find((item) => item.id === input.accountId);
   if (!account) {
     throw new Error("Choose a valid money account.");
+  }
+
+  if (input.type === "transfer") {
+    if (!input.destinationAccountId) {
+      throw new Error("Choose where the transfer is going.");
+    }
+
+    if (input.destinationAccountId === input.accountId) {
+      throw new Error("Choose two different accounts for a transfer.");
+    }
   }
 
   const transaction: Transaction = {
@@ -164,14 +179,36 @@ export function recordTransaction(
 }
 
 export function getDashboardSummary(state: MoneybookState) {
-  const income = state.transactions
-    .filter((transaction) => transaction.type === "sale")
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const expenses = state.transactions
-    .filter((transaction) => transaction.type === "expense")
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const activeTransactions = state.transactions.filter(
+    (transaction) => !transaction.reversedByTransactionId,
+  );
+  const income = activeTransactions.reduce((sum, transaction) => {
+    if (transaction.type === "sale") {
+      return sum + transaction.amount;
+    }
+
+    if (transaction.type === "adjustment" && transaction.reversesTransactionType === "sale") {
+      return sum - transaction.amount;
+    }
+
+    return sum;
+  }, 0);
+  const expenses = activeTransactions.reduce((sum, transaction) => {
+    if (transaction.type === "expense") {
+      return sum + transaction.amount;
+    }
+
+    if (
+      transaction.type === "adjustment" &&
+      transaction.reversesTransactionType === "expense"
+    ) {
+      return sum - transaction.amount;
+    }
+
+    return sum;
+  }, 0);
   const profit =
-    state.transactions.reduce((sum, transaction) => sum + transaction.profit, 0) -
+    activeTransactions.reduce((sum, transaction) => sum + transaction.profit, 0) -
     expenses;
   const balance = state.accounts.reduce((sum, account) => sum + account.balance, 0);
   const customerDebt = state.debts

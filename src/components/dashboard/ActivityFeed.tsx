@@ -1,7 +1,13 @@
 import type { Transaction } from "@/components/dashboard/types";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 
-export function ActivityFeed({ transactions }: { transactions: Transaction[] }) {
+export function ActivityFeed({
+  transactions,
+  onReverse,
+}: {
+  transactions: Transaction[];
+  onReverse: (transactionId: string) => void;
+}) {
   return (
     <section className="rounded-xl bg-white p-4 shadow-soft sm:p-6">
       <div>
@@ -29,16 +35,33 @@ export function ActivityFeed({ transactions }: { transactions: Transaction[] }) 
                     {describeTransaction(transaction)}
                   </p>
                 </div>
-                <strong
-                  className={
-                    transaction.type === "sale"
-                      ? "text-right text-palm"
-                      : "text-right text-red-600"
-                  }
-                >
-                  {transaction.type === "sale" ? "+" : "-"}
-                  {formatNaira(transaction.amount)}
-                </strong>
+                <div className="text-right">
+                  <strong
+                    className={
+                      transaction.type === "sale"
+                        ? "text-palm"
+                        : transaction.type === "transfer" || transaction.type === "adjustment"
+                          ? "text-lagoon"
+                          : "text-red-600"
+                    }
+                  >
+                    {transaction.type === "sale"
+                      ? "+"
+                      : transaction.type === "expense"
+                        ? "-"
+                        : ""}
+                    {formatNaira(transaction.amount)}
+                  </strong>
+                  {!transaction.isReversal && !transaction.reversedByTransactionId ? (
+                    <button
+                      className="mt-1 block text-xs font-semibold text-black/45 hover:text-red-600"
+                      type="button"
+                      onClick={() => onReverse(transaction.id)}
+                    >
+                      Reverse
+                    </button>
+                  ) : null}
+                </div>
               </div>
             );
           })
@@ -53,6 +76,10 @@ export function describeTransaction(transaction: Transaction) {
   const paymentMethod = transaction.paymentStatus.toUpperCase();
 
   if (type === "SALE") {
+    if (transaction.reversedByTransactionId) {
+      return "Reversed";
+    }
+
     if (paymentMethod === "CREDIT") {
       return "Customer will pay later";
     }
@@ -61,7 +88,19 @@ export function describeTransaction(transaction: Transaction) {
   }
 
   if (type === "EXPENSE") {
+    if (transaction.reversedByTransactionId) {
+      return "Reversed";
+    }
+
     return "Money spent";
+  }
+
+  if (type === "TRANSFER") {
+    return transaction.reversedByTransactionId ? "Transfer reversed" : "Moved between accounts";
+  }
+
+  if (type === "ADJUSTMENT") {
+    return "Correction entry";
   }
 
   return "Activity";
