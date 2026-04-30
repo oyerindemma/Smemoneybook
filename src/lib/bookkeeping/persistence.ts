@@ -28,6 +28,12 @@ import {
   type MoneyMovement,
 } from "@/lib/bookkeeping/domain";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
+import {
+  getBusinessAccess,
+  hasPermission,
+  mapRole,
+  requireBusinessAccess,
+} from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 
 type PrismaTransaction = Omit<
@@ -78,22 +84,31 @@ export async function getFirstBusinessForUser(userId: string) {
     include: { business: true },
   });
 
-  return membership?.business ?? null;
+  return membership
+    ? {
+        ...membership.business,
+        businessId: membership.business.id,
+        role: membership.role,
+      }
+    : null;
 }
 
 export async function getDashboardStateForUser(
   userId: string,
 ): Promise<MoneybookState | null> {
-  const business = await getFirstBusinessForUser(userId);
+  const access = await getBusinessAccess(userId);
 
-  if (!business) {
+  if (!access) {
     return null;
   }
 
-  return getDashboardState(business.id);
+  return getDashboardState(access.businessId, access.role);
 }
 
-export async function getDashboardState(businessId: string): Promise<MoneybookState> {
+export async function getDashboardState(
+  businessId: string,
+  role?: Role,
+): Promise<MoneybookState> {
   const business = await getPrisma().business.findUniqueOrThrow({
     where: { id: businessId },
     include: {
@@ -125,6 +140,15 @@ export async function getDashboardState(businessId: string): Promise<MoneybookSt
 
   return {
     businessName: business.name,
+    businessRole: role ? mapRole(role) : undefined,
+    permissions: role
+      ? {
+          canManageStaff: hasPermission(role, "admin"),
+          canManageAccounts: hasPermission(role, "admin"),
+          canSaveReports: hasPermission(role, "reports:write"),
+          canExportBackup: hasPermission(role, "backup:read"),
+        }
+      : undefined,
     accounts: business.accounts.map(mapAccount),
     transactions: business.transactions.map(mapTransaction),
     debts: business.debts.map(mapDebt),
@@ -145,15 +169,11 @@ export async function recordPersistentTransaction({
   userId: string;
   input: TransactionInput;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before recording money.");
-  }
+  const business = await requireBusinessAccess(userId, "money:write");
 
   await getPrisma().$transaction(async (tx) => {
     const account = await tx.account.findFirst({
-      where: { id: input.accountId, businessId: business.id },
+      where: { id: input.accountId, businessId: business.businessId },
     });
 
     if (!account) {
@@ -162,7 +182,7 @@ export async function recordPersistentTransaction({
 
     const existingByKey = await tx.transaction.findFirst({
       where: {
-        businessId: business.id,
+        businessId: business.businessId,
         idempotencyKey: input.idempotencyKey,
       },
     });
@@ -173,7 +193,7 @@ export async function recordPersistentTransaction({
 
     if (input.destinationAccountId) {
       const destinationAccount = await tx.account.findFirst({
-        where: { id: input.destinationAccountId, businessId: business.id },
+        where: { id: input.destinationAccountId, businessId: business.businessId },
       });
 
       if (!destinationAccount) {
@@ -194,7 +214,7 @@ export async function recordPersistentTransaction({
 
     if (input.inventoryItemId) {
       inventoryItem = await tx.inventoryItem.findFirst({
-        where: { id: input.inventoryItemId, businessId: business.id },
+        where: { id: input.inventoryItemId, businessId: business.businessId },
       });
 
       if (!inventoryItem) {
@@ -224,7 +244,7 @@ export async function recordPersistentTransaction({
     );
     const existingByFingerprint = await tx.transaction.findFirst({
       where: {
-        businessId: business.id,
+        businessId: business.businessId,
         duplicateFingerprint,
       },
     });
@@ -251,13 +271,13 @@ export async function recordPersistentTransaction({
 
     const party = await findOrCreateParty({
       tx,
-      businessId: business.id,
+      businessId: business.businessId,
       input,
     });
 
     const transaction = await tx.transaction.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         accountId: input.accountId,
         destinationAccountId: input.destinationAccountId,
         idempotencyKey: input.idempotencyKey,
@@ -318,7 +338,7 @@ export async function recordPersistentTransaction({
 
     await createDebtIfNeeded({
       tx,
-      businessId: business.id,
+      businessId: business.businessId,
       transactionId: transaction.id,
       debt: movementWithInventory.debt,
       dueAt: input.dueAt,
@@ -328,7 +348,7 @@ export async function recordPersistentTransaction({
 
     await tx.auditLog.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         actorId: userId,
         action: `transaction.${input.type}`,
         message: `${input.type === "sale" ? "Money in" : "Money out"} saved for ${formatNaira(input.amount)}.`,
@@ -336,7 +356,7 @@ export async function recordPersistentTransaction({
     });
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function createAccountForUser({
@@ -350,15 +370,11 @@ export async function createAccountForUser({
   type: Account["type"];
   openingBalance: number;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before adding accounts.");
-  }
+  const business = await requireBusinessAccess(userId, "admin");
 
   await getPrisma().account.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       name,
       type: toDbAccountType(type),
       openingBalance,
@@ -368,14 +384,14 @@ export async function createAccountForUser({
 
   await getPrisma().auditLog.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       actorId: userId,
       action: "account.created",
       message: `${name} account opened with ${formatNaira(openingBalance)}.`,
     },
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function reverseTransactionForUser({
@@ -387,15 +403,11 @@ export async function reverseTransactionForUser({
   transactionId: string;
   reason?: string;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before reversing records.");
-  }
+  const business = await requireBusinessAccess(userId, "money:write");
 
   await getPrisma().$transaction(async (tx) => {
     const original = await tx.transaction.findFirst({
-      where: { id: transactionId, businessId: business.id },
+      where: { id: transactionId, businessId: business.businessId },
       include: { reversalTransaction: true, inventoryItem: true },
     });
 
@@ -450,7 +462,7 @@ export async function reverseTransactionForUser({
 
     const reversal = await tx.transaction.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         accountId: original.accountId,
         destinationAccountId: original.destinationAccountId,
         idempotencyKey: `reversal-${original.id}`,
@@ -471,7 +483,7 @@ export async function reverseTransactionForUser({
 
     await tx.debt.updateMany({
       where: {
-        businessId: business.id,
+        businessId: business.businessId,
         sourceTransactionId: original.id,
         status: DebtStatus.OPEN,
       },
@@ -483,7 +495,7 @@ export async function reverseTransactionForUser({
 
     await tx.auditLog.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         actorId: userId,
         action: "transaction.reversed",
         message: `${original.description} was reversed.`,
@@ -496,7 +508,7 @@ export async function reverseTransactionForUser({
     });
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function getOpenDebtsForUser(userId: string) {
@@ -508,7 +520,7 @@ export async function getOpenDebtsForUser(userId: string) {
 
   const debts = await getPrisma().debt.findMany({
     where: {
-      businessId: business.id,
+      businessId: business.businessId,
       status: DebtStatus.OPEN,
     },
     include: {
@@ -530,7 +542,7 @@ export async function getCustomerControlForUser(userId: string) {
   }
 
   const customers = await getPrisma().customer.findMany({
-    where: { businessId: business.id },
+    where: { businessId: business.businessId },
     include: {
       debts: {
         where: { status: DebtStatus.OPEN },
@@ -565,7 +577,7 @@ export async function getSupplierControlForUser(userId: string) {
   }
 
   const suppliers = await getPrisma().supplier.findMany({
-    where: { businessId: business.id },
+    where: { businessId: business.businessId },
     include: {
       debts: {
         where: { status: DebtStatus.OPEN },
@@ -603,16 +615,12 @@ export async function remindDebtForUser({
   channel?: "manual" | "whatsapp" | "sms";
   note?: string;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before sending reminders.");
-  }
+  const business = await requireBusinessAccess(userId, "money:write");
 
   const debt = await getPrisma().debt.findFirst({
     where: {
       id: debtId,
-      businessId: business.id,
+      businessId: business.businessId,
       status: DebtStatus.OPEN,
       type: DebtType.CUSTOMER_OWES_BUSINESS,
     },
@@ -637,7 +645,7 @@ export async function remindDebtForUser({
 
   await getPrisma().auditLog.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       actorId: userId,
       action: "debt.reminder",
       message: `Reminder noted for ${partyName}.`,
@@ -652,7 +660,7 @@ export async function remindDebtForUser({
 
   return {
     message: `Reminder noted for ${partyName}.`,
-    state: await getDashboardState(business.id),
+    state: await getDashboardState(business.businessId, business.role),
   };
 }
 
@@ -669,17 +677,13 @@ export async function collectDebtForUser({
   idempotencyKey: string;
   amount?: number;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before collecting money.");
-  }
+  const business = await requireBusinessAccess(userId, "money:write");
 
   await getPrisma().$transaction(async (tx) => {
     const debt = await tx.debt.findFirst({
       where: {
         id: debtId,
-        businessId: business.id,
+        businessId: business.businessId,
         status: DebtStatus.OPEN,
         type: DebtType.CUSTOMER_OWES_BUSINESS,
       },
@@ -693,7 +697,7 @@ export async function collectDebtForUser({
     const account = await tx.account.findFirst({
       where: {
         id: accountId,
-        businessId: business.id,
+        businessId: business.businessId,
       },
     });
 
@@ -704,7 +708,7 @@ export async function collectDebtForUser({
     const existing = await tx.transaction.findUnique({
       where: {
         businessId_idempotencyKey: {
-          businessId: business.id,
+          businessId: business.businessId,
           idempotencyKey,
         },
       },
@@ -733,7 +737,7 @@ export async function collectDebtForUser({
 
     const transaction = await tx.transaction.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         accountId,
         customerId: debt.customerId,
         idempotencyKey,
@@ -770,7 +774,7 @@ export async function collectDebtForUser({
 
     await tx.auditLog.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         actorId: userId,
         action: "debt.collected",
         message: `Collected ${formatNaira(amountToCollect.toNumber())} from ${partyName}.`,
@@ -784,7 +788,7 @@ export async function collectDebtForUser({
     });
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function settleSupplierDebtForUser({
@@ -800,17 +804,13 @@ export async function settleSupplierDebtForUser({
   idempotencyKey: string;
   amount?: number;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before settling supplier bills.");
-  }
+  const business = await requireBusinessAccess(userId, "money:write");
 
   await getPrisma().$transaction(async (tx) => {
     const debt = await tx.debt.findFirst({
       where: {
         id: debtId,
-        businessId: business.id,
+        businessId: business.businessId,
         status: DebtStatus.OPEN,
         type: DebtType.BUSINESS_OWES_SUPPLIER,
       },
@@ -822,7 +822,7 @@ export async function settleSupplierDebtForUser({
     }
 
     const account = await tx.account.findFirst({
-      where: { id: accountId, businessId: business.id },
+      where: { id: accountId, businessId: business.businessId },
     });
 
     if (!account) {
@@ -832,7 +832,7 @@ export async function settleSupplierDebtForUser({
     const existing = await tx.transaction.findUnique({
       where: {
         businessId_idempotencyKey: {
-          businessId: business.id,
+          businessId: business.businessId,
           idempotencyKey,
         },
       },
@@ -860,7 +860,7 @@ export async function settleSupplierDebtForUser({
 
     const transaction = await tx.transaction.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         accountId,
         supplierId: debt.supplierId,
         idempotencyKey,
@@ -896,7 +896,7 @@ export async function settleSupplierDebtForUser({
 
     await tx.auditLog.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         actorId: userId,
         action: "debt.supplier_settled",
         message: `Paid ${formatNaira(amountToPay.toNumber())} to ${supplierName}.`,
@@ -910,7 +910,7 @@ export async function settleSupplierDebtForUser({
     });
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function getInventoryForUser(userId: string) {
@@ -921,7 +921,7 @@ export async function getInventoryForUser(userId: string) {
   }
 
   const items = await getPrisma().inventoryItem.findMany({
-    where: { businessId: business.id },
+    where: { businessId: business.businessId },
     include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
     orderBy: { updatedAt: "desc" },
   });
@@ -946,15 +946,11 @@ export async function createInventoryItemForUser({
   lowStockLevel: number;
   sku?: string;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before adding products.");
-  }
+  const business = await requireBusinessAccess(userId, "inventory:write");
 
   await getPrisma().inventoryItem.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       name,
       sku: sku || null,
       sellingPrice,
@@ -976,14 +972,14 @@ export async function createInventoryItemForUser({
 
   await getPrisma().auditLog.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       actorId: userId,
       action: "inventory.item.created",
       message: `${name} added to stock.`,
     },
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function moveInventoryForUser({
@@ -999,15 +995,11 @@ export async function moveInventoryForUser({
   direction: "in" | "out";
   note?: string;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before updating stock.");
-  }
+  const business = await requireBusinessAccess(userId, "inventory:write");
 
   await getPrisma().$transaction(async (tx) => {
     const item = await tx.inventoryItem.findFirst({
-      where: { id: itemId, businessId: business.id },
+      where: { id: itemId, businessId: business.businessId },
     });
 
     if (!item) {
@@ -1040,7 +1032,7 @@ export async function moveInventoryForUser({
 
     await tx.auditLog.create({
       data: {
-        businessId: business.id,
+        businessId: business.businessId,
         actorId: userId,
         action: direction === "in" ? "inventory.stock_in" : "inventory.stock_out",
         message: `${quantity} ${item.name} ${direction === "in" ? "added" : "removed"}.`,
@@ -1048,7 +1040,7 @@ export async function moveInventoryForUser({
     });
   });
 
-  return getDashboardState(business.id);
+  return getDashboardState(business.businessId, business.role);
 }
 
 export async function getMonthlyReportForUser({
@@ -1070,7 +1062,7 @@ export async function getMonthlyReportForUser({
     return null;
   }
 
-  return getMonthlyReport({ businessId: business.id, month, year, period, date });
+  return getMonthlyReport({ businessId: business.businessId, month, year, period, date });
 }
 
 export async function getMonthlyReport({
@@ -1268,24 +1260,20 @@ export async function saveTaxRunForUser({
   month: number;
   year: number;
 }) {
-  const business = await getFirstBusinessForUser(userId);
+  const business = await requireBusinessAccess(userId, "reports:write");
 
-  if (!business) {
-    throw new Error("Create a business before saving tax summaries.");
-  }
-
-  const report = await getMonthlyReport({ businessId: business.id, month, year });
+  const report = await getMonthlyReport({ businessId: business.businessId, month, year });
 
   await getPrisma().taxRun.upsert({
     where: {
       businessId_month_year: {
-        businessId: business.id,
+        businessId: business.businessId,
         month,
         year,
       },
     },
     create: {
-      businessId: business.id,
+      businessId: business.businessId,
       month,
       year,
       vatRate: report.vatRate,
@@ -1301,7 +1289,7 @@ export async function saveTaxRunForUser({
 
   await getPrisma().auditLog.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       actorId: userId,
       action: "tax.summary.saved",
       message: `${month}/${year} VAT summary saved.`,
@@ -1324,14 +1312,10 @@ export async function saveReportSnapshotForUser({
   period?: MonthlyReport["period"];
   date?: Date;
 }) {
-  const business = await getFirstBusinessForUser(userId);
-
-  if (!business) {
-    throw new Error("Create a business before saving reports.");
-  }
+  const business = await requireBusinessAccess(userId, "reports:write");
 
   const report = await getMonthlyReport({
-    businessId: business.id,
+    businessId: business.businessId,
     month,
     year,
     period,
@@ -1340,7 +1324,7 @@ export async function saveReportSnapshotForUser({
 
   await getPrisma().reportSnapshot.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       actorId: userId,
       period,
       periodStart: new Date(report.periodStart),
@@ -1351,7 +1335,7 @@ export async function saveReportSnapshotForUser({
 
   await getPrisma().auditLog.create({
     data: {
-      businessId: business.id,
+      businessId: business.businessId,
       actorId: userId,
       action: "report.snapshot.saved",
       message: `${report.periodLabel} report snapshot saved.`,

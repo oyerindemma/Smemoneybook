@@ -11,7 +11,19 @@ export type AuthUser = {
   email: string;
 };
 
-export async function createSession(userId: string) {
+function getClientIp(request?: Request) {
+  if (!request) {
+    return undefined;
+  }
+
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    undefined
+  );
+}
+
+export async function createSession(userId: string, request?: Request) {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
 
@@ -19,6 +31,8 @@ export async function createSession(userId: string) {
     data: {
       token,
       userId,
+      userAgent: request?.headers.get("user-agent")?.slice(0, 240),
+      ipAddress: getClientIp(request)?.slice(0, 80),
       expiresAt,
     },
   });
@@ -42,6 +56,15 @@ export async function destroySession() {
   }
 
   cookieStore.delete(sessionCookieName);
+}
+
+export async function destroySessionById(userId: string, sessionId: string) {
+  await getPrisma().session.deleteMany({
+    where: {
+      id: sessionId,
+      userId,
+    },
+  });
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
@@ -70,6 +93,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null;
   }
 
+  await getPrisma().session.updateMany({
+    where: { token },
+    data: { lastSeenAt: new Date() },
+  });
+
   return session.user;
 }
 
@@ -81,4 +109,23 @@ export async function requireUser() {
   }
 
   return user;
+}
+
+export async function listSessionsForUser(userId: string) {
+  const cookieStore = await cookies();
+  const currentToken = cookieStore.get(sessionCookieName)?.value;
+  const sessions = await getPrisma().session.findMany({
+    where: { userId },
+    orderBy: { lastSeenAt: "desc" },
+  });
+
+  return sessions.map((session) => ({
+    id: session.id,
+    userAgent: session.userAgent,
+    ipAddress: session.ipAddress,
+    lastSeenAt: session.lastSeenAt.toISOString(),
+    expiresAt: session.expiresAt.toISOString(),
+    createdAt: session.createdAt.toISOString(),
+    isCurrent: session.token === currentToken,
+  }));
 }

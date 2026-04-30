@@ -1,14 +1,21 @@
 import { createSession } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { hashPassword } from "@/lib/auth/password";
 import { databaseErrorMessage, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, registerRequestSchema } from "@/lib/api/validation";
 import { createBusinessForUser } from "@/lib/bookkeeping/persistence";
 import { getPrisma } from "@/lib/prisma";
+import { logApiFailure } from "@/lib/operations/monitoring";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const limited = enforceRateLimit(request, "auth.register", 5);
+    if (limited) {
+      return limited;
+    }
+
     const { name, email, password, businessName } = await parseJsonBody(
       request,
       registerRequestSchema,
@@ -28,13 +35,14 @@ export async function POST(request: Request) {
     });
 
     await createBusinessForUser(user.id, businessName);
-    await createSession(user.id);
+    await createSession(user.id, request);
 
     return Response.json({
       user: { id: user.id, name: user.name, email: user.email },
     });
   } catch (error) {
     console.error(error);
+    await logApiFailure({ request, error });
     const setupMessage = databaseErrorMessage(error);
     return setupMessage
       ? jsonError(setupMessage, 503)

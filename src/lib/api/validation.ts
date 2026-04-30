@@ -162,6 +162,29 @@ export const remindDebtRequestSchema = z.object({
   note: optionalText,
 });
 
+export const staffInvitationRequestSchema = z.object({
+  email: z.email("Enter a valid staff email.").trim().toLowerCase(),
+  role: z.enum(["staff", "accountant"]).default("staff"),
+});
+
+export const restoreBackupRequestSchema = z.object({
+  backup: z
+    .object({
+      version: z.literal(1),
+      exportedAt: z.string(),
+      business: z.object({
+        name: z.string(),
+        accounts: z.array(z.unknown()).default([]),
+        transactions: z.array(z.unknown()).default([]),
+        customers: z.array(z.unknown()).default([]),
+        suppliers: z.array(z.unknown()).default([]),
+        debts: z.array(z.unknown()).default([]),
+        items: z.array(z.unknown()).default([]),
+      }),
+    })
+    .passthrough(),
+});
+
 export const monthYearSearchSchema = z.object({
   month: z.coerce.number().int().min(1).max(12),
   year: z.coerce.number().int().min(2000).max(2100),

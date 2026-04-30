@@ -1,0 +1,25 @@
+import { requireUser } from "@/lib/auth/session";
+import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { getOperationsOverview } from "@/lib/operations/service";
+import { logApiFailure } from "@/lib/operations/monitoring";
+
+export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  let userId: string | undefined;
+
+  try {
+    const user = await requireUser();
+    userId = user.id;
+    const operations = await getOperationsOverview(user.id);
+    return Response.json({ operations });
+  } catch (error) {
+    if (error instanceof Response) {
+      return jsonError("Sign in to continue.", error.status);
+    }
+
+    console.error(error);
+    await logApiFailure({ request, error, actorId: userId });
+    return jsonErrorFromUnknown(error, "Could not load operations.");
+  }
+}

@@ -128,6 +128,16 @@ Use this only for local or staging databases.
 - Receivables and payables aging use remaining open balances.
 - Report snapshots store the full generated summary as JSON for later review.
 
+## Operations Rules
+
+- Owners can invite staff and accountants from the dashboard operations panel.
+- Staff can record money and stock activity; accountants can also save reports and export backups.
+- Owner-only actions include staff invitations, account setup and restore validation.
+- Sessions store device metadata and can be removed from the operations panel.
+- Auth routes use an in-memory rate limit locally; use platform or edge rate limiting for production scale.
+- Backups export business data as JSON. Restore uploads are validated and audit-logged before any live-data restore.
+- API failures are written to `ApiErrorLog` when routes catch unexpected operational errors.
+
 ## Deployment Notes
 
 For Vercel + Neon:

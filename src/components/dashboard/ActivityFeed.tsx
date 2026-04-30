@@ -4,9 +4,11 @@ import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 export function ActivityFeed({
   transactions,
   onReverse,
+  canReverse = true,
 }: {
   transactions: Transaction[];
   onReverse: (transactionId: string) => void;
+  canReverse?: boolean;
 }) {
   return (
     <section className="rounded-xl bg-white p-4 shadow-soft sm:p-6">
@@ -52,7 +54,7 @@ export function ActivityFeed({
                         : ""}
                     {formatNaira(transaction.amount)}
                   </strong>
-                  {!transaction.isReversal && !transaction.reversedByTransactionId ? (
+                  {canReverse && !transaction.isReversal && !transaction.reversedByTransactionId ? (
                     <button
                       className="mt-1 block text-xs font-semibold text-black/45 hover:text-red-600"
                       type="button"

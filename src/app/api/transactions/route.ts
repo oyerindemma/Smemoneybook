@@ -9,6 +9,7 @@ import {
   getDashboardStateForUser,
   recordPersistentTransaction,
 } from "@/lib/bookkeeping/persistence";
+import { logApiFailure } from "@/lib/operations/monitoring";
 
 export const runtime = "nodejs";
 
@@ -33,8 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let userId: string | undefined;
+
   try {
     const user = await requireUser();
+    userId = user.id;
     const body = await parseJsonBody(request, transactionRequestSchema);
 
     const state = await recordPersistentTransaction({
@@ -66,6 +70,7 @@ export async function POST(request: Request) {
 
     if (!(error instanceof RequestValidationError)) {
       console.error(error);
+      await logApiFailure({ request, error, actorId: userId });
     }
     return jsonErrorFromUnknown(error, "Could not save this entry.");
   }

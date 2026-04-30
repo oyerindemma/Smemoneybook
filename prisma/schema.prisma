@@ -8,38 +8,42 @@ datasource db {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  name           String
-  email          String           @unique
-  password       String
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  members        BusinessMember[]
-  auditLogs      AuditLog[]
-  sessions       Session[]
-  DebtEvent      DebtEvent[]
-  ReportSnapshot ReportSnapshot[]
+  id              String               @id @default(cuid())
+  name            String
+  email           String               @unique
+  password        String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  members         BusinessMember[]
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  sentInvitations BusinessInvitation[] @relation("InvitationSender")
+  DebtEvent       DebtEvent[]
+  ReportSnapshot  ReportSnapshot[]
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  token      String   @unique
+  userId     String
+  userAgent  String?
+  ipAddress  String?
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model Business {
-  id              String           @id @default(cuid())
+  id              String               @id @default(cuid())
   name            String
-  country         String           @default("NG")
-  currency        String           @default("NGN")
-  vatRate         Decimal          @default(7.5)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  country         String               @default("NG")
+  currency        String               @default("NGN")
+  vatRate         Decimal              @default(7.5)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   members         BusinessMember[]
   accounts        Account[]
   customers       Customer[]
@@ -50,6 +54,8 @@ model Business {
   taxRuns         TaxRun[]
   reportSnapshots ReportSnapshot[]
   auditLogs       AuditLog[]
+  invitations     BusinessInvitation[]
+  apiErrors       ApiErrorLog[]
 }
 
 model BusinessMember {
@@ -62,6 +68,23 @@ model BusinessMember {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
+}
+
+model BusinessInvitation {
+  id          String    @id @default(cuid())
+  email       String
+  role        Role      @default(STAFF)
+  token       String    @unique
+  businessId  String
+  invitedById String
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invitedBy   User      @relation("InvitationSender", fields: [invitedById], references: [id])
+
+  @@index([businessId, email])
 }
 
 model Account {
@@ -247,6 +270,21 @@ model AuditLog {
   actor      User?    @relation(fields: [actorId], references: [id])
 
   @@index([businessId, createdAt])
+}
+
+model ApiErrorLog {
+  id         String    @id @default(cuid())
+  route      String
+  method     String
+  message    String
+  code       String?
+  businessId String?
+  actorId    String?
+  createdAt  DateTime  @default(now())
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([route, createdAt])
 }
 
 enum Role {

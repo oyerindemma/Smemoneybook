@@ -132,6 +132,13 @@ export type AuditLog = {
 
 export type MoneybookState = {
   businessName: string;
+  businessRole?: "owner" | "accountant" | "staff";
+  permissions?: {
+    canManageStaff: boolean;
+    canManageAccounts: boolean;
+    canSaveReports: boolean;
+    canExportBackup: boolean;
+  };
   accounts: Account[];
   transactions: Transaction[];
   debts: Debt[];
@@ -142,6 +149,13 @@ export type MoneybookState = {
 export function createDefaultBusiness(name: string): MoneybookState {
   return {
     businessName: name,
+    businessRole: "owner",
+    permissions: {
+      canManageStaff: true,
+      canManageAccounts: true,
+      canSaveReports: true,
+      canExportBackup: true,
+    },
     accounts: [
       { id: "cash", name: "Cash", type: "cash", openingBalance: 125000, balance: 125000 },
       { id: "bank", name: "Bank", type: "bank", openingBalance: 840000, balance: 840000 },

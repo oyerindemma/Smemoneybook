@@ -9,6 +9,7 @@ import { DebtList } from "@/components/dashboard/DebtList";
 import { InsightStrip } from "@/components/dashboard/InsightStrip";
 import { InventoryPanel } from "@/components/dashboard/InventoryPanel";
 import { MoneyCard } from "@/components/dashboard/MoneyCard";
+import { OperationsPanel } from "@/components/dashboard/OperationsPanel";
 import { QuickCapture } from "@/components/dashboard/QuickCapture";
 import { ReportsPanel } from "@/components/dashboard/ReportsPanel";
 import type {
@@ -399,6 +400,7 @@ export function MoneybookApp() {
         <ActivityFeed
           transactions={state.transactions}
           onReverse={handleReverseTransaction}
+          canReverse={state.permissions?.canManageAccounts ?? false}
         />
 
         <InventoryPanel
@@ -410,7 +412,9 @@ export function MoneybookApp() {
         <ReportsPanel onNotice={setNotice} />
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <AccountsList accounts={state.accounts} onCreate={handleCreateAccount} />
+          {state.permissions?.canManageAccounts ? (
+            <AccountsList accounts={state.accounts} onCreate={handleCreateAccount} />
+          ) : null}
           <DebtList
             accounts={state.accounts}
             debts={state.debts}
@@ -419,6 +423,8 @@ export function MoneybookApp() {
             onRemind={handleRemindDebt}
           />
         </div>
+
+        <OperationsPanel onNotice={setNotice} />
       </section>
 
       <button
