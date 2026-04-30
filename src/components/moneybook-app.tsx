@@ -25,6 +25,10 @@ import {
 
 let transactionSequence = 0;
 type LoadStatus = "loading" | "ready" | "signed_out" | "setup_needed" | "error";
+type DashboardPayload = {
+  state?: MoneybookState;
+  error?: string;
+};
 
 export function MoneybookApp() {
   const [state, setState] = useState<MoneybookState | null>(null);
@@ -53,15 +57,26 @@ export function MoneybookApp() {
     setLoadStatus("loading");
     const selectedBusinessId =
       typeof window === "undefined" ? "" : localStorage.getItem("selectedBusinessId");
-    const query = selectedBusinessId ? `?businessId=${selectedBusinessId}` : "";
-    const response = await fetch(`/api/dashboard/summary${query}`, {
-      credentials: "include",
-      cache: "no-store",
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      state?: MoneybookState;
-      error?: string;
-    } | null;
+    const query = selectedBusinessId
+      ? `?businessId=${encodeURIComponent(selectedBusinessId)}`
+      : "";
+    let response: Response;
+    let payload: DashboardPayload | null = null;
+
+    try {
+      response = await fetch(`/api/dashboard/summary${query}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      payload = (await response.json().catch(() => null)) as DashboardPayload | null;
+    } catch {
+      setState(null);
+      setLoadStatus("error");
+      setNotice(
+        "Could not reach the app server. Check that `npm run dev` is still running, then try again.",
+      );
+      return;
+    }
 
     if (response.ok && payload?.state) {
       setState(payload.state);
@@ -591,7 +606,8 @@ function AuthPanel({
   onReady: () => Promise<void>;
 }) {
   const [authMode, setAuthMode] = useState<"login" | "register">("register");
-  const [message, setMessage] = useState(notice);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
+  const message = formMessage ?? notice;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -615,10 +631,11 @@ function AuthPanel({
     } | null;
 
     if (!response.ok) {
-      setMessage(payload?.error ?? "Could not continue.");
+      setFormMessage(payload?.error ?? "Could not continue.");
       return;
     }
 
+    setFormMessage(null);
     await onReady();
   }
 
@@ -644,7 +661,10 @@ function AuthPanel({
                 authMode === "register" ? "bg-ink text-white" : "text-black/65"
               }`}
               type="button"
-              onClick={() => setAuthMode("register")}
+              onClick={() => {
+                setAuthMode("register");
+                setFormMessage(null);
+              }}
             >
               Create
             </button>
@@ -653,7 +673,10 @@ function AuthPanel({
                 authMode === "login" ? "bg-ink text-white" : "text-black/65"
               }`}
               type="button"
-              onClick={() => setAuthMode("login")}
+              onClick={() => {
+                setAuthMode("login");
+                setFormMessage(null);
+              }}
             >
               Sign in
             </button>
