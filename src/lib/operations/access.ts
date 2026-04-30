@@ -24,9 +24,12 @@ export function hasPermission(role: Role, permission: Permission) {
   return permissions[role].includes(permission);
 }
 
-export async function getBusinessAccess(userId: string): Promise<BusinessAccess | null> {
+export async function getBusinessAccess(
+  userId: string,
+  businessId?: string,
+): Promise<BusinessAccess | null> {
   const membership = await getPrisma().businessMember.findFirst({
-    where: { userId },
+    where: { userId, businessId },
     orderBy: { createdAt: "asc" },
     include: { business: { select: { id: true, name: true } } },
   });
@@ -45,8 +48,9 @@ export async function getBusinessAccess(userId: string): Promise<BusinessAccess 
 export async function requireBusinessAccess(
   userId: string,
   permission?: Permission,
+  businessId?: string,
 ): Promise<BusinessAccess> {
-  const access = await getBusinessAccess(userId);
+  const access = await getBusinessAccess(userId, businessId);
 
   if (!access) {
     throw new Error("Create a business before continuing.");

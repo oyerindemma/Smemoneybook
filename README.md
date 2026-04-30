@@ -138,6 +138,16 @@ Use this only for local or staging databases.
 - Backups export business data as JSON. Restore uploads are validated and audit-logged before any live-data restore.
 - API failures are written to `ApiErrorLog` when routes catch unexpected operational errors.
 
+## Paid Tier Rules
+
+- WhatsApp reminders generate a prefilled `wa.me` link and store the reminder event. Add provider credentials before automatic sending.
+- Category assist uses deterministic SME rules locally and can be replaced with an AI provider behind `/api/assist/categorize`.
+- Receipt extraction stores uploaded receipt text, suggested amount, vendor and category for review.
+- Offline transaction captures are stored in the browser and synced through `/api/offline/transactions` when the network returns.
+- Billing checkout records plan intent for ₦3,000, ₦6,000 and ₦10,000 tiers. Connect Paystack or Stripe before live charges.
+- Users can belong to multiple businesses; the dashboard can load a selected business by `businessId`.
+- Accountant exports provide a lightweight CSV pack while full backups remain available to owner/accountant roles.
+
 ## Deployment Notes
 
 For Vercel + Neon:

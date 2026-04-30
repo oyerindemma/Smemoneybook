@@ -40,6 +40,7 @@ export const businessRequestSchema = z.object({
 export const transactionRequestSchema = z
   .object({
     idempotencyKey: optionalText,
+    businessId: optionalText,
     type: z.enum(["sale", "expense", "transfer"]),
     amount: z.coerce.number().finite().positive("Enter an amount greater than zero."),
     accountId: requiredText("Account"),
@@ -121,6 +122,16 @@ export const transactionRequestSchema = z
     }
   });
 
+export const offlineTransactionsRequestSchema = z.object({
+  businessId: optionalText,
+  captures: z.array(
+    z.object({
+      clientId: requiredText("Offline entry id"),
+      transaction: transactionRequestSchema,
+    }),
+  ).min(1, "Add at least one offline entry."),
+});
+
 export const accountRequestSchema = z.object({
   name: requiredText("Account name"),
   type: z.enum(["cash", "bank", "pos", "mobile_money"]),
@@ -165,6 +176,24 @@ export const remindDebtRequestSchema = z.object({
 export const staffInvitationRequestSchema = z.object({
   email: z.email("Enter a valid staff email.").trim().toLowerCase(),
   role: z.enum(["staff", "accountant"]).default("staff"),
+});
+
+export const categorizationRequestSchema = z.object({
+  description: requiredText("Description"),
+  amount: z.coerce.number().finite().nonnegative().optional(),
+  type: z.enum(["sale", "expense", "transfer"]).optional(),
+});
+
+export const receiptUploadRequestSchema = z.object({
+  businessId: optionalText,
+  fileName: requiredText("Receipt filename"),
+  mimeType: optionalText,
+  text: z.string().max(10_000).optional().default(""),
+});
+
+export const billingCheckoutRequestSchema = z.object({
+  businessId: optionalText,
+  plan: z.enum(["starter", "growth", "pro"]).default("growth"),
 });
 
 export const restoreBackupRequestSchema = z.object({

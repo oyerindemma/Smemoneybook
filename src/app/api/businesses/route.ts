@@ -5,6 +5,8 @@ import {
   createBusinessForUser,
   getFirstBusinessForUser,
 } from "@/lib/bookkeeping/persistence";
+import { mapRole } from "@/lib/operations/access";
+import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -12,7 +14,19 @@ export async function GET() {
   try {
     const user = await requireUser();
     const business = await getFirstBusinessForUser(user.id);
-    return Response.json({ business });
+    const businesses = await getPrisma().businessMember.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "asc" },
+      include: { business: { select: { id: true, name: true } } },
+    });
+    return Response.json({
+      business,
+      businesses: businesses.map((membership) => ({
+        id: membership.business.id,
+        name: membership.business.name,
+        role: mapRole(membership.role),
+      })),
+    });
   } catch (error) {
     if (error instanceof Response) {
       return jsonError("Sign in to continue.", error.status);

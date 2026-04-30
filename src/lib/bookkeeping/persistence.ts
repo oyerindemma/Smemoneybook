@@ -35,6 +35,7 @@ import {
   requireBusinessAccess,
 } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
+import { buildWhatsAppReminder } from "@/lib/integrations/whatsapp";
 
 type PrismaTransaction = Omit<
   PrismaClient,
@@ -95,19 +96,21 @@ export async function getFirstBusinessForUser(userId: string) {
 
 export async function getDashboardStateForUser(
   userId: string,
+  businessId?: string,
 ): Promise<MoneybookState | null> {
-  const access = await getBusinessAccess(userId);
+  const access = await getBusinessAccess(userId, businessId);
 
   if (!access) {
     return null;
   }
 
-  return getDashboardState(access.businessId, access.role);
+  return getDashboardState(access.businessId, access.role, userId);
 }
 
 export async function getDashboardState(
   businessId: string,
   role?: Role,
+  userId?: string,
 ): Promise<MoneybookState> {
   const business = await getPrisma().business.findUniqueOrThrow({
     where: { id: businessId },
@@ -138,8 +141,22 @@ export async function getDashboardState(
     },
   });
 
+  const memberships = userId
+    ? await getPrisma().businessMember.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+        include: { business: { select: { id: true, name: true } } },
+      })
+    : [];
+
   return {
+    businessId: business.id,
     businessName: business.name,
+    businesses: memberships.map((membership) => ({
+      id: membership.business.id,
+      name: membership.business.name,
+      role: mapRole(membership.role),
+    })),
     businessRole: role ? mapRole(role) : undefined,
     permissions: role
       ? {
@@ -165,11 +182,13 @@ export async function getDashboardState(
 export async function recordPersistentTransaction({
   userId,
   input,
+  businessId,
 }: {
   userId: string;
   input: TransactionInput;
+  businessId?: string;
 }) {
-  const business = await requireBusinessAccess(userId, "money:write");
+  const business = await requireBusinessAccess(userId, "money:write", businessId);
 
   await getPrisma().$transaction(async (tx) => {
     const account = await tx.account.findFirst({
@@ -356,7 +375,7 @@ export async function recordPersistentTransaction({
     });
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function createAccountForUser({
@@ -391,7 +410,7 @@ export async function createAccountForUser({
     },
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function reverseTransactionForUser({
@@ -508,7 +527,7 @@ export async function reverseTransactionForUser({
     });
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function getOpenDebtsForUser(userId: string) {
@@ -632,6 +651,14 @@ export async function remindDebtForUser({
   }
 
   const partyName = debt.customer?.name ?? debt.supplier?.name ?? "Customer";
+  const whatsapp = channel === "whatsapp"
+    ? buildWhatsAppReminder({
+        phone: debt.customer?.phone ?? undefined,
+        partyName,
+        amount: formatNaira(debt.amount.minus(debt.paidAmount).toNumber()),
+        businessName: business.businessName,
+      })
+    : null;
 
   await getPrisma().debtEvent.create({
     data: {
@@ -639,7 +666,7 @@ export async function remindDebtForUser({
       actorId: userId,
       type: DebtEventType.REMINDER,
       channel,
-      note: note || `Reminder prepared via ${channel}.`,
+      note: note || whatsapp?.message || `Reminder prepared via ${channel}.`,
     },
   });
 
@@ -654,13 +681,17 @@ export async function remindDebtForUser({
         amount: debt.amount.toNumber(),
         channel,
         note,
+        whatsappUrl: whatsapp?.url,
       },
     },
   });
 
   return {
-    message: `Reminder noted for ${partyName}.`,
-    state: await getDashboardState(business.businessId, business.role),
+    message: whatsapp?.url
+      ? `WhatsApp reminder ready for ${partyName}.`
+      : `Reminder noted for ${partyName}.`,
+    whatsappUrl: whatsapp?.url,
+    state: await getDashboardState(business.businessId, business.role, userId),
   };
 }
 
@@ -788,7 +819,7 @@ export async function collectDebtForUser({
     });
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function settleSupplierDebtForUser({
@@ -910,7 +941,7 @@ export async function settleSupplierDebtForUser({
     });
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function getInventoryForUser(userId: string) {
@@ -979,7 +1010,7 @@ export async function createInventoryItemForUser({
     },
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function moveInventoryForUser({
@@ -1040,7 +1071,7 @@ export async function moveInventoryForUser({
     });
   });
 
-  return getDashboardState(business.businessId, business.role);
+  return getDashboardState(business.businessId, business.role, userId);
 }
 
 export async function getMonthlyReportForUser({

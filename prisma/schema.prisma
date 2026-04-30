@@ -56,6 +56,9 @@ model Business {
   auditLogs       AuditLog[]
   invitations     BusinessInvitation[]
   apiErrors       ApiErrorLog[]
+  receipts        Receipt[]
+  subscriptions   Subscription[]
+  offlineCaptures OfflineCapture[]
 }
 
 model BusinessMember {
@@ -287,6 +290,56 @@ model ApiErrorLog {
   @@index([route, createdAt])
 }
 
+model Receipt {
+  id          String   @id @default(cuid())
+  fileName    String
+  mimeType    String?
+  extractedAt DateTime @default(now())
+  vendor      String?
+  amount      Decimal?
+  category    String?
+  rawText     String?
+  businessId  String
+  actorId     String?
+  createdAt   DateTime @default(now())
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  plan               SubscriptionPlan
+  status             SubscriptionStatus @default(TRIALING)
+  amountMonthlyKobo  Int
+  provider           String             @default("manual")
+  providerCustomerId String?
+  providerSessionId  String?
+  currentPeriodEnd   DateTime?
+  businessId         String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, status])
+}
+
+model OfflineCapture {
+  id          String    @id @default(cuid())
+  clientId    String
+  payload     Json
+  status      String    @default("received")
+  error       String?
+  businessId  String
+  actorId     String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, clientId])
+  @@index([businessId, createdAt])
+}
+
 enum Role {
   OWNER
   STAFF
@@ -339,4 +392,17 @@ enum InventoryMovementType {
 enum TaxStatus {
   DRAFT
   FINAL
+}
+
+enum SubscriptionPlan {
+  STARTER
+  GROWTH
+  PRO
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }

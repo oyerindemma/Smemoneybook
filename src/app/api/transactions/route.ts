@@ -43,6 +43,7 @@ export async function POST(request: Request) {
 
     const state = await recordPersistentTransaction({
       userId: user.id,
+      businessId: body.businessId,
       input: {
         idempotencyKey: body.idempotencyKey || crypto.randomUUID(),
         type: body.type,

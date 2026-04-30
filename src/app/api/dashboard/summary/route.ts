@@ -4,10 +4,11 @@ import { getDashboardStateForUser } from "@/lib/bookkeeping/persistence";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const state = await getDashboardStateForUser(user.id);
+    const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
+    const state = await getDashboardStateForUser(user.id, businessId);
 
     if (!state) {
       return jsonError("Create a business to start tracking money.", 404);

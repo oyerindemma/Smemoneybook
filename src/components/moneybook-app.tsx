@@ -10,6 +10,7 @@ import { InsightStrip } from "@/components/dashboard/InsightStrip";
 import { InventoryPanel } from "@/components/dashboard/InventoryPanel";
 import { MoneyCard } from "@/components/dashboard/MoneyCard";
 import { OperationsPanel } from "@/components/dashboard/OperationsPanel";
+import { PaidTierPanel } from "@/components/dashboard/PaidTierPanel";
 import { QuickCapture } from "@/components/dashboard/QuickCapture";
 import { ReportsPanel } from "@/components/dashboard/ReportsPanel";
 import type {
@@ -43,9 +44,17 @@ export function MoneybookApp() {
     void loadDashboard();
   }, []);
 
+  useEffect(() => {
+    window.addEventListener("online", syncOfflineTransactions);
+    return () => window.removeEventListener("online", syncOfflineTransactions);
+  });
+
   async function loadDashboard() {
     setLoadStatus("loading");
-    const response = await fetch("/api/dashboard/summary", {
+    const selectedBusinessId =
+      typeof window === "undefined" ? "" : localStorage.getItem("selectedBusinessId");
+    const query = selectedBusinessId ? `?businessId=${selectedBusinessId}` : "";
+    const response = await fetch(`/api/dashboard/summary${query}`, {
       credentials: "include",
       cache: "no-store",
     });
@@ -76,6 +85,11 @@ export function MoneybookApp() {
 
     setLoadStatus("error");
     setNotice(payload?.error ?? "Connect Neon and run migrations to continue.");
+  }
+
+  async function handleBusinessChange(businessId: string) {
+    localStorage.setItem("selectedBusinessId", businessId);
+    await loadDashboard();
   }
 
   function chooseAction(action: QuickAction) {
@@ -113,11 +127,25 @@ export function MoneybookApp() {
   }
 
   async function saveTransaction(formData: CaptureFormData & { idempotencyKey: string }) {
+    const body = { ...formData, businessId: state?.businessId };
+    if (!navigator.onLine) {
+      const pending = JSON.parse(localStorage.getItem("offlineTransactions") ?? "[]") as unknown[];
+      localStorage.setItem(
+        "offlineTransactions",
+        JSON.stringify([
+          ...pending,
+          { clientId: formData.idempotencyKey, transaction: body },
+        ]),
+      );
+      setNotice("Saved offline. It will sync when your network returns.");
+      return;
+    }
+
     const response = await fetch("/api/transactions", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(body),
     });
     const payload = (await response.json().catch(() => null)) as {
       state?: MoneybookState;
@@ -132,6 +160,27 @@ export function MoneybookApp() {
 
     setNotice(payload?.error ?? "Could not save this entry.");
     await loadDashboard();
+  }
+
+  async function syncOfflineTransactions() {
+    const pending = JSON.parse(localStorage.getItem("offlineTransactions") ?? "[]") as unknown[];
+
+    if (pending.length === 0 || !navigator.onLine) {
+      return;
+    }
+
+    const response = await fetch("/api/offline/transactions", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessId: state?.businessId, captures: pending }),
+    });
+
+    if (response.ok) {
+      localStorage.removeItem("offlineTransactions");
+      setNotice("Offline entries synced.");
+      await loadDashboard();
+    }
   }
 
   async function handleLogout() {
@@ -152,6 +201,7 @@ export function MoneybookApp() {
     });
     const payload = (await response.json().catch(() => null)) as {
       message?: string;
+      whatsappUrl?: string;
       state?: MoneybookState;
       error?: string;
     } | null;
@@ -166,6 +216,9 @@ export function MoneybookApp() {
             ? "Reminder noted."
             : `${channel.toUpperCase()} reminder prepared.`),
       );
+      if (payload?.whatsappUrl) {
+        window.open(payload.whatsappUrl, "_blank", "noopener,noreferrer");
+      }
       return;
     }
 
@@ -374,7 +427,10 @@ export function MoneybookApp() {
     <main className="min-h-screen bg-[#F5F3EF] pb-28 text-ink md:pb-10">
       <ShellHeader
         businessName={state.businessName}
+        businessId={state.businessId}
+        businesses={state.businesses ?? []}
         notice={notice}
+        onBusinessChange={handleBusinessChange}
         onLogout={handleLogout}
       />
 
@@ -410,6 +466,7 @@ export function MoneybookApp() {
         />
 
         <ReportsPanel onNotice={setNotice} />
+        <PaidTierPanel businessId={state.businessId} onNotice={setNotice} />
 
         <div className="grid gap-4 lg:grid-cols-2">
           {state.permissions?.canManageAccounts ? (
@@ -447,11 +504,17 @@ export function MoneybookApp() {
 
 function ShellHeader({
   businessName,
+  businessId,
+  businesses,
   notice,
+  onBusinessChange,
   onLogout,
 }: {
   businessName: string;
+  businessId?: string;
+  businesses: NonNullable<MoneybookState["businesses"]>;
   notice: string;
+  onBusinessChange: (businessId: string) => void;
   onLogout: () => void;
 }) {
   return (
@@ -468,6 +531,19 @@ function ShellHeader({
         </div>
 
         <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 md:flex">
+          {businesses.length > 1 ? (
+            <select
+              className="h-10 rounded-xl border border-black/10 bg-white px-3 text-sm font-semibold text-black/65"
+              value={businessId}
+              onChange={(event) => onBusinessChange(event.target.value)}
+            >
+              {businesses.map((business) => (
+                <option key={business.id} value={business.id}>
+                  {business.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <Link
             className="h-10 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-black/65 hover:bg-[#F5F3EF]"
             href="/customers"

@@ -131,7 +131,13 @@ export type AuditLog = {
 };
 
 export type MoneybookState = {
+  businessId?: string;
   businessName: string;
+  businesses?: Array<{
+    id: string;
+    name: string;
+    role: "owner" | "accountant" | "staff";
+  }>;
   businessRole?: "owner" | "accountant" | "staff";
   permissions?: {
     canManageStaff: boolean;
@@ -148,7 +154,9 @@ export type MoneybookState = {
 
 export function createDefaultBusiness(name: string): MoneybookState {
   return {
+    businessId: "demo",
     businessName: name,
+    businesses: [{ id: "demo", name, role: "owner" }],
     businessRole: "owner",
     permissions: {
       canManageStaff: true,
