@@ -40,11 +40,16 @@ export function databaseErrorMessage(error: unknown) {
     message.includes("Environment variable not found: DATABASE_URL") ||
     message.includes("must provide a nonempty URL")
   ) {
-    return "Database is not connected. Add your Neon DATABASE_URL in .env, then run the database migration.";
+    return "Database is not connected. Add your Neon DATABASE_URL in .env, then run `npm run db:migrate`.";
   }
 
-  if (code === "P2021" || message.includes("does not exist in the current database")) {
-    return "Database tables are missing. Run `npm run db:migrate -- --name init` and try again.";
+  if (
+    code === "P2021" ||
+    code === "P2022" ||
+    message.includes("does not exist in the current database") ||
+    (message.includes("column") && message.includes("does not exist"))
+  ) {
+    return "Database migrations are pending. Run `npm run db:migrate` and try again.";
   }
 
   if (code === "P1001") {

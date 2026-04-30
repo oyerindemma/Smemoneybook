@@ -552,7 +552,7 @@ function AuthPanel({
 
       {mode === "error" ? (
         <p className="rounded-xl bg-[#F5F3EF] p-4 text-sm text-black/65">
-          Add `DATABASE_URL` for Neon, then run `npx prisma migrate dev --name init`.
+          Add `DATABASE_URL` for Neon in .env, then run `npm run db:migrate`.
         </p>
       ) : (
         <>
