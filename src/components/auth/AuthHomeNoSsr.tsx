@@ -40,11 +40,11 @@ function PolicyLinks() {
     <div className="mt-7 border-t border-gray-100 pt-5 text-sm text-textSecondary">
       <p>By continuing, you agree to SME MoneyBook policies.</p>
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-3 font-semibold text-primary">
-        <Link href="/privacy">Privacy Policy</Link>
-        <Link href="/terms">Terms</Link>
-        <Link href="/security">Data Security</Link>
-        <Link href="/refund-policy">Refund Policy</Link>
-        <Link href="/financial-disclaimer">Financial Disclaimer</Link>
+        <Link href="/legal/privacy-policy">Privacy Policy</Link>
+        <Link href="/legal/terms-of-service">Terms</Link>
+        <Link href="/legal/data-security">Data Security</Link>
+        <Link href="/legal/refund-policy">Refund Policy</Link>
+        <Link href="/legal/financial-disclaimer">Financial Disclaimer</Link>
       </div>
     </div>
   );
