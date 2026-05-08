@@ -36,11 +36,15 @@ export function QuickCapture({
   activeAction: QuickAction | null;
   lastUsedAccountId: string;
   onActionSelect: (action: QuickAction) => void;
-  onSubmit: (formData: CaptureFormData) => void;
+  onSubmit: (formData: CaptureFormData) => Promise<void> | void;
 }) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("paid");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [itemQuantity, setItemQuantity] = useState(1);
+  const [amountInput, setAmountInput] = useState("");
+  const [amountTouched, setAmountTouched] = useState(false);
+  const [generateInvoice, setGenerateInvoice] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -49,10 +53,18 @@ export function QuickCapture({
     }
   }, [activeAction]);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setAmountTouched(true);
+
+    if (amountError) {
+      return;
+    }
+
     const form = new FormData(event.currentTarget);
     const note = String(form.get("note") || "").trim();
+    const partyName = String(form.get("partyName") || "").trim();
+    const invoiceNote = String(form.get("invoiceNote") || "").trim();
     const amount = Number(form.get("amount"));
     const type =
       activeAction === "expense"
@@ -67,60 +79,86 @@ export function QuickCapture({
     const inventoryItemId = String(form.get("inventoryItemId") || "").trim();
     const inventoryQuantity = Number(form.get("inventoryQuantity") || 0);
     const selectedItem = items.find((item) => item.id === inventoryItemId);
+    const isCustomerCredit = type === "sale" && paymentStatus === "credit";
+    const description =
+      (isCustomerCredit ? invoiceNote : note) ||
+      (type === "sale"
+        ? "Money in"
+        : type === "transfer"
+          ? "Money transfer"
+          : "Money out");
     const itemSaleAmount =
       type === "sale" && selectedItem && inventoryQuantity > 0
         ? selectedItem.sellingPrice * inventoryQuantity
         : amount;
 
-    onSubmit({
-      type,
-      amount: itemSaleAmount,
-      accountId: String(form.get("accountId")),
-      destinationAccountId:
-        type === "transfer" ? String(form.get("destinationAccountId")) : undefined,
-      description:
-        note ||
-        (type === "sale"
-          ? "Money in"
-          : type === "transfer"
-            ? "Money transfer"
-            : "Money out"),
-      category: category || undefined,
-      paymentStatus: type === "transfer" ? "paid" : paymentStatus,
-      partyName: type === "transfer" || paymentStatus === "paid" ? undefined : note || undefined,
-      partyPhone: partyPhone || undefined,
-      inventoryItemId: inventoryItemId || undefined,
-      inventoryQuantity:
-        inventoryItemId && inventoryQuantity > 0 ? inventoryQuantity : undefined,
-      occurredAt: occurredAt || undefined,
-      dueAt: dueAt || undefined,
-    });
+    setIsSaving(true);
+    try {
+      await onSubmit({
+        type,
+        amount: itemSaleAmount,
+        accountId: String(form.get("accountId")),
+        destinationAccountId:
+          type === "transfer" ? String(form.get("destinationAccountId")) : undefined,
+        description,
+        category: category || undefined,
+        paymentStatus: type === "transfer" ? "paid" : paymentStatus,
+        partyName:
+          type === "transfer" || paymentStatus === "paid"
+            ? undefined
+            : partyName || note || undefined,
+        partyPhone: partyPhone || undefined,
+        inventoryItemId: inventoryItemId || undefined,
+        inventoryQuantity:
+          inventoryItemId && inventoryQuantity > 0 ? inventoryQuantity : undefined,
+        occurredAt: occurredAt || undefined,
+        dueAt: dueAt || undefined,
+      });
 
-    event.currentTarget.reset();
-    setPaymentStatus("paid");
-    setSelectedItemId("");
-    setItemQuantity(1);
-    amountRef.current?.focus();
+      event.currentTarget.reset();
+      setAmountInput("");
+      setAmountTouched(false);
+      setPaymentStatus("paid");
+      setSelectedItemId("");
+      setItemQuantity(1);
+      setGenerateInvoice(true);
+      amountRef.current?.focus();
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   const isMoneyIn = activeAction === "sale";
   const isTransfer = activeAction === "transfer";
+  const isCustomerCredit = isMoneyIn && paymentStatus === "credit";
   const selectedItem = items.find((item) => item.id === selectedItemId);
+  const hasProductTotal = Boolean(selectedItem && itemQuantity > 0);
+  const amountNumber = Number(amountInput);
+  const amountError =
+    hasProductTotal
+      ? ""
+      : amountInput.trim() === ""
+        ? "Enter an amount"
+        : !Number.isFinite(amountNumber) || amountNumber <= 0
+          ? "Enter a valid amount"
+          : "";
   const defaultDestinationAccountId =
     accounts.find((account) => account.id !== lastUsedAccountId)?.id ?? accounts[0]?.id;
   const handleActionSelect = (action: QuickAction) => {
     setPaymentStatus("paid");
+    setAmountTouched(false);
+    setGenerateInvoice(true);
     onActionSelect(action);
   };
 
   return (
-    <section className="rounded-xl bg-white p-4 shadow-soft sm:p-6">
+    <section className="rounded-2xl bg-card p-6 shadow-sm border border-gray-100 transition hover:shadow-md sm:p-7">
       <div className="grid gap-3 sm:grid-cols-3">
         <button
-          className={`h-14 rounded-xl text-base font-semibold ${
+          className={`rounded-xl px-5 py-3 text-base font-semibold shadow-sm ${
             activeAction === "sale"
-              ? "bg-palm text-white"
-              : "border border-black/10 bg-[#F5F3EF] text-black/75"
+              ? "bg-success text-white"
+              : "border border-gray-200 bg-white text-textPrimary hover:bg-background"
           }`}
           type="button"
           onClick={() => handleActionSelect("sale")}
@@ -128,10 +166,10 @@ export function QuickCapture({
           + I got money
         </button>
         <button
-          className={`h-14 rounded-xl text-base font-semibold ${
+          className={`rounded-xl px-5 py-3 text-base font-semibold shadow-sm ${
             activeAction === "expense"
-              ? "bg-red-600 text-white"
-              : "border border-black/10 bg-[#F5F3EF] text-black/75"
+              ? "bg-danger text-white"
+              : "border border-gray-200 bg-white text-textPrimary hover:bg-background"
           }`}
           type="button"
           onClick={() => handleActionSelect("expense")}
@@ -139,10 +177,10 @@ export function QuickCapture({
           - I spent money
         </button>
         <button
-          className={`h-14 rounded-xl text-base font-semibold ${
+          className={`rounded-xl px-5 py-3 text-base font-semibold shadow-sm ${
             activeAction === "transfer"
-              ? "bg-lagoon text-white"
-              : "border border-black/10 bg-[#F5F3EF] text-black/75"
+              ? "bg-primary text-white hover:bg-primaryHover"
+              : "border border-gray-200 bg-white text-textPrimary hover:bg-background"
           }`}
           type="button"
           onClick={() => handleActionSelect("transfer")}
@@ -152,16 +190,21 @@ export function QuickCapture({
       </div>
 
       {activeAction ? (
-        <form className="mt-5 grid gap-4" onSubmit={submit}>
+        <form className="mt-5 grid gap-6" onSubmit={submit}>
           <label className="grid gap-2 text-sm font-medium">
             Amount
             <input
               ref={amountRef}
-              className="h-14 rounded-xl border border-black/10 px-4 text-lg font-semibold focus:focus-ring"
+              className={`h-14 rounded-xl border px-4 text-lg font-semibold focus:focus-ring ${
+                amountTouched && amountError ? "border-danger" : "border-gray-200"
+              }`}
               name="amount"
               type="number"
               min="1"
               inputMode="numeric"
+              value={amountInput}
+              onBlur={() => setAmountTouched(true)}
+              onChange={(event) => setAmountInput(event.target.value)}
               placeholder={
                 selectedItem
                   ? String(selectedItem.sellingPrice * Math.max(itemQuantity, 1))
@@ -169,14 +212,17 @@ export function QuickCapture({
               }
               required={!selectedItem}
             />
+            {amountTouched && amountError ? (
+              <p className="text-xs text-danger mt-1">{amountError}</p>
+            ) : null}
           </label>
 
           {isMoneyIn && items.length > 0 ? (
-            <div className="grid gap-3 rounded-xl bg-[#F5F3EF] p-3 sm:grid-cols-[1fr_120px]">
+            <div className="grid gap-3 rounded-xl bg-background p-3 sm:grid-cols-[1fr_120px]">
               <label className="grid gap-2 text-sm font-medium">
                 Product sold
                 <select
-                  className="h-12 rounded-xl border border-black/10 bg-white px-3 focus:focus-ring"
+                  className="h-12 rounded-xl border border-gray-200 bg-card px-3 focus:focus-ring"
                   name="inventoryItemId"
                   value={selectedItemId}
                   onChange={(event) => setSelectedItemId(event.target.value)}
@@ -192,7 +238,7 @@ export function QuickCapture({
               <label className="grid gap-2 text-sm font-medium">
                 Qty
                 <input
-                  className="h-12 rounded-xl border border-black/10 px-3 focus:focus-ring"
+                  className="h-12 rounded-xl border border-gray-200 px-3 focus:focus-ring"
                   min="1"
                   name="inventoryQuantity"
                   type="number"
@@ -201,7 +247,7 @@ export function QuickCapture({
                 />
               </label>
               {selectedItem ? (
-                <p className="text-sm text-black/60 sm:col-span-2">
+                <p className="text-sm text-textSecondary sm:col-span-2">
                   Sale total {formatProductTotal(selectedItem.sellingPrice, itemQuantity)}
                 </p>
               ) : null}
@@ -209,9 +255,9 @@ export function QuickCapture({
           ) : null}
 
           <label className="grid gap-2 text-sm font-medium">
-            {isTransfer ? "From account" : "Account"}
+            {isTransfer ? "From" : "Where is the money?"}
             <select
-              className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+              className="h-14 rounded-xl border border-gray-200 bg-card px-4 focus:focus-ring"
               name="accountId"
               defaultValue={lastUsedAccountId}
               required
@@ -226,9 +272,9 @@ export function QuickCapture({
 
           {isTransfer ? (
             <label className="grid gap-2 text-sm font-medium">
-              To account
+              To
               <select
-                className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+                className="h-14 rounded-xl border border-gray-200 bg-card px-4 focus:focus-ring"
                 name="destinationAccountId"
                 defaultValue={defaultDestinationAccountId}
                 required
@@ -245,7 +291,7 @@ export function QuickCapture({
           <label className="grid gap-2 text-sm font-medium">
             Date
             <input
-              className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
+              className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
               name="occurredAt"
               type="date"
             />
@@ -255,7 +301,7 @@ export function QuickCapture({
             <label className="grid gap-2 text-sm font-medium">
               Category
               <select
-                className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+                className="h-14 rounded-xl border border-gray-200 bg-card px-4 focus:focus-ring"
                 name="category"
                 defaultValue=""
               >
@@ -273,7 +319,7 @@ export function QuickCapture({
             <label className="grid gap-2 text-sm font-medium">
               VAT type
               <select
-                className="h-14 rounded-xl border border-black/10 bg-white px-4 focus:focus-ring"
+                className="h-14 rounded-xl border border-gray-200 bg-card px-4 focus:focus-ring"
                 name="category"
                 defaultValue="Taxable sale"
               >
@@ -283,45 +329,8 @@ export function QuickCapture({
             </label>
           ) : null}
 
-          {!isTransfer && paymentStatus !== "paid" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-medium">
-                Phone
-                <input
-                  className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
-                  name="partyPhone"
-                  placeholder="Optional"
-                  type="tel"
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-medium">
-                Due date
-                <input
-                  className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
-                  name="dueAt"
-                  type="date"
-                />
-              </label>
-            </div>
-          ) : null}
-
-          <label className="grid gap-2 text-sm font-medium">
-            Note
-            <input
-              className="h-14 rounded-xl border border-black/10 px-4 focus:focus-ring"
-              name="note"
-              placeholder={
-                isMoneyIn
-                  ? "Optional, e.g. Amina Stores"
-                  : isTransfer
-                    ? "Optional, e.g. POS settlement"
-                    : "Optional, e.g. fuel"
-              }
-            />
-          </label>
-
           {!isTransfer ? (
-          <div className="grid gap-2 rounded-xl bg-[#F5F3EF] p-3">
+          <div className="grid gap-2 rounded-xl bg-background p-3">
             {(isMoneyIn
               ? [
                   ["paid", "Paid now"],
@@ -336,8 +345,8 @@ export function QuickCapture({
                 key={value}
                 className={`flex h-11 items-center rounded-xl px-3 text-left text-sm font-medium ${
                   paymentStatus === value
-                    ? "bg-ink text-white"
-                    : "bg-white text-black/70"
+                    ? "bg-primary text-white hover:bg-primaryHover"
+                    : "border border-gray-200 bg-white text-textPrimary hover:bg-background"
                 }`}
                 type="button"
                 onClick={() => setPaymentStatus(value as PaymentStatus)}
@@ -349,12 +358,95 @@ export function QuickCapture({
           </div>
           ) : null}
 
-          <div className="sticky bottom-20 z-20 -mx-4 bg-white/95 px-4 py-3 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0">
+          {!isTransfer && paymentStatus !== "paid" ? (
+            <div className="grid gap-4 rounded-2xl border border-gray-100 bg-background/70 p-4">
+              {isCustomerCredit ? (
+                <label className="flex items-center justify-between gap-3 rounded-xl bg-card px-4 py-3 text-sm font-medium shadow-sm">
+                  <span>Generate invoice</span>
+                  <input
+                    checked={generateInvoice}
+                    className="h-5 w-5 rounded border-gray-200 text-primary focus:focus-ring"
+                    type="checkbox"
+                    onChange={(event) => setGenerateInvoice(event.target.checked)}
+                  />
+                </label>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium">
+                  {isCustomerCredit ? "Customer name" : "Supplier name"}
+                  <input
+                    className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
+                    name="partyName"
+                    placeholder={isCustomerCredit ? "e.g. Amina Stores" : "e.g. supplier name"}
+                    required
+                  />
+                </label>
+                <label className="grid gap-2 text-sm font-medium">
+                  Phone
+                  <input
+                    className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
+                    name="partyPhone"
+                    placeholder="Optional"
+                    type="tel"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium">
+                  Due date
+                  <input
+                    className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
+                    name="dueAt"
+                    type="date"
+                  />
+                </label>
+                {isCustomerCredit ? (
+                  <label className="grid gap-2 text-sm font-medium">
+                    Invoice note
+                    <input
+                      className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
+                      name="invoiceNote"
+                      placeholder="Optional, e.g. bags of rice"
+                    />
+                  </label>
+                ) : (
+                  <label className="grid gap-2 text-sm font-medium">
+                    Note
+                    <input
+                      className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
+                      name="note"
+                      placeholder="Optional, e.g. stock balance"
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          ) : (
+            <label className="grid gap-2 text-sm font-medium">
+              Note
+              <input
+                className="h-14 rounded-xl border border-gray-200 px-4 focus:focus-ring"
+                name="note"
+                placeholder={
+                  isMoneyIn
+                    ? "Optional, e.g. morning sale"
+                    : isTransfer
+                      ? "Optional, e.g. POS settlement"
+                      : "Optional, e.g. fuel"
+                }
+              />
+            </label>
+          )}
+
+          <div className="sticky bottom-20 z-20 -mx-6 bg-card/95 px-6 py-4 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0">
             <button
-              className="h-14 w-full rounded-xl bg-ink text-base font-semibold text-white"
+              className="w-full rounded-xl bg-primary px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-primaryHover disabled:cursor-not-allowed disabled:bg-textMuted"
               type="submit"
+              disabled={Boolean(amountError) || isSaving}
             >
-              Save
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

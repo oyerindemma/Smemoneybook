@@ -5,6 +5,16 @@ import { getPrisma } from "@/lib/prisma";
 const sessionCookieName = "sme_moneybook_session";
 const sessionDays = 30;
 
+function sessionCookieOptions(expiresAt: Date) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expiresAt,
+  };
+}
+
 export type AuthUser = {
   id: string;
   name: string;
@@ -38,13 +48,7 @@ export async function createSession(userId: string, request?: Request) {
   });
 
   const cookieStore = await cookies();
-  cookieStore.set(sessionCookieName, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt,
-  });
+  cookieStore.set(sessionCookieName, token, sessionCookieOptions(expiresAt));
 }
 
 export async function destroySession() {
@@ -55,7 +59,10 @@ export async function destroySession() {
     await getPrisma().session.deleteMany({ where: { token } });
   }
 
-  cookieStore.delete(sessionCookieName);
+  cookieStore.set(sessionCookieName, "", {
+    ...sessionCookieOptions(new Date(0)),
+    maxAge: 0,
+  });
 }
 
 export async function destroySessionById(userId: string, sessionId: string) {

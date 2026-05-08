@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const limited = enforceRateLimit(request, "auth.register", 5);
+    const limited = await enforceRateLimit(request, "auth.register", 5);
     if (limited) {
       return limited;
     }
@@ -34,11 +34,22 @@ export async function POST(request: Request) {
       },
     });
 
-    await createBusinessForUser(user.id, businessName);
+    const business = businessName
+      ? await createBusinessForUser(user.id, businessName)
+      : null;
+
     await createSession(user.id, request);
 
     return Response.json({
       user: { id: user.id, name: user.name, email: user.email },
+      business: business
+        ? {
+            id: business.id,
+            name: business.name,
+            businessType: business.businessType,
+            onboardingCompleted: business.onboardingCompleted,
+          }
+        : null,
     });
   } catch (error) {
     console.error(error);

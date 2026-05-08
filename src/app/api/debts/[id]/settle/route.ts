@@ -18,6 +18,7 @@ export async function POST(
     const body = await parseJsonBody(request, settleSupplierDebtRequestSchema);
     const state = await settleSupplierDebtForUser({
       userId: user.id,
+      businessId: body.businessId,
       debtId: id,
       accountId: body.accountId,
       idempotencyKey: body.idempotencyKey || crypto.randomUUID(),

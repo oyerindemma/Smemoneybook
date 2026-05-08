@@ -1,3 +1,5 @@
+import { EmptyState } from "@/components/dashboard/EmptyState";
+import { ListSkeleton } from "@/components/dashboard/Skeleton";
 import type { Transaction } from "@/components/dashboard/types";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 
@@ -5,23 +7,32 @@ export function ActivityFeed({
   transactions,
   onReverse,
   canReverse = true,
+  isLoading = false,
+  onRecord,
 }: {
   transactions: Transaction[];
   onReverse: (transactionId: string) => void;
   canReverse?: boolean;
+  isLoading?: boolean;
+  onRecord?: () => void;
 }) {
   return (
-    <section className="rounded-xl bg-white p-4 shadow-soft sm:p-6">
+    <section className="rounded-2xl bg-card p-6 shadow-sm border border-gray-100 transition-shadow duration-200 md:hover:shadow-md md:p-7">
       <div>
-        <p className="text-sm text-black/55">Latest records</p>
-        <h2 className="text-xl font-semibold">Activity</h2>
+        <p className="text-xs text-textSecondary md:text-sm">Latest records</p>
+        <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Activity</h2>
       </div>
 
-      <div className="mt-4 divide-y divide-black/10">
-        {transactions.length === 0 ? (
-          <p className="rounded-xl bg-[#F5F3EF] p-4 text-sm text-black/60">
-            Nothing recorded yet.
-          </p>
+      <div className="mt-6 divide-y divide-gray-100">
+        {isLoading ? (
+          <ListSkeleton rows={4} />
+        ) : transactions.length === 0 ? (
+          <EmptyState
+            title="No activity yet"
+            description="Record your first sale to start tracking profit automatically."
+            actionLabel="Record first sale"
+            onAction={onRecord}
+          />
         ) : (
           transactions.slice(0, 8).map((transaction) => {
             const title = transaction.description ?? "Activity";
@@ -29,23 +40,23 @@ export function ActivityFeed({
             return (
               <div
                 key={transaction.id}
-                className="grid grid-cols-[1fr_auto] gap-3 py-4"
+                className="grid grid-cols-[1fr_auto] gap-4 py-5"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{title}</p>
-                  <p className="mt-1 text-sm text-black/50">
+                  <p className="truncate text-sm font-semibold md:text-base">{title}</p>
+                  <p className="mt-1 text-xs text-textMuted md:text-sm">
                     {describeTransaction(transaction)}
                   </p>
                 </div>
                 <div className="text-right">
                   <strong
-                    className={
+                    className={`tabular-nums ${
                       transaction.type === "sale"
-                        ? "text-palm"
+                        ? "text-success"
                         : transaction.type === "transfer" || transaction.type === "adjustment"
-                          ? "text-lagoon"
-                          : "text-red-600"
-                    }
+                          ? "text-textSecondary"
+                          : "text-danger"
+                    }`}
                   >
                     {transaction.type === "sale"
                       ? "+"
@@ -56,7 +67,7 @@ export function ActivityFeed({
                   </strong>
                   {canReverse && !transaction.isReversal && !transaction.reversedByTransactionId ? (
                     <button
-                      className="mt-1 block text-xs font-semibold text-black/45 hover:text-red-600"
+                      className="mt-1 block text-xs font-semibold text-textMuted transition-colors hover:text-danger"
                       type="button"
                       onClick={() => onReverse(transaction.id)}
                     >
@@ -98,7 +109,7 @@ export function describeTransaction(transaction: Transaction) {
   }
 
   if (type === "TRANSFER") {
-    return transaction.reversedByTransactionId ? "Transfer reversed" : "Moved between accounts";
+    return transaction.reversedByTransactionId ? "Transfer reversed" : "Moved between money places";
   }
 
   if (type === "ADJUSTMENT") {

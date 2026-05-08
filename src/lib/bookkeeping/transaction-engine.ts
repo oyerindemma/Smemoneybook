@@ -133,6 +133,8 @@ export type AuditLog = {
 export type MoneybookState = {
   businessId?: string;
   businessName: string;
+  businessType?: string;
+  onboardingCompleted?: boolean;
   businesses?: Array<{
     id: string;
     name: string;
@@ -156,6 +158,8 @@ export function createDefaultBusiness(name: string): MoneybookState {
   return {
     businessId: "demo",
     businessName: name,
+    businessType: "Retail",
+    onboardingCompleted: true,
     businesses: [{ id: "demo", name, role: "owner" }],
     businessRole: "owner",
     permissions: {
@@ -196,7 +200,7 @@ export function recordTransaction(
       (transaction) => transaction.idempotencyKey === input.idempotencyKey,
     )
   ) {
-    throw new Error("This transaction has already been recorded.");
+    return state;
   }
 
   const account = state.accounts.find((item) => item.id === input.accountId);

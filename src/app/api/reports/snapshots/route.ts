@@ -8,9 +8,10 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const { month, year, period, date } = getReportPeriod(request);
+    const { businessId, month, year, period, date } = getReportPeriod(request);
     const report = await saveReportSnapshotForUser({
       userId: user.id,
+      businessId,
       month,
       year,
       period,

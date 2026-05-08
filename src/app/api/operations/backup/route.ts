@@ -11,7 +11,8 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser();
     userId = user.id;
-    const backup = await exportBusinessBackup(user.id);
+    const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
+    const backup = await exportBusinessBackup(user.id, businessId);
 
     return Response.json(backup, {
       headers: {

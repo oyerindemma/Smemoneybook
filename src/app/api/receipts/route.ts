@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/session";
 import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, receiptUploadRequestSchema } from "@/lib/api/validation";
 import { extractReceipt } from "@/lib/assist/receipts";
+import { requireFeatureAccess } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 
@@ -13,6 +14,12 @@ export async function POST(request: Request) {
     const user = await requireUser();
     const body = await parseJsonBody(request, receiptUploadRequestSchema);
     const access = await requireBusinessAccess(user.id, "money:write", body.businessId);
+    const gated = await requireFeatureAccess(user.id, access.businessId, "receipt_extraction");
+
+    if (gated) {
+      return gated;
+    }
+
     const extraction = extractReceipt(body.text);
     const receipt = await getPrisma().receipt.create({
       data: {

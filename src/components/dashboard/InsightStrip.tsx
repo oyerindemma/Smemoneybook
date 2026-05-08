@@ -3,26 +3,31 @@ import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 
 export function InsightStrip({
   summary,
-  transactionCount,
+  activityCount,
 }: {
   summary: DashboardSummary;
-  transactionCount: number;
+  activityCount: number;
 }) {
-  const insights = [
-    `Profit today: ${formatNaira(summary.profit)}.`,
-    `Customers owing: ${formatNaira(summary.customerDebt)}.`,
-    summary.customerDebt > 0
-      ? "Action: follow up the people who will pay later."
-      : "Action: keep recording as money moves.",
-    `Recorded today: ${transactionCount} item${transactionCount === 1 ? "" : "s"}.`,
-  ];
+  const insights =
+    activityCount === 0
+      ? ["No activity yet. Record your first sale to see today’s clarity."]
+      : [
+          summary.profit > 0
+            ? `You made ${formatNaira(summary.profit)} today.`
+            : "You recorded money today.",
+          summary.customerDebt > 0 ? `Customers still owe ${formatNaira(summary.customerDebt)}.` : null,
+          `Money in: ${formatNaira(summary.income)}.`,
+          `Money out: ${formatNaira(summary.expenses)}.`,
+          `You recorded ${activityCount} money activit${activityCount === 1 ? "y" : "ies"} today.`,
+          "Great job — your money is up to date.",
+        ].filter((insight): insight is string => Boolean(insight));
 
   return (
-    <section className="rounded-xl bg-white p-4 shadow-soft sm:p-6">
-      <h2 className="text-lg font-semibold">Today&apos;s clarity</h2>
-      <ul className="mt-3 grid gap-2 text-sm text-black/70 sm:grid-cols-2">
+    <section className="rounded-2xl bg-card p-6 shadow-sm border border-gray-100 transition-shadow duration-200 md:hover:shadow-md md:p-7">
+      <h2 className="text-xl font-semibold tracking-tight md:text-2xl">Today&apos;s clarity</h2>
+      <ul className="mt-5 grid gap-3 text-sm leading-6 text-textSecondary md:text-base lg:grid-cols-1">
         {insights.map((insight) => (
-          <li key={insight} className="rounded-xl bg-[#F5F3EF] p-3">
+          <li key={insight} className="rounded-2xl bg-background p-5 leading-6">
             {insight}
           </li>
         ))}

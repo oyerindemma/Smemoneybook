@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const { month, year } = getMonthYear(request);
-    const report = await saveTaxRunForUser({ userId: user.id, month, year });
+    const { businessId, month, year } = getMonthYear(request);
+    const report = await saveTaxRunForUser({ userId: user.id, businessId, month, year });
 
     return Response.json({ report, message: "VAT summary saved." });
   } catch (error) {

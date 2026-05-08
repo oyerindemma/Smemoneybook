@@ -45,6 +45,7 @@ describe("/api/transactions", () => {
         method: "POST",
         body: JSON.stringify({
           idempotencyKey: "ui-1",
+          businessId: "biz_1",
           type: "sale",
           amount: "15000",
           accountId: "cash",
@@ -58,6 +59,7 @@ describe("/api/transactions", () => {
     expect(response.status).toBe(201);
     expect(recordPersistentTransaction).toHaveBeenCalledWith({
       userId: "user_1",
+      businessId: "biz_1",
       input: {
         idempotencyKey: "ui-1",
         type: "sale",
@@ -85,6 +87,7 @@ describe("/api/transactions", () => {
         method: "POST",
         body: JSON.stringify({
           idempotencyKey: "transfer-1",
+          businessId: "biz_1",
           type: "transfer",
           amount: "20000",
           accountId: "cash",
@@ -114,6 +117,7 @@ describe("/api/transactions", () => {
         method: "POST",
         body: JSON.stringify({
           idempotencyKey: "product-sale-1",
+          businessId: "biz_1",
           type: "sale",
           amount: "36000",
           accountId: "cash",

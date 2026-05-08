@@ -5,6 +5,10 @@ import {
   createMoneyMovement,
   createReversalMovement,
 } from "@/lib/bookkeeping/domain";
+import {
+  createDefaultBusiness,
+  recordTransaction,
+} from "@/lib/bookkeeping/transaction-engine";
 
 describe("money domain", () => {
   it("increases balance and calculates profit for a paid sale", () => {
@@ -136,6 +140,33 @@ describe("money domain", () => {
 
     expect(buildDuplicateFingerprint(input, new Date("2026-04-30T10:20:15Z"))).toBe(
       buildDuplicateFingerprint(input, new Date("2026-04-30T10:20:55Z")),
+    );
+  });
+
+  it("treats duplicate idempotency keys as already applied", () => {
+    const state = createDefaultBusiness("Demo Store");
+    const firstRecord = recordTransaction(state, {
+      idempotencyKey: "ui-repeat",
+      type: "sale",
+      amount: 10_000,
+      accountId: "cash",
+      description: "Walk-in sale",
+      paymentStatus: "paid",
+    });
+
+    const repeatedRecord = recordTransaction(firstRecord, {
+      idempotencyKey: "ui-repeat",
+      type: "sale",
+      amount: 10_000,
+      accountId: "cash",
+      description: "Walk-in sale",
+      paymentStatus: "paid",
+    });
+
+    expect(repeatedRecord).toBe(firstRecord);
+    expect(repeatedRecord.transactions).toHaveLength(1);
+    expect(repeatedRecord.accounts.find((account) => account.id === "cash")?.balance).toBe(
+      135_000,
     );
   });
 });

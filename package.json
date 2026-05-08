@@ -12,12 +12,18 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "mobile:assets": "capacitor-assets generate --android --assetPath assets --iconBackgroundColor '#0B1F3A' --iconBackgroundColorDark '#0B1F3A' --splashBackgroundColor '#F5F3EF' --splashBackgroundColorDark '#0B1F3A'",
+    "mobile:sync": "cap sync android",
+    "mobile:android": "cap open android",
+    "mobile:android:dev": "CAPACITOR_SERVER_URL=http://10.0.2.2:3000 cap sync android && cap open android",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.2",
+    "@capacitor/core": "^7.6.2",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
@@ -28,6 +34,8 @@
     "zod": "^4.4.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.2",
     "@playwright/test": "^1.51.1",
     "@types/node": "^22.10.1",
     "@types/react": "^19.0.1",

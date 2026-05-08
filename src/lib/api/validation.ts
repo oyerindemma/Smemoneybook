@@ -21,11 +21,13 @@ const requiredText = (label: string, max = 120) =>
     .min(1, `${label} is required.`)
     .max(max, `${label} is too long.`);
 
+const selectedBusinessId = requiredText("Business", 240);
+
 export const registerRequestSchema = z.object({
   name: requiredText("Your name"),
   email: z.email("Enter a valid email.").trim().toLowerCase(),
   password: z.string().min(8, "Enter an 8+ character password."),
-  businessName: requiredText("Business name"),
+  businessName: optionalText,
 });
 
 export const loginRequestSchema = z.object({
@@ -37,10 +39,17 @@ export const businessRequestSchema = z.object({
   name: requiredText("Business name"),
 });
 
+export const onboardingSetupRequestSchema = z.object({
+  businessName: requiredText("Business name"),
+  businessType: z
+    .enum(["Retail", "Services", "Food", "Fashion", "Logistics", "Other"])
+    .default("Retail"),
+});
+
 export const transactionRequestSchema = z
   .object({
     idempotencyKey: optionalText,
-    businessId: optionalText,
+    businessId: selectedBusinessId,
     type: z.enum(["sale", "expense", "transfer"]),
     amount: z.coerce.number().finite().positive("Enter an amount greater than zero."),
     accountId: requiredText("Account"),
@@ -123,7 +132,7 @@ export const transactionRequestSchema = z
   });
 
 export const offlineTransactionsRequestSchema = z.object({
-  businessId: optionalText,
+  businessId: selectedBusinessId,
   captures: z.array(
     z.object({
       clientId: requiredText("Offline entry id"),
@@ -133,16 +142,19 @@ export const offlineTransactionsRequestSchema = z.object({
 });
 
 export const accountRequestSchema = z.object({
+  businessId: selectedBusinessId,
   name: requiredText("Account name"),
   type: z.enum(["cash", "bank", "pos", "mobile_money"]),
   openingBalance: z.coerce.number().finite().nonnegative().default(0),
 });
 
 export const reversalRequestSchema = z.object({
+  businessId: selectedBusinessId,
   reason: optionalText,
 });
 
 export const inventoryItemRequestSchema = z.object({
+  businessId: selectedBusinessId,
   name: requiredText("Product name"),
   sku: optionalText,
   sellingPrice: z.coerce.number().finite().nonnegative(),
@@ -152,51 +164,58 @@ export const inventoryItemRequestSchema = z.object({
 });
 
 export const inventoryMovementRequestSchema = z.object({
+  businessId: selectedBusinessId,
   quantity: z.coerce.number().int().positive("Enter a stock quantity greater than zero."),
   note: optionalText,
 });
 
 export const collectDebtRequestSchema = z.object({
+  businessId: selectedBusinessId,
   accountId: requiredText("Account"),
   amount: z.coerce.number().finite().positive().optional(),
   idempotencyKey: optionalText,
 });
 
 export const settleSupplierDebtRequestSchema = z.object({
+  businessId: selectedBusinessId,
   accountId: requiredText("Account"),
   amount: z.coerce.number().finite().positive().optional(),
   idempotencyKey: optionalText,
 });
 
 export const remindDebtRequestSchema = z.object({
+  businessId: selectedBusinessId,
   channel: z.enum(["manual", "whatsapp", "sms"]).default("manual"),
   note: optionalText,
 });
 
 export const staffInvitationRequestSchema = z.object({
+  businessId: selectedBusinessId,
   email: z.email("Enter a valid staff email.").trim().toLowerCase(),
   role: z.enum(["staff", "accountant"]).default("staff"),
 });
 
 export const categorizationRequestSchema = z.object({
+  businessId: selectedBusinessId,
   description: requiredText("Description"),
   amount: z.coerce.number().finite().nonnegative().optional(),
   type: z.enum(["sale", "expense", "transfer"]).optional(),
 });
 
 export const receiptUploadRequestSchema = z.object({
-  businessId: optionalText,
+  businessId: selectedBusinessId,
   fileName: requiredText("Receipt filename"),
   mimeType: optionalText,
   text: z.string().max(10_000).optional().default(""),
 });
 
 export const billingCheckoutRequestSchema = z.object({
-  businessId: optionalText,
+  businessId: selectedBusinessId,
   plan: z.enum(["starter", "growth", "pro"]).default("growth"),
 });
 
 export const restoreBackupRequestSchema = z.object({
+  businessId: selectedBusinessId,
   backup: z
     .object({
       version: z.literal(1),
@@ -220,6 +239,7 @@ export const monthYearSearchSchema = z.object({
 });
 
 export const reportPeriodSearchSchema = z.object({
+  businessId: selectedBusinessId,
   period: z.enum(["day", "week", "month"]).default("month"),
   date: optionalText,
   month: z.coerce.number().int().min(1).max(12).optional(),
@@ -259,6 +279,7 @@ export function parseReportPeriod(request: Request) {
   const url = new URL(request.url);
   const now = new Date();
   const result = reportPeriodSearchSchema.safeParse({
+    businessId: url.searchParams.get("businessId") ?? undefined,
     period: url.searchParams.get("period") ?? "month",
     date: url.searchParams.get("date") ?? undefined,
     month: url.searchParams.get("month") ?? undefined,
@@ -279,5 +300,5 @@ export function parseReportPeriod(request: Request) {
   const month = result.data.month ?? date.getUTCMonth() + 1;
   const year = result.data.year ?? date.getUTCFullYear();
 
-  return { period, date, month, year };
+  return { businessId: result.data.businessId, period, date, month, year };
 }

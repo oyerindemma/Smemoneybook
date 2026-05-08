@@ -8,14 +8,16 @@ const inviteDays = 7;
 
 export async function inviteStaff({
   actorId,
+  businessId,
   email,
   role,
 }: {
   actorId: string;
+  businessId?: string;
   email: string;
   role: "staff" | "accountant";
 }) {
-  const access = await requireBusinessAccess(actorId, "admin");
+  const access = await requireBusinessAccess(actorId, "admin", businessId);
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + inviteDays * 24 * 60 * 60 * 1000);
 
@@ -101,8 +103,8 @@ export async function acceptInvitation({
   return { ok: true };
 }
 
-export async function getOperationsOverview(userId: string) {
-  const access = await requireBusinessAccess(userId);
+export async function getOperationsOverview(userId: string, businessId?: string) {
+  const access = await requireBusinessAccess(userId, undefined, businessId);
   const prisma = getPrisma();
   const [members, invitations, auditLogs, apiErrors] = await Promise.all([
     prisma.businessMember.findMany({
@@ -162,8 +164,8 @@ export async function getOperationsOverview(userId: string) {
   };
 }
 
-export async function exportBusinessBackup(userId: string) {
-  const access = await requireBusinessAccess(userId, "backup:read");
+export async function exportBusinessBackup(userId: string, businessId?: string) {
+  const access = await requireBusinessAccess(userId, "backup:read", businessId);
   const business = await getPrisma().business.findUniqueOrThrow({
     where: { id: access.businessId },
     include: {
@@ -195,8 +197,8 @@ export async function exportBusinessBackup(userId: string) {
   };
 }
 
-export async function validateRestoreBackup(userId: string, body: unknown) {
-  const access = await requireBusinessAccess(userId, "admin");
+export async function validateRestoreBackup(userId: string, body: unknown, businessId?: string) {
+  const access = await requireBusinessAccess(userId, "admin", businessId);
   const parsed = restoreBackupRequestSchema.parse(body);
   const backup = parsed.backup;
 

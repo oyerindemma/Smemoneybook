@@ -19,6 +19,7 @@ export async function POST(
     const body = await parseJsonBody(request, reversalRequestSchema);
     const state = await reverseTransactionForUser({
       userId: user.id,
+      businessId: body.businessId,
       transactionId: id,
       reason: body.reason,
     });

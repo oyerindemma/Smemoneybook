@@ -35,7 +35,7 @@ import {
   requireBusinessAccess,
 } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
-import { buildWhatsAppReminder } from "@/lib/integrations/whatsapp";
+import { sendDebtReminder } from "@/lib/whatsapp/service";
 
 type PrismaTransaction = Omit<
   PrismaClient,
@@ -48,10 +48,16 @@ const defaultAccounts = [
   { name: "POS", type: AccountType.POS },
 ] as const;
 
-export async function createBusinessForUser(userId: string, name: string) {
+export async function createBusinessForUser(
+  userId: string,
+  name: string,
+  options: { businessType?: string; onboardingCompleted?: boolean } = {},
+) {
   return getPrisma().business.create({
     data: {
       name,
+      businessType: options.businessType,
+      onboardingCompleted: options.onboardingCompleted ?? false,
       members: {
         create: {
           userId,
@@ -112,46 +118,71 @@ export async function getDashboardState(
   role?: Role,
   userId?: string,
 ): Promise<MoneybookState> {
-  const business = await getPrisma().business.findUniqueOrThrow({
-    where: { id: businessId },
-    include: {
-      accounts: { orderBy: { createdAt: "asc" } },
-      transactions: {
-        orderBy: { occurredAt: "desc" },
-        take: 50,
-        include: {
-          reversesTransaction: { select: { type: true } },
-          reversalTransaction: { select: { id: true } },
-        },
+  const prisma = getPrisma();
+  const [
+    business,
+    accounts,
+    transactions,
+    debts,
+    items,
+    auditLogs,
+    memberships,
+  ] = await Promise.all([
+    prisma.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: {
+        id: true,
+        name: true,
+        businessType: true,
+        onboardingCompleted: true,
       },
-      debts: {
-        where: { status: DebtStatus.OPEN },
-        include: {
-          customer: true,
-          supplier: true,
-          events: { orderBy: { createdAt: "desc" }, take: 5 },
-        },
-        orderBy: { createdAt: "desc" },
+    }),
+    prisma.account.findMany({
+      where: { businessId },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.transaction.findMany({
+      where: { businessId },
+      orderBy: { occurredAt: "desc" },
+      take: 50,
+      include: {
+        reversesTransaction: { select: { type: true } },
+        reversalTransaction: { select: { id: true } },
       },
-      items: {
-        orderBy: { updatedAt: "desc" },
-        include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
+    }),
+    prisma.debt.findMany({
+      where: { businessId, status: DebtStatus.OPEN },
+      include: {
+        customer: true,
+        supplier: true,
+        events: { orderBy: { createdAt: "desc" }, take: 5 },
       },
-      auditLogs: { orderBy: { createdAt: "desc" }, take: 20 },
-    },
-  });
-
-  const memberships = userId
-    ? await getPrisma().businessMember.findMany({
-        where: { userId },
-        orderBy: { createdAt: "asc" },
-        include: { business: { select: { id: true, name: true } } },
-      })
-    : [];
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.inventoryItem.findMany({
+      where: { businessId },
+      orderBy: { updatedAt: "desc" },
+      include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
+    }),
+    prisma.auditLog.findMany({
+      where: { businessId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+    userId
+      ? prisma.businessMember.findMany({
+          where: { userId },
+          orderBy: { createdAt: "asc" },
+          include: { business: { select: { id: true, name: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return {
     businessId: business.id,
     businessName: business.name,
+    businessType: business.businessType ?? undefined,
+    onboardingCompleted: business.onboardingCompleted,
     businesses: memberships.map((membership) => ({
       id: membership.business.id,
       name: membership.business.name,
@@ -166,11 +197,11 @@ export async function getDashboardState(
           canExportBackup: hasPermission(role, "backup:read"),
         }
       : undefined,
-    accounts: business.accounts.map(mapAccount),
-    transactions: business.transactions.map(mapTransaction),
-    debts: business.debts.map(mapDebt),
-    items: business.items.map(mapInventoryItem),
-    auditLogs: business.auditLogs.map((auditLog) => ({
+    accounts: accounts.map(mapAccount),
+    transactions: transactions.map(mapTransaction),
+    debts: debts.map(mapDebt),
+    items: items.map(mapInventoryItem),
+    auditLogs: auditLogs.map((auditLog) => ({
       id: auditLog.id,
       action: auditLog.action,
       message: auditLog.message,
@@ -363,6 +394,7 @@ export async function recordPersistentTransaction({
       dueAt: input.dueAt,
       customerId: party.customerId,
       supplierId: party.supplierId,
+      note: input.description,
     });
 
     await tx.auditLog.create({
@@ -380,16 +412,18 @@ export async function recordPersistentTransaction({
 
 export async function createAccountForUser({
   userId,
+  businessId,
   name,
   type,
   openingBalance,
 }: {
   userId: string;
+  businessId?: string;
   name: string;
   type: Account["type"];
   openingBalance: number;
 }) {
-  const business = await requireBusinessAccess(userId, "admin");
+  const business = await requireBusinessAccess(userId, "admin", businessId);
 
   await getPrisma().account.create({
     data: {
@@ -415,14 +449,16 @@ export async function createAccountForUser({
 
 export async function reverseTransactionForUser({
   userId,
+  businessId,
   transactionId,
   reason,
 }: {
   userId: string;
+  businessId?: string;
   transactionId: string;
   reason?: string;
 }) {
-  const business = await requireBusinessAccess(userId, "money:write");
+  const business = await requireBusinessAccess(userId, "money:write", businessId);
 
   await getPrisma().$transaction(async (tx) => {
     const original = await tx.transaction.findFirst({
@@ -625,16 +661,18 @@ export async function getSupplierControlForUser(userId: string) {
 
 export async function remindDebtForUser({
   userId,
+  businessId,
   debtId,
   channel = "manual",
   note,
 }: {
   userId: string;
+  businessId?: string;
   debtId: string;
   channel?: "manual" | "whatsapp" | "sms";
   note?: string;
 }) {
-  const business = await requireBusinessAccess(userId, "money:write");
+  const business = await requireBusinessAccess(userId, "money:write", businessId);
 
   const debt = await getPrisma().debt.findFirst({
     where: {
@@ -651,14 +689,21 @@ export async function remindDebtForUser({
   }
 
   const partyName = debt.customer?.name ?? debt.supplier?.name ?? "Customer";
-  const whatsapp = channel === "whatsapp"
-    ? buildWhatsAppReminder({
-        phone: debt.customer?.phone ?? undefined,
-        partyName,
-        amount: formatNaira(debt.amount.minus(debt.paidAmount).toNumber()),
-        businessName: business.businessName,
-      })
-    : null;
+  const remainingAmount = debt.amount.minus(debt.paidAmount).toNumber();
+  const whatsapp =
+    channel === "whatsapp"
+      ? await sendDebtReminder({
+          to: debt.customer?.phone ?? "",
+          customerName: partyName,
+          amount: remainingAmount,
+          businessName: business.businessName,
+          dueDate: debt.dueAt,
+          businessId: business.businessId,
+          actorId: userId,
+          source: "debt.reminder",
+          metadata: { debtId },
+        })
+      : null;
 
   await getPrisma().debtEvent.create({
     data: {
@@ -666,7 +711,11 @@ export async function remindDebtForUser({
       actorId: userId,
       type: DebtEventType.REMINDER,
       channel,
-      note: note || whatsapp?.message || `Reminder prepared via ${channel}.`,
+      note:
+        note ||
+        (whatsapp?.ok
+          ? "WhatsApp reminder sent."
+          : whatsapp?.error || `Reminder prepared via ${channel}.`),
     },
   });
 
@@ -678,37 +727,41 @@ export async function remindDebtForUser({
       message: `Reminder noted for ${partyName}.`,
       metadata: {
         debtId,
-        amount: debt.amount.toNumber(),
+        amount: remainingAmount,
         channel,
         note,
-        whatsappUrl: whatsapp?.url,
+        whatsapp,
       },
     },
   });
 
   return {
-    message: whatsapp?.url
-      ? `WhatsApp reminder ready for ${partyName}.`
+    message: whatsapp?.ok
+      ? `WhatsApp reminder sent to ${partyName}.`
+      : whatsapp?.error
+        ? whatsapp.error
       : `Reminder noted for ${partyName}.`,
-    whatsappUrl: whatsapp?.url,
+    whatsappResult: whatsapp,
     state: await getDashboardState(business.businessId, business.role, userId),
   };
 }
 
 export async function collectDebtForUser({
   userId,
+  businessId,
   debtId,
   accountId,
   idempotencyKey,
   amount,
 }: {
   userId: string;
+  businessId?: string;
   debtId: string;
   accountId: string;
   idempotencyKey: string;
   amount?: number;
 }) {
-  const business = await requireBusinessAccess(userId, "money:write");
+  const business = await requireBusinessAccess(userId, "money:write", businessId);
 
   await getPrisma().$transaction(async (tx) => {
     const debt = await tx.debt.findFirst({
@@ -824,18 +877,20 @@ export async function collectDebtForUser({
 
 export async function settleSupplierDebtForUser({
   userId,
+  businessId,
   debtId,
   accountId,
   idempotencyKey,
   amount,
 }: {
   userId: string;
+  businessId?: string;
   debtId: string;
   accountId: string;
   idempotencyKey: string;
   amount?: number;
 }) {
-  const business = await requireBusinessAccess(userId, "money:write");
+  const business = await requireBusinessAccess(userId, "money:write", businessId);
 
   await getPrisma().$transaction(async (tx) => {
     const debt = await tx.debt.findFirst({
@@ -962,6 +1017,7 @@ export async function getInventoryForUser(userId: string) {
 
 export async function createInventoryItemForUser({
   userId,
+  businessId,
   name,
   sellingPrice,
   costPrice,
@@ -970,6 +1026,7 @@ export async function createInventoryItemForUser({
   sku,
 }: {
   userId: string;
+  businessId?: string;
   name: string;
   sellingPrice: number;
   costPrice: number;
@@ -977,7 +1034,7 @@ export async function createInventoryItemForUser({
   lowStockLevel: number;
   sku?: string;
 }) {
-  const business = await requireBusinessAccess(userId, "inventory:write");
+  const business = await requireBusinessAccess(userId, "inventory:write", businessId);
 
   await getPrisma().inventoryItem.create({
     data: {
@@ -1015,18 +1072,20 @@ export async function createInventoryItemForUser({
 
 export async function moveInventoryForUser({
   userId,
+  businessId,
   itemId,
   quantity,
   direction,
   note,
 }: {
   userId: string;
+  businessId?: string;
   itemId: string;
   quantity: number;
   direction: "in" | "out";
   note?: string;
 }) {
-  const business = await requireBusinessAccess(userId, "inventory:write");
+  const business = await requireBusinessAccess(userId, "inventory:write", businessId);
 
   await getPrisma().$transaction(async (tx) => {
     const item = await tx.inventoryItem.findFirst({
@@ -1076,18 +1135,20 @@ export async function moveInventoryForUser({
 
 export async function getMonthlyReportForUser({
   userId,
+  businessId,
   month,
   year,
   period = "month",
   date,
 }: {
   userId: string;
+  businessId?: string;
   month: number;
   year: number;
   period?: MonthlyReport["period"];
   date?: Date;
 }): Promise<MonthlyReport | null> {
-  const business = await getFirstBusinessForUser(userId);
+  const business = await requireBusinessAccess(userId, "reports:write", businessId);
 
   if (!business) {
     return null;
@@ -1284,14 +1345,16 @@ export async function getMonthlyReport({
 
 export async function saveTaxRunForUser({
   userId,
+  businessId,
   month,
   year,
 }: {
   userId: string;
+  businessId?: string;
   month: number;
   year: number;
 }) {
-  const business = await requireBusinessAccess(userId, "reports:write");
+  const business = await requireBusinessAccess(userId, "reports:write", businessId);
 
   const report = await getMonthlyReport({ businessId: business.businessId, month, year });
 
@@ -1332,18 +1395,20 @@ export async function saveTaxRunForUser({
 
 export async function saveReportSnapshotForUser({
   userId,
+  businessId,
   month,
   year,
   period = "month",
   date,
 }: {
   userId: string;
+  businessId?: string;
   month: number;
   year: number;
   period?: MonthlyReport["period"];
   date?: Date;
 }) {
-  const business = await requireBusinessAccess(userId, "reports:write");
+  const business = await requireBusinessAccess(userId, "reports:write", businessId);
 
   const report = await getMonthlyReport({
     businessId: business.businessId,
@@ -1593,6 +1658,7 @@ async function createDebtIfNeeded({
   dueAt,
   customerId,
   supplierId,
+  note,
 }: {
   tx: PrismaTransaction;
   businessId: string;
@@ -1601,12 +1667,13 @@ async function createDebtIfNeeded({
   dueAt?: string;
   customerId?: string;
   supplierId?: string;
+  note?: string;
 }) {
   if (!debt) {
     return;
   }
 
-  await tx.debt.create({
+  const createdDebt = await tx.debt.create({
     data: {
       businessId,
       customerId: debt.type === "customer_owes_business" ? customerId : undefined,
@@ -1617,6 +1684,16 @@ async function createDebtIfNeeded({
       dueAt: dueAt ? new Date(dueAt) : undefined,
     },
   });
+
+  if (note?.trim()) {
+    await tx.debtEvent.create({
+      data: {
+        debtId: createdDebt.id,
+        type: DebtEventType.NOTE,
+        note: note.trim(),
+      },
+    });
+  }
 }
 
 async function applyAccountDelta(

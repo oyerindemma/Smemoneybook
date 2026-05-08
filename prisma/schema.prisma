@@ -20,6 +20,10 @@ model User {
   sentInvitations BusinessInvitation[] @relation("InvitationSender")
   DebtEvent       DebtEvent[]
   ReportSnapshot  ReportSnapshot[]
+  subscriptions   Subscription[]
+  assistantThreads AssistantThread[]
+  assistantMessages AssistantMessage[]
+  pendingAssistantActions PendingAssistantAction[]
 }
 
 model Session {
@@ -37,28 +41,37 @@ model Session {
 }
 
 model Business {
-  id              String               @id @default(cuid())
-  name            String
-  country         String               @default("NG")
-  currency        String               @default("NGN")
-  vatRate         Decimal              @default(7.5)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  members         BusinessMember[]
-  accounts        Account[]
-  customers       Customer[]
-  suppliers       Supplier[]
-  transactions    Transaction[]
-  debts           Debt[]
-  items           InventoryItem[]
-  taxRuns         TaxRun[]
-  reportSnapshots ReportSnapshot[]
-  auditLogs       AuditLog[]
-  invitations     BusinessInvitation[]
-  apiErrors       ApiErrorLog[]
-  receipts        Receipt[]
-  subscriptions   Subscription[]
-  offlineCaptures OfflineCapture[]
+  id                  String               @id @default(cuid())
+  name                String
+  businessType        String?
+  onboardingCompleted Boolean              @default(false)
+  country             String               @default("NG")
+  currency            String               @default("NGN")
+  vatRate             Decimal              @default(7.5)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  members             BusinessMember[]
+  accounts            Account[]
+  customers           Customer[]
+  suppliers           Supplier[]
+  transactions        Transaction[]
+  debts               Debt[]
+  items               InventoryItem[]
+  taxRuns             TaxRun[]
+  reportSnapshots     ReportSnapshot[]
+  auditLogs           AuditLog[]
+  invitations         BusinessInvitation[]
+  apiErrors           ApiErrorLog[]
+  receipts            Receipt[]
+  subscriptions       Subscription[]
+  offlineCaptures     OfflineCapture[]
+  whatsappMessages    WhatsAppMessage[]
+  whatsappEvents      WhatsAppEvent[]
+  messagePreferences  MessagePreference?
+  assistantThreads    AssistantThread[]
+  automationPreference AutomationPreference?
+  automationLogs      AutomationLog[]
+  pendingAssistantActions PendingAssistantAction[]
 }
 
 model BusinessMember {
@@ -308,20 +321,52 @@ model Receipt {
 }
 
 model Subscription {
-  id                 String             @id @default(cuid())
-  plan               SubscriptionPlan
-  status             SubscriptionStatus @default(TRIALING)
-  amountMonthlyKobo  Int
-  provider           String             @default("manual")
-  providerCustomerId String?
-  providerSessionId  String?
-  currentPeriodEnd   DateTime?
-  businessId         String
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  business           Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(cuid())
+  plan                SubscriptionPlan
+  status              SubscriptionStatus @default(TRIALING)
+  amountMonthlyKobo   Int
+  amount              Int?
+  reference           String?            @unique
+  provider            String             @default("manual")
+  providerCustomerId  String?
+  providerSessionId   String?
+  paystackAccessCode  String?
+  paystackCheckoutUrl String?
+  paidAt              DateTime?
+  currentPeriodEnd    DateTime?
+  businessId          String
+  userId              String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user                User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([businessId, status])
+  @@index([userId, status])
+}
+
+model PaymentEvent {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  eventType   String
+  payload     Json
+  processedAt DateTime @default(now())
+
+  @@index([eventType, processedAt])
+}
+
+model AccountDeletionRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  email       String
+  status      String    @default("pending")
+  reason      String?
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+  metadata    Json?
+
+  @@index([userId])
+  @@index([status])
 }
 
 model OfflineCapture {
@@ -338,6 +383,140 @@ model OfflineCapture {
 
   @@unique([businessId, clientId])
   @@index([businessId, createdAt])
+}
+
+model WhatsAppMessage {
+  id           String    @id @default(cuid())
+  type         String
+  direction    String
+  status       String?
+  phone        String
+  message      String
+  templateName String?
+  externalId   String?
+  metadata     Json?
+  businessId   String?
+  actorId      String?
+  createdAt    DateTime  @default(now())
+  business     Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([phone, createdAt])
+  @@index([externalId])
+}
+
+model WhatsAppEvent {
+  id         String    @id @default(cuid())
+  eventType  String
+  payload    Json
+  businessId String?
+  externalId String?
+  createdAt  DateTime  @default(now())
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([externalId])
+}
+
+model MessagePreference {
+  id              String   @id @default(cuid())
+  businessId      String   @unique
+  remindersEnabled Boolean @default(true)
+  quietHoursStart String?
+  quietHoursEnd   String?
+  timezone        String   @default("Africa/Lagos")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model AssistantThread {
+  id         String             @id @default(cuid())
+  businessId String
+  userId     String
+  title      String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  business   Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   AssistantMessage[]
+
+  @@index([businessId])
+  @@index([userId])
+}
+
+model AssistantMessage {
+  id        String          @id @default(cuid())
+  threadId  String
+  userId    String?
+  role      String
+  content   String
+  metadata  Json?
+  createdAt DateTime        @default(now())
+  thread    AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([threadId])
+}
+
+model AutomationPreference {
+  id                         String   @id @default(cuid())
+  businessId                 String   @unique
+  dailyReminderEnabled       Boolean  @default(false)
+  dailyReminderTime          String?
+  debtReminderEnabled        Boolean  @default(false)
+  lowStockAlertEnabled       Boolean  @default(true)
+  weeklySummaryEnabled       Boolean  @default(false)
+  whatsappAutomationEnabled  Boolean  @default(false)
+  quietHoursStart            String?
+  quietHoursEnd              String?
+  timezone                   String   @default("Africa/Lagos")
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  business                   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model AutomationLog {
+  id         String   @id @default(cuid())
+  businessId String
+  type       String
+  status     String
+  message    String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([type])
+  @@index([status])
+}
+
+model PendingAssistantAction {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String
+  type       String
+  payload    Json
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([status])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 enum Role {

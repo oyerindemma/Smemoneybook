@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const body = await parseJsonBody(request, staffInvitationRequestSchema);
     const invitation = await inviteStaff({
       actorId: user.id,
+      businessId: body.businessId,
       email: body.email,
       role: body.role,
     });

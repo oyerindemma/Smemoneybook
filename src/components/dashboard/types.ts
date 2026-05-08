@@ -23,6 +23,7 @@ export type CaptureFormData = {
   type: TransactionType;
   amount: number;
   accountId: string;
+  businessId?: string;
   destinationAccountId?: string;
   description: string;
   category?: string;
@@ -31,6 +32,7 @@ export type CaptureFormData = {
   partyPhone?: string;
   inventoryItemId?: string;
   inventoryQuantity?: number;
+  costOfGoods?: number;
   occurredAt?: string;
   dueAt?: string;
 };

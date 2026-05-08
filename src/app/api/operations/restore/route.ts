@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth/session";
 import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { parseJsonBody, restoreBackupRequestSchema } from "@/lib/api/validation";
 import { validateRestoreBackup } from "@/lib/operations/service";
 import { logApiFailure } from "@/lib/operations/monitoring";
 
@@ -11,8 +12,8 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     userId = user.id;
-    const body = await request.json().catch(() => undefined);
-    const result = await validateRestoreBackup(user.id, body);
+    const body = await parseJsonBody(request, restoreBackupRequestSchema);
+    const result = await validateRestoreBackup(user.id, body, body.businessId);
 
     return Response.json(result);
   } catch (error) {

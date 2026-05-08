@@ -29,21 +29,21 @@ export default function InvitePage({
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F5F3EF] px-4 text-ink">
-      <section className="w-full max-w-md rounded-xl bg-white p-5 shadow-soft sm:p-6">
-        <p className="text-sm text-black/55">SME Moneybook</p>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 text-textPrimary">
+      <section className="w-full max-w-md rounded-xl bg-card p-5 shadow-sm border border-gray-100 transition hover:shadow-md sm:p-6">
+        <p className="text-sm text-textSecondary">SME Moneybook</p>
         <h1 className="mt-1 text-2xl font-semibold">Staff invitation</h1>
-        <p className="mt-2 text-sm leading-6 text-black/60">{message}</p>
+        <p className="mt-2 text-sm leading-6 text-textSecondary">{message}</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button
-            className="h-11 rounded-xl bg-ink text-sm font-semibold text-white"
+            className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primaryHover"
             type="button"
             onClick={acceptInvite}
           >
             Accept invite
           </button>
           <Link
-            className="flex h-11 items-center justify-center rounded-xl border border-black/10 text-sm font-semibold text-black/65"
+            className="flex h-11 items-center justify-center rounded-xl border border-gray-200 text-sm font-semibold text-textSecondary"
             href="/"
           >
             Sign in

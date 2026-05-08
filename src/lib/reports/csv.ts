@@ -27,6 +27,10 @@ export function monthlyReportToCsv(report: MonthlyReport) {
     ["Insights", report.insights.join(" | ")],
     ["Transactions", report.transactionCount],
     ["Generated at", report.generatedAt],
+    [
+      "Disclaimer",
+      "Automatically generated from recorded business data. Please verify before official submission or filing.",
+    ],
   ];
 
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");

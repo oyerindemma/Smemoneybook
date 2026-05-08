@@ -50,6 +50,10 @@ export async function requireBusinessAccess(
   permission?: Permission,
   businessId?: string,
 ): Promise<BusinessAccess> {
+  if (permission && !businessId) {
+    throw new Error("Select a business before continuing.");
+  }
+
   const access = await getBusinessAccess(userId, businessId);
 
   if (!access) {

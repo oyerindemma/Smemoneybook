@@ -1,5 +1,5 @@
-import { MoneybookApp } from "@/components/moneybook-app";
+import { AuthHomeNoSsr } from "@/components/auth/AuthHomeNoSsr";
 
 export default function Home() {
-  return <MoneybookApp />;
+  return <AuthHomeNoSsr />;
 }

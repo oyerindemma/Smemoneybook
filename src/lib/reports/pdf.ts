@@ -19,6 +19,9 @@ export function reportToPdf(report: MonthlyReport) {
     "",
     "Insights",
     ...report.insights.map((insight) => `- ${insight}`),
+    "",
+    "Disclaimer",
+    "Automatically generated from recorded business data. Please verify before official submission or filing.",
   ];
 
   const content = [

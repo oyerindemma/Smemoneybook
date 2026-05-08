@@ -8,9 +8,10 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const { month, year, period, date } = getReportPeriod(request);
+    const { businessId, month, year, period, date } = getReportPeriod(request);
     const report = await getMonthlyReportForUser({
       userId: user.id,
+      businessId,
       month,
       year,
       period,
@@ -33,8 +34,8 @@ export async function GET(request: Request) {
 }
 
 export function getMonthYear(request: Request) {
-  const { month, year } = parseReportPeriod(request);
-  return { month, year };
+  const { businessId, month, year } = parseReportPeriod(request);
+  return { businessId, month, year };
 }
 
 export function getReportPeriod(request: Request) {

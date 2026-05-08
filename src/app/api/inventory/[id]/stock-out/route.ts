@@ -16,6 +16,7 @@ export async function POST(
 
     const state = await moveInventoryForUser({
       userId: user.id,
+      businessId: body.businessId,
       itemId: id,
       quantity: body.quantity,
       direction: "out",

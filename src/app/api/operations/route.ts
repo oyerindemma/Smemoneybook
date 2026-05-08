@@ -11,7 +11,8 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser();
     userId = user.id;
-    const operations = await getOperationsOverview(user.id);
+    const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
+    const operations = await getOperationsOverview(user.id, businessId);
     return Response.json({ operations });
   } catch (error) {
     if (error instanceof Response) {

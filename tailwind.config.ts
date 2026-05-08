@@ -5,15 +5,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#111318",
-        palm: "#1f8a5b",
-        ember: "#d45d32",
-        gold: "#f1b84b",
-        lagoon: "#2364aa",
-        paper: "#f7f3ec",
-      },
-      boxShadow: {
-        soft: "0 18px 60px rgba(17, 19, 24, 0.09)",
+        primary: "#0B2D4D",
+        primaryHover: "#0B1F3A",
+        success: "#16A34A",
+        danger: "#DC2626",
+        accent: "#F59E0B",
+        background: "#F9FAFB",
+        card: "#FFFFFF",
+        textPrimary: "#111827",
+        textSecondary: "#6B7280",
+        textMuted: "#9CA3AF",
       },
     },
   },

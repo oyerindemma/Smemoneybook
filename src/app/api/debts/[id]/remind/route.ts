@@ -15,6 +15,7 @@ export async function POST(
     const body = await parseJsonBody(request, remindDebtRequestSchema);
     const result = await remindDebtForUser({
       userId: user.id,
+      businessId: body.businessId,
       debtId: id,
       channel: body.channel,
       note: body.note,
