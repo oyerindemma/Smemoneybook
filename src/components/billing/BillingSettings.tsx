@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { billingPlans, type BillingPlanId } from "@/lib/billing/plans";
+import { billingPlans, getPlanFeatureDetails, type BillingPlanId } from "@/lib/billing/plans";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 
 type BillingOverview = {
@@ -140,18 +140,29 @@ export function BillingSettings() {
       <section className="grid gap-3">
         {billingPlans.map((plan) => (
           <button
-            className="flex min-h-11 items-center justify-between rounded-2xl border border-gray-100 bg-card p-5 text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.99] disabled:opacity-70"
+            className="rounded-2xl border border-gray-100 bg-card p-5 text-left shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.99] disabled:opacity-70"
             disabled={Boolean(loadingPlan)}
             key={plan.id}
             type="button"
             onClick={() => upgrade(plan.id)}
           >
-            <span>
-              <span className="block font-semibold">{plan.name}</span>
-              <span className="text-sm text-textSecondary">₦{plan.amount.toLocaleString()} monthly</span>
+            <span className="flex items-start justify-between gap-4">
+              <span>
+                <span className="block font-semibold">{plan.name}</span>
+                <span className="mt-1 block text-sm text-textSecondary">₦{plan.amount.toLocaleString()} monthly · {plan.tagline}</span>
+                <span className="mt-2 block text-sm leading-6 text-textMuted">{plan.description}</span>
+              </span>
+              <span className="shrink-0 text-sm font-semibold text-primary">
+                {loadingPlan === plan.id ? "Redirecting..." : overview?.currentPlan?.id === plan.id ? "Current" : "Choose"}
+              </span>
             </span>
-            <span className="text-sm font-semibold text-primary">
-              {loadingPlan === plan.id ? "Redirecting..." : "Upgrade"}
+            <span className="mt-4 grid gap-2 text-sm text-textSecondary sm:grid-cols-2">
+              {getPlanFeatureDetails(plan).map((feature) => (
+                <span className="rounded-xl bg-background px-3 py-2" key={feature.id}>
+                  <span className="block font-semibold text-textPrimary">{feature.name}</span>
+                  <span className="mt-1 block text-xs leading-5 text-textMuted">{feature.summary}</span>
+                </span>
+              ))}
             </span>
           </button>
         ))}

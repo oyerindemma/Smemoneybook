@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { billingPlans, hasFeatureAccess } from "@/lib/billing/plans";
+import { billingFeatureDetails, billingPlans, getPlanFeatureDetails, hasFeatureAccess } from "@/lib/billing/plans";
 import { verifyPaystackSignature } from "@/lib/billing/paystack";
 
 describe("Paystack billing", () => {
@@ -17,6 +17,24 @@ describe("Paystack billing", () => {
     expect(hasFeatureAccess("starter", "receipt_extraction")).toBe(false);
     expect(hasFeatureAccess("growth", "receipt_extraction")).toBe(true);
     expect(hasFeatureAccess("pro", "team_management")).toBe(true);
+  });
+
+  it("maps every paid feature to owner-facing plan copy", () => {
+    const featureIds = Object.keys(billingFeatureDetails).sort();
+
+    expect(featureIds).toEqual([
+      "advanced_reports",
+      "ai_category_assist",
+      "audit_tools",
+      "basic_exports",
+      "receipt_extraction",
+      "team_management",
+    ]);
+    expect(getPlanFeatureDetails(billingPlans[1]).map((feature) => feature.name)).toEqual([
+      "Accountant exports",
+      "AI category assist",
+      "Receipt extraction",
+    ]);
   });
 
   it("verifies signed Paystack webhook payloads", () => {

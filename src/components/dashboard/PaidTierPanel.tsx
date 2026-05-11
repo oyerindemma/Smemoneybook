@@ -2,7 +2,7 @@
 
 import { FileText, Sparkles, Upload } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { billingPlans, type BillingPlanId } from "@/lib/billing/plans";
+import { billingPlans, getPlanFeatureDetails, type BillingPlanId } from "@/lib/billing/plans";
 
 export function PaidTierPanel({
   businessId,
@@ -190,22 +190,29 @@ export function PaidTierPanel({
         <div className="rounded-2xl border border-gray-200 p-5">
           <div className="flex items-center gap-2">
             <FileText size={18} aria-hidden="true" />
-            <h3 className="font-semibold">Billing and exports</h3>
+            <h3 className="font-semibold">Plans and exports</h3>
           </div>
           <div className="mt-4 grid gap-3">
             {billingPlans.map((plan) => (
               <button
-                className={
-                  plan.id === "growth"
-                    ? "rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-primaryHover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                    : "rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-textPrimary transition-all duration-150 hover:bg-background active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                }
+                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-sm transition-all duration-150 hover:bg-background active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={Boolean(loadingPlan)}
                 key={plan.id}
                 type="button"
                 onClick={() => startBilling(plan.id)}
               >
-                {loadingPlan === plan.id ? "Redirecting..." : `₦${plan.amount.toLocaleString()} ${plan.name}`}
+                <span className="flex items-start justify-between gap-3">
+                  <span>
+                    <span className="block font-semibold text-textPrimary">{plan.name}</span>
+                    <span className="mt-1 block text-xs leading-5 text-textSecondary">{plan.tagline}</span>
+                  </span>
+                  <span className="shrink-0 font-semibold text-primary">
+                    {loadingPlan === plan.id ? "..." : `₦${plan.amount.toLocaleString()}`}
+                  </span>
+                </span>
+                <span className="mt-3 block text-xs leading-5 text-textMuted">
+                  {getPlanFeatureDetails(plan).map((feature) => feature.name).join(" · ")}
+                </span>
               </button>
             ))}
             <a
