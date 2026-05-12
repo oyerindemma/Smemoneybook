@@ -2,7 +2,7 @@
 
 import { RefreshCw, WifiOff } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { CaptureFormData } from "@/components/dashboard/types";
+import type { CaptureFormData, RecordMoneyMode } from "@/components/dashboard/types";
 import { RecordMoneySheet } from "@/components/money/RecordMoneySheet";
 import { ListSkeleton, SummarySkeleton } from "@/components/dashboard/Skeleton";
 import { NoticeToast } from "@/components/dashboard/NoticeToast";
@@ -30,7 +30,7 @@ type DashboardContextValue = {
   todayActivityCount: number;
   notice: string;
   setNotice: (message: string) => void;
-  openRecordModal: () => void;
+  openRecordModal: (mode?: RecordMoneyMode) => void;
   recordMoney: (formData: CaptureFormData) => Promise<boolean>;
   reverseActivity: (transactionId: string) => Promise<void>;
   collectDebt: (debtId: string, accountId: string, amount?: number) => Promise<void>;
@@ -64,6 +64,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("online");
   const [isRecordOpen, setIsRecordOpen] = useState(false);
+  const [recordMode, setRecordMode] = useState<RecordMoneyMode>("money");
   const [upgradePrompt, setUpgradePrompt] = useState<{
     title: string;
     description: string;
@@ -436,7 +437,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         todayActivityCount,
         notice,
         setNotice,
-        openRecordModal: () => setIsRecordOpen(true),
+        openRecordModal: (mode = "money") => {
+          setRecordMode(mode);
+          setIsRecordOpen(true);
+        },
         recordMoney,
         reverseActivity,
         collectDebt,
@@ -454,6 +458,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       {isRecordOpen ? (
         <RecordMoneySheet
           accounts={state.accounts}
+          initialMode={recordMode}
+          items={state.items}
           onClose={() => setIsRecordOpen(false)}
           onSubmit={recordMoney}
         />

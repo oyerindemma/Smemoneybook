@@ -29,11 +29,13 @@ type FormErrors = Partial<Record<keyof ProductInput, string>>;
 export function ProductList({
   items,
   onCreate,
+  onCreateInvoice,
   onMove,
   onNotifyOwner,
 }: {
   items: InventoryItem[];
   onCreate: (input: ProductInput) => Promise<void>;
+  onCreateInvoice?: () => void;
   onMove: (
     itemId: string,
     direction: StockDirection,
@@ -57,6 +59,15 @@ export function ProductList({
   const [notifyingItemId, setNotifyingItemId] = useState("");
 
   const totalQuantity = items.reduce((total, item) => total + item.quantityOnHand, 0);
+  const totalCostValue = items.reduce(
+    (total, item) => total + item.costPrice * item.quantityOnHand,
+    0,
+  );
+  const totalSellingValue = items.reduce(
+    (total, item) => total + item.sellingPrice * item.quantityOnHand,
+    0,
+  );
+  const expectedProfitValue = totalSellingValue - totalCostValue;
   const lowStockItems = items.filter((item) => item.quantityOnHand > 0 && item.isLowStock);
   const outOfStockItems = items.filter((item) => item.quantityOnHand === 0);
   const filteredItems = useMemo(() => {
@@ -167,11 +178,15 @@ export function ProductList({
       <StockSummaryCard
         totalProducts={items.length}
         totalQuantity={totalQuantity}
+        totalCostValue={totalCostValue}
+        totalSellingValue={totalSellingValue}
+        expectedProfitValue={expectedProfitValue}
         lowStockCount={lowStockItems.length + outOfStockItems.length}
         onAddProduct={openAddProduct}
         onAdjustStock={() =>
           document.getElementById("adjust-stock")?.scrollIntoView({ behavior: "smooth" })
         }
+        onCreateInvoice={onCreateInvoice}
       />
 
       <Card id="add-product">
@@ -412,15 +427,23 @@ export function ProductList({
 function StockSummaryCard({
   totalProducts,
   totalQuantity,
+  totalCostValue,
+  totalSellingValue,
+  expectedProfitValue,
   lowStockCount,
   onAddProduct,
   onAdjustStock,
+  onCreateInvoice,
 }: {
   totalProducts: number;
   totalQuantity: number;
+  totalCostValue: number;
+  totalSellingValue: number;
+  expectedProfitValue: number;
   lowStockCount: number;
   onAddProduct: () => void;
   onAdjustStock: () => void;
+  onCreateInvoice?: () => void;
 }) {
   return (
     <Card className="bg-primary text-white shadow-lg">
@@ -444,13 +467,41 @@ function StockSummaryCard({
           >
             Adjust stock
           </button>
+          {onCreateInvoice ? (
+            <button
+              className="col-span-2 min-h-11 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-all duration-150 hover:bg-white/20 hover:shadow-md active:scale-[0.98] sm:col-span-1"
+              type="button"
+              onClick={onCreateInvoice}
+            >
+              Create invoice
+            </button>
+          ) : null}
         </div>
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-3">
-        <SummaryMetric label="Products" value={totalProducts} />
-        <SummaryMetric label="Quantity" value={totalQuantity} />
-        <SummaryMetric label="Low stock" value={lowStockCount} warning />
+        <SummaryMetric
+          label="Products"
+          value={totalProducts}
+          helper={`Cost ${formatNaira(totalCostValue)}`}
+        />
+        <SummaryMetric
+          label="Quantity"
+          value={totalQuantity}
+          helper={`Sales ${formatNaira(totalSellingValue)}`}
+        />
+        <SummaryMetric
+          label="Low stock"
+          value={lowStockCount}
+          helper={`Profit ${formatNaira(expectedProfitValue)}`}
+          warning
+        />
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <MoneyMetric label="Cost value" value={totalCostValue} />
+        <MoneyMetric label="Sales value" value={totalSellingValue} />
+        <MoneyMetric label="Expected profit" value={expectedProfitValue} highlight />
       </div>
     </Card>
   );
@@ -561,10 +612,12 @@ function SectionHeader({
 function SummaryMetric({
   label,
   value,
+  helper,
   warning = false,
 }: {
   label: string;
   value: number;
+  helper?: string;
   warning?: boolean;
 }) {
   return (
@@ -573,6 +626,24 @@ function SummaryMetric({
       <strong className={`mt-2 block text-2xl font-bold ${warning ? "text-accent" : "text-white"}`}>
         {value}
       </strong>
+      {helper ? <p className="mt-2 text-xs font-medium text-white/75">{helper}</p> : null}
+    </div>
+  );
+}
+
+function MoneyMetric({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl p-4 ${highlight ? "bg-white text-primary" : "bg-white/10 text-white"}`}>
+      <p className={`text-xs ${highlight ? "text-primary/70" : "text-white/70"}`}>{label}</p>
+      <strong className="mt-2 block text-lg font-bold sm:text-xl">{formatNaira(value)}</strong>
     </div>
   );
 }

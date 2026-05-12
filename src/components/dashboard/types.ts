@@ -10,6 +10,8 @@ import type {
 
 export type QuickAction = "sale" | "expense" | "transfer";
 
+export type RecordMoneyMode = "money" | "invoice";
+
 export type DashboardSummary = {
   balance: number;
   income: number;

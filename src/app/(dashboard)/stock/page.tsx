@@ -4,7 +4,7 @@ import { ProductList } from "@/components/stock/ProductList";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 
 export default function StockPage() {
-  const { state, createInventoryItem, moveInventory, sendStockAlert } = useDashboard();
+  const { state, createInventoryItem, moveInventory, sendStockAlert, openRecordModal } = useDashboard();
 
   return (
     <main className="space-y-8 md:space-y-10">
@@ -17,6 +17,7 @@ export default function StockPage() {
         onCreate={createInventoryItem}
         onMove={moveInventory}
         onNotifyOwner={sendStockAlert}
+        onCreateInvoice={() => openRecordModal("invoice")}
       />
     </main>
   );

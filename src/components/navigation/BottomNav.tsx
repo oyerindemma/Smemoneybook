@@ -36,7 +36,7 @@ export function BottomNav() {
           aria-label="Record money"
           className="flex min-h-14 flex-col items-center justify-center rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white shadow-lg transition-all duration-150 hover:bg-primaryHover hover:shadow-xl active:scale-[0.96]"
           type="button"
-          onClick={openRecordModal}
+          onClick={() => openRecordModal("money")}
         >
           <Plus size={20} aria-hidden="true" />
           Record
