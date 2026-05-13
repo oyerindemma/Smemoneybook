@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { after } from "next/server";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/env";
 import { getPrisma } from "@/lib/prisma";
 import { handleIncomingWhatsAppBotMessage } from "@/lib/chatbot/whatsapp-bot-service";
@@ -32,27 +33,44 @@ export async function POST(request: Request) {
       return new Response("Invalid signature", { status: 401 });
     }
 
-    const payload = safeJson(rawBody);
-    if (!payload) {
-      await writeEvent("malformed", { received: Boolean(rawBody) });
-      return new Response("EVENT_RECEIVED", { status: 200 });
-    }
+    await scheduleWebhookWork(async () => {
+      const payload = safeJson(rawBody);
 
-    const events = parseWebhookPayload(payload);
-    await Promise.all([
-      writeEvent("raw_webhook", sanitizePayload(payload)),
-      ...events.map((event) =>
-        writeEvent(event.eventType, event.payload, event.externalId, event.status),
-      ),
-      ...events
-        .filter((event) => event.eventType === "incoming_message")
-        .map((event) => routeIncomingMessage(event)),
-    ]);
+      if (!payload) {
+        await writeEvent("malformed", { received: Boolean(rawBody) });
+        return;
+      }
+
+      const events = parseWebhookPayload(payload);
+      await Promise.all([
+        writeEvent("raw_webhook", sanitizePayload(payload)),
+        ...events.map((event) =>
+          writeEvent(event.eventType, event.payload, event.externalId, event.status),
+        ),
+        ...events
+          .filter((event) => event.eventType === "incoming_message")
+          .map((event) => routeIncomingMessage(event)),
+      ]);
+    });
 
     return new Response("EVENT_RECEIVED", { status: 200 });
   } catch (error) {
     console.error("whatsapp.webhook_failed", error);
     return new Response("EVENT_RECEIVED", { status: 200 });
+  }
+}
+
+async function scheduleWebhookWork(work: () => Promise<void>) {
+  try {
+    after(async () => {
+      try {
+        await work();
+      } catch (error) {
+        console.error("whatsapp.webhook_background_failed", error);
+      }
+    });
+  } catch {
+    await work();
   }
 }
 
@@ -185,7 +203,7 @@ function getWebhookToken() {
 function isValidSignature(rawBody: string, signature: string | null) {
   const appSecret = process.env.WHATSAPP_APP_SECRET;
   if (!appSecret) {
-    return true;
+    return process.env.NODE_ENV !== "production";
   }
 
   if (!signature?.startsWith("sha256=")) {

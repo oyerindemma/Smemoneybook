@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError } from "@/lib/api/http";
 import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -12,6 +12,7 @@ type DeleteRequestPayload = {
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const payload = (await request.json().catch(() => null)) as DeleteRequestPayload | null;
     const confirmation = typeof payload?.confirmation === "string" ? payload.confirmation.trim() : "";

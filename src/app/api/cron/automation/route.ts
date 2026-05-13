@@ -8,9 +8,8 @@ export async function GET(request: Request) {
   try {
     const expected = getCronSecret();
     const auth = request.headers.get("authorization");
-    const secret = new URL(request.url).searchParams.get("secret");
 
-    if (auth !== `Bearer ${expected}` && secret !== expected) {
+    if (auth !== `Bearer ${expected}`) {
       return jsonError("Unauthorized cron request.", 401);
     }
 

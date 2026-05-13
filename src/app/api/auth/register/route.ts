@@ -1,7 +1,7 @@
 import { createSession } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { hashPassword } from "@/lib/auth/password";
-import { databaseErrorMessage, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, databaseErrorMessage, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, registerRequestSchema } from "@/lib/api/validation";
 import { createBusinessForUser } from "@/lib/bookkeeping/persistence";
 import { getPrisma } from "@/lib/prisma";
@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const limited = await enforceRateLimit(request, "auth.register", 5);
     if (limited) {
       return limited;
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
 
     const existing = await getPrisma().user.findUnique({ where: { email } });
     if (existing) {
-      return jsonError("An account already exists for this email.", 409);
+      return jsonError("Could not create your account with these details.", 400);
     }
 
     const user = await getPrisma().user.create({

@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, receiptUploadRequestSchema } from "@/lib/api/validation";
 import { extractReceipt } from "@/lib/assist/receipts";
 import { requireFeatureAccess } from "@/lib/billing/subscriptions";
@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const body = await parseJsonBody(request, receiptUploadRequestSchema);
     const access = await requireBusinessAccess(user.id, "money:write", body.businessId);

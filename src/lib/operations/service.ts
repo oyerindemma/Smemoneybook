@@ -5,6 +5,8 @@ import { requireBusinessAccess, mapRole, toDbRole } from "@/lib/operations/acces
 import { getPrisma } from "@/lib/prisma";
 
 const inviteDays = 7;
+const backupRowLimit = 10_000;
+const backupNestedMovementLimit = 100;
 
 export async function inviteStaff({
   actorId,
@@ -41,7 +43,7 @@ export async function inviteStaff({
     },
   });
 
-  return mapInvitation(invitation);
+  return mapInvitation(invitation, { includeToken: true });
 }
 
 export async function acceptInvitation({
@@ -104,7 +106,7 @@ export async function acceptInvitation({
 }
 
 export async function getOperationsOverview(userId: string, businessId?: string) {
-  const access = await requireBusinessAccess(userId, undefined, businessId);
+  const access = await requireBusinessAccess(userId, "admin", businessId);
   const prisma = getPrisma();
   const [members, invitations, auditLogs, apiErrors] = await Promise.all([
     prisma.businessMember.findMany({
@@ -145,7 +147,7 @@ export async function getOperationsOverview(userId: string, businessId?: string)
       role: mapRole(member.role),
       joinedAt: member.createdAt.toISOString(),
     })),
-    invitations: invitations.map(mapInvitation),
+    invitations: invitations.map((invitation) => mapInvitation(invitation)),
     auditLogs: auditLogs.map((log) => ({
       id: log.id,
       action: log.action,
@@ -166,22 +168,83 @@ export async function getOperationsOverview(userId: string, businessId?: string)
 
 export async function exportBusinessBackup(userId: string, businessId?: string) {
   const access = await requireBusinessAccess(userId, "backup:read", businessId);
-  const business = await getPrisma().business.findUniqueOrThrow({
-    where: { id: access.businessId },
-    include: {
-      accounts: true,
-      customers: true,
-      suppliers: true,
-      transactions: true,
-      debts: true,
-      items: { include: { movements: true } },
-      taxRuns: true,
-      reportSnapshots: true,
-      auditLogs: true,
-    },
-  });
+  const prisma = getPrisma();
+  const [
+    business,
+    accounts,
+    customers,
+    suppliers,
+    transactions,
+    debts,
+    items,
+    taxRuns,
+    reportSnapshots,
+    auditLogs,
+    counts,
+  ] = await Promise.all([
+    prisma.business.findUniqueOrThrow({ where: { id: access.businessId } }),
+    prisma.account.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.customer.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.supplier.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.transaction.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { occurredAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.debt.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.inventoryItem.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+      include: {
+        movements: { orderBy: { createdAt: "desc" }, take: backupNestedMovementLimit },
+      },
+    }),
+    prisma.taxRun.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.reportSnapshot.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    prisma.auditLog.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "asc" },
+      take: backupRowLimit,
+    }),
+    Promise.all([
+      prisma.account.count({ where: { businessId: access.businessId } }),
+      prisma.customer.count({ where: { businessId: access.businessId } }),
+      prisma.supplier.count({ where: { businessId: access.businessId } }),
+      prisma.transaction.count({ where: { businessId: access.businessId } }),
+      prisma.debt.count({ where: { businessId: access.businessId } }),
+      prisma.inventoryItem.count({ where: { businessId: access.businessId } }),
+      prisma.taxRun.count({ where: { businessId: access.businessId } }),
+      prisma.reportSnapshot.count({ where: { businessId: access.businessId } }),
+      prisma.auditLog.count({ where: { businessId: access.businessId } }),
+    ]),
+  ]);
 
-  await getPrisma().auditLog.create({
+  await prisma.auditLog.create({
     data: {
       businessId: access.businessId,
       actorId: userId,
@@ -193,7 +256,40 @@ export async function exportBusinessBackup(userId: string, businessId?: string) 
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
-    business,
+    rowLimit: backupRowLimit,
+    truncated:
+      accounts.length < counts[0] ||
+      customers.length < counts[1] ||
+      suppliers.length < counts[2] ||
+      transactions.length < counts[3] ||
+      debts.length < counts[4] ||
+      items.length < counts[5] ||
+      taxRuns.length < counts[6] ||
+      reportSnapshots.length < counts[7] ||
+      auditLogs.length < counts[8],
+    sourceCounts: {
+      accounts: counts[0],
+      customers: counts[1],
+      suppliers: counts[2],
+      transactions: counts[3],
+      debts: counts[4],
+      inventoryItems: counts[5],
+      taxRuns: counts[6],
+      reportSnapshots: counts[7],
+      auditLogs: counts[8],
+    },
+    business: {
+      ...business,
+      accounts,
+      customers,
+      suppliers,
+      transactions,
+      debts,
+      items,
+      taxRuns,
+      reportSnapshots,
+      auditLogs,
+    },
   };
 }
 
@@ -225,21 +321,24 @@ export async function validateRestoreBackup(userId: string, body: unknown, busin
   };
 }
 
-function mapInvitation(invitation: {
-  id: string;
-  email: string;
-  role: Role;
-  token: string;
-  acceptedAt: Date | null;
-  revokedAt: Date | null;
-  expiresAt: Date;
-  createdAt: Date;
-}) {
+function mapInvitation(
+  invitation: {
+    id: string;
+    email: string;
+    role: Role;
+    token: string;
+    acceptedAt: Date | null;
+    revokedAt: Date | null;
+    expiresAt: Date;
+    createdAt: Date;
+  },
+  options: { includeToken?: boolean } = {},
+) {
   return {
     id: invitation.id,
     email: invitation.email,
     role: mapRole(invitation.role),
-    token: invitation.token,
+    token: options.includeToken ? invitation.token : undefined,
     acceptedAt: invitation.acceptedAt?.toISOString(),
     revokedAt: invitation.revokedAt?.toISOString(),
     expiresAt: invitation.expiresAt.toISOString(),

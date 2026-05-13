@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { acceptInvitation } from "@/lib/operations/service";
 import { logApiFailure } from "@/lib/operations/monitoring";
 
@@ -12,6 +12,7 @@ export async function POST(
   let userId: string | undefined;
 
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     userId = user.id;
     const { token } = await params;

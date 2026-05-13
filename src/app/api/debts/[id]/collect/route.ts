@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { collectDebtRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import { collectDebtForUser } from "@/lib/bookkeeping/persistence";
 import { sendPaymentConfirmationForCollection } from "@/server/whatsapp/payment-confirmation";
@@ -12,6 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const { id } = await params;
     const body = await parseJsonBody(request, collectDebtRequestSchema);

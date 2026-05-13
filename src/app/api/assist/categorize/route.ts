@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { categorizationRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import { suggestCategory } from "@/lib/assist/categorization";
 import { requireFeatureAccess } from "@/lib/billing/subscriptions";
@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const body = await parseJsonBody(request, categorizationRequestSchema);
     const access = await requireBusinessAccess(user.id, undefined, body.businessId);

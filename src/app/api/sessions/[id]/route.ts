@@ -1,13 +1,14 @@
 import { destroySessionById, requireUser } from "@/lib/auth/session";
-import { jsonError } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError } from "@/lib/api/http";
 
 export const runtime = "nodejs";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const { id } = await params;
     await destroySessionById(user.id, id);

@@ -84,6 +84,7 @@ model BusinessMember {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
+  @@index([businessId])
 }
 
 model BusinessInvitation {
@@ -116,6 +117,8 @@ model Account {
   transactions      Transaction[]       @relation("TransactionAccount")
   transferReceipts  Transaction[]       @relation("TransferDestination")
   inventoryMovement InventoryMovement[]
+
+  @@index([businessId, createdAt])
 }
 
 model Transaction {
@@ -163,6 +166,9 @@ model Customer {
   business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   debts        Debt[]
+
+  @@index([businessId, createdAt])
+  @@index([businessId, name])
 }
 
 model Supplier {
@@ -174,6 +180,9 @@ model Supplier {
   business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   debts        Debt[]
+
+  @@index([businessId, createdAt])
+  @@index([businessId, name])
 }
 
 model Debt {
@@ -195,6 +204,9 @@ model Debt {
   events              DebtEvent[]
 
   @@index([businessId, status])
+  @@index([businessId, status, createdAt])
+  @@index([customerId, status])
+  @@index([supplierId, status])
 }
 
 model DebtEvent {
@@ -228,6 +240,8 @@ model InventoryItem {
   transactions   Transaction[]
 
   @@unique([businessId, sku])
+  @@index([businessId, updatedAt])
+  @@index([businessId, createdAt])
 }
 
 model InventoryMovement {
@@ -242,6 +256,9 @@ model InventoryMovement {
   item          InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
   account       Account?              @relation(fields: [accountId], references: [id])
   transaction   Transaction?          @relation(fields: [transactionId], references: [id])
+
+  @@index([itemId, createdAt])
+  @@index([accountId, createdAt])
 }
 
 model TaxRun {
@@ -458,6 +475,7 @@ model AssistantMessage {
   user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([threadId])
+  @@index([threadId, createdAt])
 }
 
 model AutomationPreference {
@@ -488,6 +506,7 @@ model AutomationLog {
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
+  @@index([businessId, type, createdAt])
   @@index([type])
   @@index([status])
 }
@@ -507,6 +526,7 @@ model PendingAssistantAction {
   @@index([businessId])
   @@index([userId])
   @@index([status])
+  @@index([businessId, status, createdAt])
 }
 
 model RateLimitBucket {

@@ -1,6 +1,6 @@
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { billingCheckoutRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import { getPaystackEnv } from "@/lib/billing/env";
 import { getBillingPlan } from "@/lib/billing/plans";
@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const limited = await enforceRateLimit(request, "paystack.initialize", 10, 10 * 60 * 1000);
 
     if (limited) {

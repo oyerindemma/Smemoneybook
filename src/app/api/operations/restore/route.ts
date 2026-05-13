@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, restoreBackupRequestSchema } from "@/lib/api/validation";
 import { validateRestoreBackup } from "@/lib/operations/service";
 import { logApiFailure } from "@/lib/operations/monitoring";
@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   let userId: string | undefined;
 
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     userId = user.id;
     const body = await parseJsonBody(request, restoreBackupRequestSchema);

@@ -1,7 +1,7 @@
 import { createSession } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { verifyPassword } from "@/lib/auth/password";
-import { databaseErrorMessage, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, databaseErrorMessage, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { loginRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import { getFirstBusinessForUser } from "@/lib/bookkeeping/persistence";
 import { getPrisma } from "@/lib/prisma";
@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const limited = await enforceRateLimit(request, "auth.login");
     if (limited) {
       return limited;

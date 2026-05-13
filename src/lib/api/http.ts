@@ -21,7 +21,28 @@ export function jsonErrorFromUnknown(error: unknown, fallback: string, status = 
     return jsonError(error.message);
   }
 
-  return jsonError(error instanceof Error ? error.message : fallback, status);
+  return jsonError(fallback, status);
+}
+
+export function assertSameOriginRequest(request: Request) {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  const expectedOrigin = host ? `${proto}://${host}` : new URL(request.url).origin;
+  const appOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const allowedOrigins = new Set([expectedOrigin, new URL(request.url).origin]);
+
+  if (appOrigin) {
+    allowedOrigins.add(appOrigin);
+  }
+
+  if (origin && !allowedOrigins.has(origin)) {
+    throw new Response("Forbidden", { status: 403 });
+  }
+
+  if (request.headers.get("sec-fetch-site") === "cross-site") {
+    throw new Response("Forbidden", { status: 403 });
+  }
 }
 
 export function normalizeEmail(email: string) {

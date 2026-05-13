@@ -4,6 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 
 const sessionCookieName = "sme_moneybook_session";
 const sessionDays = 30;
+const sessionTouchIntervalMs = 10 * 60 * 1000;
 
 function sessionCookieOptions(expiresAt: Date) {
   return {
@@ -100,10 +101,15 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null;
   }
 
-  await getPrisma().session.updateMany({
-    where: { token },
-    data: { lastSeenAt: new Date() },
-  });
+  if (Date.now() - session.lastSeenAt.getTime() > sessionTouchIntervalMs) {
+    await getPrisma().session.updateMany({
+      where: {
+        token,
+        lastSeenAt: { lt: new Date(Date.now() - sessionTouchIntervalMs) },
+      },
+      data: { lastSeenAt: new Date() },
+    });
+  }
 
   return session.user;
 }

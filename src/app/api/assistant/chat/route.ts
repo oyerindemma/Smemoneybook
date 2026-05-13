@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { getBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 import { createAssistantReply } from "@/lib/assistant/assistant-client";
@@ -17,6 +17,7 @@ const chatRequestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const body = chatRequestSchema.parse(await request.json().catch(() => ({})));
     const access = await getBusinessAccess(user.id, body.businessId);

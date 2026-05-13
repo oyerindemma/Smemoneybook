@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import {
   accountRequestSchema,
   parseJsonBody,
@@ -34,6 +34,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const body = await parseJsonBody(request, accountRequestSchema);
     const state = await createAccountForUser({ userId: user.id, ...body });

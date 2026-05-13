@@ -1,10 +1,11 @@
 import { destroySession } from "@/lib/auth/session";
-import { jsonError } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError } from "@/lib/api/http";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     await destroySession();
     return Response.json({ ok: true });
   } catch (error) {

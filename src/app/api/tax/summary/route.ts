@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { saveTaxRunForUser } from "@/lib/bookkeeping/persistence";
 import { getMonthYear } from "@/app/api/reports/monthly/route";
 
@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const { businessId, month, year } = getMonthYear(request);
     const report = await saveTaxRunForUser({ userId: user.id, businessId, month, year });

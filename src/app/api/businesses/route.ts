@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { businessRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import {
   createBusinessForUser,
@@ -39,6 +39,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const { name } = await parseJsonBody(request, businessRequestSchema);
 

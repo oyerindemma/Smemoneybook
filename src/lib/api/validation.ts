@@ -26,7 +26,7 @@ const selectedBusinessId = requiredText("Business", 240);
 export const registerRequestSchema = z.object({
   name: requiredText("Your name"),
   email: z.email("Enter a valid email.").trim().toLowerCase(),
-  password: z.string().min(8, "Enter an 8+ character password."),
+  password: z.string().min(12, "Enter a 12+ character password."),
   businessName: optionalText,
 });
 

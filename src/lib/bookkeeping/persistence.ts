@@ -48,6 +48,31 @@ const defaultAccounts = [
   { name: "POS", type: AccountType.POS },
 ] as const;
 
+const dashboardTransactionLimit = 50;
+const dashboardDebtLimit = 100;
+const dashboardInventoryLimit = 200;
+const dashboardAuditLogLimit = 20;
+const listPageLimit = 500;
+const nestedDebtLimit = 20;
+const nestedEventLimit = 3;
+
+type ReportAggregateRow = {
+  salesTotal: number | string | null;
+  cashReceivedTotal: number | string | null;
+  creditSalesTotal: number | string | null;
+  expensesTotal: number | string | null;
+  saleProfit: number | string | null;
+  taxableSalesTotal: number | string | null;
+  transactionCount: number | bigint | string | null;
+};
+
+type TopProductRow = {
+  name: string;
+  quantity: number | bigint | string | null;
+  salesTotal: number | string | null;
+  profitTotal: number | string | null;
+};
+
 export async function createBusinessForUser(
   userId: string,
   name: string,
@@ -144,7 +169,7 @@ export async function getDashboardState(
     prisma.transaction.findMany({
       where: { businessId },
       orderBy: { occurredAt: "desc" },
-      take: 50,
+      take: dashboardTransactionLimit,
       include: {
         reversesTransaction: { select: { type: true } },
         reversalTransaction: { select: { id: true } },
@@ -155,19 +180,21 @@ export async function getDashboardState(
       include: {
         customer: true,
         supplier: true,
-        events: { orderBy: { createdAt: "desc" }, take: 5 },
+        events: { orderBy: { createdAt: "desc" }, take: nestedEventLimit },
       },
       orderBy: { createdAt: "desc" },
+      take: dashboardDebtLimit,
     }),
     prisma.inventoryItem.findMany({
       where: { businessId },
       orderBy: { updatedAt: "desc" },
-      include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
+      take: dashboardInventoryLimit,
+      include: { movements: { orderBy: { createdAt: "desc" }, take: nestedEventLimit } },
     }),
     prisma.auditLog.findMany({
       where: { businessId },
       orderBy: { createdAt: "desc" },
-      take: 20,
+      take: dashboardAuditLogLimit,
     }),
     userId
       ? prisma.businessMember.findMany({
@@ -581,9 +608,10 @@ export async function getOpenDebtsForUser(userId: string) {
     include: {
       customer: true,
       supplier: true,
-      events: { orderBy: { createdAt: "desc" }, take: 5 },
+      events: { orderBy: { createdAt: "desc" }, take: nestedEventLimit },
     },
     orderBy: { createdAt: "desc" },
+    take: dashboardDebtLimit,
   });
 
   return debts.map(mapDebt);
@@ -604,11 +632,13 @@ export async function getCustomerControlForUser(userId: string) {
         include: {
           customer: true,
           supplier: true,
-          events: { orderBy: { createdAt: "desc" }, take: 3 },
+          events: { orderBy: { createdAt: "desc" }, take: nestedEventLimit },
         },
+        take: nestedDebtLimit,
       },
     },
     orderBy: { createdAt: "desc" },
+    take: listPageLimit,
   });
 
   return customers.map((customer) => {
@@ -639,11 +669,13 @@ export async function getSupplierControlForUser(userId: string) {
         include: {
           customer: true,
           supplier: true,
-          events: { orderBy: { createdAt: "desc" }, take: 3 },
+          events: { orderBy: { createdAt: "desc" }, take: nestedEventLimit },
         },
+        take: nestedDebtLimit,
       },
     },
     orderBy: { createdAt: "desc" },
+    take: listPageLimit,
   });
 
   return suppliers.map((supplier) => {
@@ -1008,7 +1040,8 @@ export async function getInventoryForUser(userId: string) {
 
   const items = await getPrisma().inventoryItem.findMany({
     where: { businessId: business.businessId },
-    include: { movements: { orderBy: { createdAt: "desc" }, take: 5 } },
+    take: listPageLimit,
+    include: { movements: { orderBy: { createdAt: "desc" }, take: nestedEventLimit } },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -1172,136 +1205,146 @@ export async function getMonthlyReport({
 }): Promise<MonthlyReport> {
   const range = getReportRange({ period, month, year, date });
   const previousRange = getPreviousReportRange(range);
-  const business = await getPrisma().business.findUniqueOrThrow({
-    where: { id: businessId },
-    select: {
-      name: true,
-      vatRate: true,
-      transactions: {
-        where: {
-          occurredAt: {
-            gte: range.start,
-            lt: range.end,
-          },
+  const prisma = getPrisma();
+  const [business, aggregateRows, previousExpenseRows, debts, topProductRows] =
+    await Promise.all([
+      prisma.business.findUniqueOrThrow({
+        where: { id: businessId },
+        select: { name: true, vatRate: true },
+      }),
+      prisma.$queryRaw<ReportAggregateRow[]>`
+        SELECT
+          COALESCE(SUM(
+            CASE
+              WHEN t."type" = 'SALE' THEN t."amount"
+              WHEN t."type" = 'ADJUSTMENT' AND rt."type" = 'SALE' THEN -t."amount"
+              ELSE 0
+            END
+          ), 0)::double precision AS "salesTotal",
+          COALESCE(SUM(
+            CASE
+              WHEN t."type" = 'SALE' AND t."paymentStatus" = 'PAID' THEN t."amount"
+              WHEN t."type" = 'ADJUSTMENT' AND rt."type" = 'SALE' THEN -t."amount"
+              ELSE 0
+            END
+          ), 0)::double precision AS "cashReceivedTotal",
+          COALESCE(SUM(
+            CASE
+              WHEN t."type" = 'SALE' AND t."paymentStatus" = 'CREDIT' THEN t."amount"
+              ELSE 0
+            END
+          ), 0)::double precision AS "creditSalesTotal",
+          COALESCE(SUM(
+            CASE
+              WHEN t."type" = 'EXPENSE' THEN t."amount"
+              WHEN t."type" = 'ADJUSTMENT' AND rt."type" = 'EXPENSE' THEN -t."amount"
+              ELSE 0
+            END
+          ), 0)::double precision AS "expensesTotal",
+          COALESCE(SUM(
+            CASE
+              WHEN t."type" = 'SALE' OR (t."type" = 'ADJUSTMENT' AND rt."type" = 'SALE') THEN t."profit"
+              ELSE 0
+            END
+          ), 0)::double precision AS "saleProfit",
+          COALESCE(SUM(
+            CASE
+              WHEN t."type" = 'SALE' AND LOWER(COALESCE(t."category", '')) NOT LIKE '%non-taxable%' THEN t."amount"
+              ELSE 0
+            END
+          ), 0)::double precision AS "taxableSalesTotal",
+          COUNT(*)::integer AS "transactionCount"
+        FROM "Transaction" t
+        LEFT JOIN "Transaction" rt ON rt."id" = t."reversesTransactionId"
+        WHERE t."businessId" = ${businessId}
+          AND t."occurredAt" >= ${range.start}
+          AND t."occurredAt" < ${range.end}
+          AND NOT EXISTS (
+            SELECT 1 FROM "Transaction" child WHERE child."reversesTransactionId" = t."id"
+          )
+      `,
+      prisma.$queryRaw<Array<{ expensesTotal: number | string | null }>>`
+        SELECT COALESCE(SUM(t."amount"), 0)::double precision AS "expensesTotal"
+        FROM "Transaction" t
+        WHERE t."businessId" = ${businessId}
+          AND t."occurredAt" >= ${previousRange.start}
+          AND t."occurredAt" < ${previousRange.end}
+          AND t."type" = 'EXPENSE'
+          AND NOT EXISTS (
+            SELECT 1 FROM "Transaction" child WHERE child."reversesTransactionId" = t."id"
+          )
+      `,
+      prisma.debt.findMany({
+        where: { businessId, status: DebtStatus.OPEN },
+        select: {
+          type: true,
+          status: true,
+          amount: true,
+          paidAmount: true,
+          dueAt: true,
+          createdAt: true,
         },
-        include: {
-          reversesTransaction: true,
-          reversalTransaction: { select: { id: true } },
-          inventoryItem: true,
-        },
-      },
-      debts: {
-        where: { status: DebtStatus.OPEN },
-      },
-    },
-  });
-  const previousTransactions = await getPrisma().transaction.findMany({
-    where: {
-      businessId,
-      occurredAt: { gte: previousRange.start, lt: previousRange.end },
-    },
-    include: {
-      reversesTransaction: true,
-      reversalTransaction: { select: { id: true } },
-    },
-  });
+      }),
+      prisma.$queryRaw<TopProductRow[]>`
+        SELECT
+          i."name",
+          COALESCE(SUM(t."inventoryQuantity"), 0)::integer AS "quantity",
+          COALESCE(SUM(t."amount"), 0)::double precision AS "salesTotal",
+          COALESCE(SUM(t."profit"), 0)::double precision AS "profitTotal"
+        FROM "Transaction" t
+        INNER JOIN "InventoryItem" i ON i."id" = t."inventoryItemId"
+        WHERE t."businessId" = ${businessId}
+          AND t."occurredAt" >= ${range.start}
+          AND t."occurredAt" < ${range.end}
+          AND t."type" = 'SALE'
+          AND t."inventoryItemId" IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "Transaction" child WHERE child."reversesTransactionId" = t."id"
+          )
+        GROUP BY i."name"
+        ORDER BY SUM(t."amount") DESC
+        LIMIT 1
+      `,
+    ]);
 
-  const activeTransactions = business.transactions.filter(
-    (transaction) => !transaction.reversalTransaction,
-  );
-  const activePreviousTransactions = previousTransactions.filter(
-    (transaction) => !transaction.reversalTransaction,
-  );
-  const salesTotal = activeTransactions.reduce((sum, transaction) => {
-    if (transaction.type === TransactionType.SALE) {
-      return sum.plus(transaction.amount);
-    }
-
-    if (
-      transaction.type === TransactionType.ADJUSTMENT &&
-      transaction.reversesTransaction?.type === TransactionType.SALE
-    ) {
-      return sum.minus(transaction.amount);
-    }
-
-    return sum;
-  }, new Prisma.Decimal(0));
-  const cashReceivedTotal = activeTransactions.reduce((sum, transaction) => {
-    if (transaction.type === TransactionType.SALE && transaction.paymentStatus === PaymentStatus.PAID) {
-      return sum.plus(transaction.amount);
-    }
-
-    if (
-      transaction.type === TransactionType.ADJUSTMENT &&
-      transaction.reversesTransaction?.type === TransactionType.SALE
-    ) {
-      return sum.minus(transaction.amount);
-    }
-
-    return sum;
-  }, new Prisma.Decimal(0));
-  const creditSalesTotal = activeTransactions
-    .filter(
-      (transaction) =>
-        transaction.type === TransactionType.SALE &&
-        transaction.paymentStatus === PaymentStatus.CREDIT,
-    )
-    .reduce((sum, transaction) => sum.plus(transaction.amount), new Prisma.Decimal(0));
-  const expensesTotal = activeTransactions.reduce((sum, transaction) => {
-    if (transaction.type === TransactionType.EXPENSE) {
-      return sum.plus(transaction.amount);
-    }
-
-    if (
-      transaction.type === TransactionType.ADJUSTMENT &&
-      transaction.reversesTransaction?.type === TransactionType.EXPENSE
-    ) {
-      return sum.minus(transaction.amount);
-    }
-
-    return sum;
-  }, new Prisma.Decimal(0));
-  const saleProfit = activeTransactions
-    .filter(
-      (transaction) =>
-        transaction.type === TransactionType.SALE ||
-        (transaction.type === TransactionType.ADJUSTMENT &&
-          transaction.reversesTransaction?.type === TransactionType.SALE),
-    )
-    .reduce((sum, transaction) => sum.plus(transaction.profit), new Prisma.Decimal(0));
-  const customerDebtTotal = business.debts
+  const aggregate = aggregateRows[0];
+  const salesTotal = new Prisma.Decimal(toNumber(aggregate?.salesTotal));
+  const cashReceivedTotal = new Prisma.Decimal(toNumber(aggregate?.cashReceivedTotal));
+  const creditSalesTotal = new Prisma.Decimal(toNumber(aggregate?.creditSalesTotal));
+  const expensesTotal = new Prisma.Decimal(toNumber(aggregate?.expensesTotal));
+  const saleProfit = new Prisma.Decimal(toNumber(aggregate?.saleProfit));
+  const taxableSalesTotal = new Prisma.Decimal(toNumber(aggregate?.taxableSalesTotal));
+  const customerDebtTotal = debts
     .filter(
       (debt) =>
         debt.type === DebtType.CUSTOMER_OWES_BUSINESS && debt.status === DebtStatus.OPEN,
     )
     .reduce((sum, debt) => sum.plus(debt.amount.minus(debt.paidAmount)), new Prisma.Decimal(0));
-  const supplierDebtTotal = business.debts
+  const supplierDebtTotal = debts
     .filter(
       (debt) =>
         debt.type === DebtType.BUSINESS_OWES_SUPPLIER && debt.status === DebtStatus.OPEN,
     )
     .reduce((sum, debt) => sum.plus(debt.amount.minus(debt.paidAmount)), new Prisma.Decimal(0));
   const vatRate = business.vatRate.toNumber();
-  const taxableSalesTotal = activeTransactions.reduce((sum, transaction) => {
-    const category = transaction.category?.toLowerCase() ?? "";
-
-    if (transaction.type !== TransactionType.SALE || category.includes("non-taxable")) {
-      return sum;
-    }
-
-    return sum.plus(transaction.amount);
-  }, new Prisma.Decimal(0));
   const nonTaxableSalesTotal = salesTotal.minus(taxableSalesTotal);
   const vatTotal = taxableSalesTotal.mul(vatRate).div(100);
-  const previousExpensesTotal = activePreviousTransactions
-    .filter((transaction) => transaction.type === TransactionType.EXPENSE)
-    .reduce((sum, transaction) => sum.plus(transaction.amount), new Prisma.Decimal(0));
-  const topProduct = getTopProduct(activeTransactions);
+  const previousExpensesTotal = new Prisma.Decimal(
+    toNumber(previousExpenseRows[0]?.expensesTotal),
+  );
+  const topProduct = topProductRows[0]
+    ? {
+        name: topProductRows[0].name,
+        quantity: toNumber(topProductRows[0].quantity),
+        salesTotal: toNumber(topProductRows[0].salesTotal),
+        profitTotal: toNumber(topProductRows[0].profitTotal),
+      }
+    : undefined;
   const receivablesAging = getDebtAging(
-    business.debts.filter((debt) => debt.type === DebtType.CUSTOMER_OWES_BUSINESS),
+    debts.filter((debt) => debt.type === DebtType.CUSTOMER_OWES_BUSINESS),
   );
   const payablesAging = getDebtAging(
-    business.debts.filter((debt) => debt.type === DebtType.BUSINESS_OWES_SUPPLIER),
+    debts.filter((debt) => debt.type === DebtType.BUSINESS_OWES_SUPPLIER),
   );
   const profitTotal = saleProfit.minus(expensesTotal);
   const insights = buildReportInsights({
@@ -1338,7 +1381,7 @@ export async function getMonthlyReport({
     payablesAging,
     topProduct,
     insights,
-    transactionCount: activeTransactions.length,
+    transactionCount: Math.trunc(toNumber(aggregate?.transactionCount)),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -1503,6 +1546,14 @@ function getPreviousReportRange(range: { start: Date; end: Date }) {
   };
 }
 
+function toNumber(value: number | bigint | string | null | undefined) {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  return Number(value);
+}
+
 function getDebtAging(
   debts: Array<{
     amount: Prisma.Decimal;
@@ -1536,41 +1587,6 @@ function getDebtAging(
   });
 
   return buckets;
-}
-
-function getTopProduct(
-  transactions: Array<{
-    type: TransactionType;
-    amount: Prisma.Decimal;
-    profit: Prisma.Decimal;
-    inventoryQuantity: number | null;
-    inventoryItem: { name: string } | null;
-  }>,
-): MonthlyReport["topProduct"] {
-  const products = new Map<
-    string,
-    { name: string; quantity: number; salesTotal: number; profitTotal: number }
-  >();
-
-  transactions.forEach((transaction) => {
-    if (transaction.type !== TransactionType.SALE || !transaction.inventoryItem) {
-      return;
-    }
-
-    const current =
-      products.get(transaction.inventoryItem.name) ?? {
-        name: transaction.inventoryItem.name,
-        quantity: 0,
-        salesTotal: 0,
-        profitTotal: 0,
-      };
-    current.quantity += transaction.inventoryQuantity ?? 0;
-    current.salesTotal += transaction.amount.toNumber();
-    current.profitTotal += transaction.profit.toNumber();
-    products.set(current.name, current);
-  });
-
-  return [...products.values()].sort((a, b) => b.salesTotal - a.salesTotal)[0];
 }
 
 function buildReportInsights(input: {

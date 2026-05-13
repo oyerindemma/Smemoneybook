@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { saveReportSnapshotForUser } from "@/lib/bookkeeping/persistence";
 import { getReportPeriod } from "@/app/api/reports/monthly/route";
 
@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const { businessId, month, year, period, date } = getReportPeriod(request);
     const report = await saveReportSnapshotForUser({

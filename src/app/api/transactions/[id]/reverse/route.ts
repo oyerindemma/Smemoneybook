@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
-import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import {
   parseJsonBody,
   RequestValidationError,
@@ -14,6 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
     const { id } = await params;
     const body = await parseJsonBody(request, reversalRequestSchema);

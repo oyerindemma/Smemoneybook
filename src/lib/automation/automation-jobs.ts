@@ -23,10 +23,20 @@ export async function runAutomationForBusiness(businessId: string) {
 }
 
 export async function listAutomationBusinessIds() {
-  const businesses = await getPrisma().business.findMany({
-    select: { id: true },
+  const preferences = await getPrisma().automationPreference.findMany({
+    where: {
+      OR: [
+        { dailyReminderEnabled: true },
+        { debtReminderEnabled: true },
+        { lowStockAlertEnabled: true },
+        { weeklySummaryEnabled: true },
+        { whatsappAutomationEnabled: true },
+      ],
+    },
+    select: { businessId: true },
     orderBy: { createdAt: "asc" },
+    take: 1000,
   });
 
-  return businesses.map((business) => business.id);
+  return preferences.map((preference) => preference.businessId);
 }
