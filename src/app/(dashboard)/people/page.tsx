@@ -2,6 +2,7 @@
 
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { DebtList } from "@/components/dashboard/DebtList";
+import { ReceivablesSummary } from "@/components/dashboard/ReceivablesSummary";
 
 export default function PeoplePage() {
   const {
@@ -21,6 +22,7 @@ export default function PeoplePage() {
         title="People"
         subtitle="See people owing you and bills you will pay later."
       />
+      <ReceivablesSummary debts={state.debts} />
       <DebtList
         accounts={state.accounts}
         debts={state.debts}

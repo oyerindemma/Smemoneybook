@@ -37,6 +37,15 @@ export default async function CustomersPage() {
                     ) : null}
                   </div>
                 </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-4">
+                  <Insight label="Total Bought" value={formatNaira(customer.totalBought)} />
+                  <Insight label="Outstanding Debt" value={formatNaira(customer.openDebtTotal)} />
+                  <Insight
+                    label="Last Purchase"
+                    value={customer.lastPurchase ? formatDate(customer.lastPurchase) : "None yet"}
+                  />
+                  <Insight label="Most Bought Product" value={customer.mostBoughtProduct ?? "Not enough sales"} />
+                </div>
               </article>
             ))
           )}
@@ -44,4 +53,21 @@ export default async function CustomersPage() {
       </section>
     </main>
   );
+}
+
+function Insight({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-background p-4">
+      <p className="text-xs font-medium text-textSecondary">{label}</p>
+      <strong className="mt-2 block text-sm text-textPrimary">{value}</strong>
+    </div>
+  );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-NG", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
 }

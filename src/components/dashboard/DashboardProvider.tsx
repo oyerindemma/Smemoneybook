@@ -9,9 +9,15 @@ import { NoticeToast } from "@/components/dashboard/NoticeToast";
 import { UpgradePrompt } from "@/components/dashboard/UpgradePrompt";
 import { getDailyDashboardSummary, getTodayActivities } from "@/lib/dashboard/dashboard-summary";
 import {
+  type InventoryItem,
   MoneybookState,
   recordTransaction,
 } from "@/lib/bookkeeping/transaction-engine";
+import {
+  enqueueOfflineItem,
+  readOfflineQueue,
+  replayOfflineQueue,
+} from "@/lib/offline/offline-queue";
 import { sendDebtReminderAction } from "@/server/actions/whatsapp/send-debt-reminder";
 import { sendInvoiceAction } from "@/server/actions/whatsapp/send-invoice";
 import { sendPaymentConfirmationAction } from "@/server/actions/whatsapp/send-payment-confirmation";
@@ -63,6 +69,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState("Your money is up to date.");
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("online");
+  const [queuedCount, setQueuedCount] = useState(0);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
   const [recordMode, setRecordMode] = useState<RecordMoneyMode>("money");
   const [upgradePrompt, setUpgradePrompt] = useState<{
@@ -120,6 +127,23 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const syncOfflineQueue = useCallback(async () => {
+    setSyncStatus("retrying");
+    const result = await replayOfflineQueue();
+    setQueuedCount(result.remaining);
+
+    if (result.remaining > 0) {
+      setSyncStatus("error");
+      setNotice("Some saved changes still need internet.");
+      return;
+    }
+
+    await loadDashboard();
+    if (result.synced > 0) {
+      setNotice("Offline changes synced.");
+    }
+  }, [loadDashboard]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadDashboard();
@@ -129,16 +153,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, [loadDashboard]);
 
   useEffect(() => {
-    localStorage.removeItem("offlineTransactions");
     const timer = window.setTimeout(() => {
       setIsOnline(navigator.onLine);
-      setSyncStatus(navigator.onLine ? "online" : "offline");
+      const pendingCount = readOfflineQueue().length;
+      setQueuedCount(pendingCount);
+      setSyncStatus(navigator.onLine ? (pendingCount > 0 ? "retrying" : "online") : "offline");
+      if (navigator.onLine && pendingCount > 0) {
+        void syncOfflineQueue();
+      }
     }, 0);
 
     const handleOnline = () => {
       setIsOnline(true);
-      setNotice("You’re back online. Refreshing your money.");
-      void loadDashboard();
+      setNotice("You’re back online. Syncing saved changes.");
+      void syncOfflineQueue();
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -154,7 +182,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadDashboard]);
+  }, [loadDashboard, syncOfflineQueue]);
 
   const retryNow = useCallback(() => {
     if (!navigator.onLine) {
@@ -163,8 +191,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (readOfflineQueue().length > 0) {
+      void syncOfflineQueue();
+      return;
+    }
+
     void loadDashboard();
-  }, [loadDashboard]);
+  }, [loadDashboard, syncOfflineQueue]);
 
   function requireOnline() {
     if (navigator.onLine) {
@@ -173,7 +206,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
     setIsOnline(false);
     setSyncStatus("offline");
-    setNotice("You’re offline. Reconnect before saving money changes.");
+    setNotice("You’re offline. Changes will sync when internet returns.");
     return false;
   }
 
@@ -182,20 +215,32 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
 
-    if (!requireOnline()) {
-      return false;
-    }
-
     const idempotencyKey = createClientIdempotencyKey("ui");
     const businessId = state.businessId;
+    const optimisticState = recordTransaction(state, {
+      ...formData,
+      idempotencyKey,
+    });
+
+    if (!requireOnline()) {
+      setState(optimisticState);
+      const count = enqueueOfflineItem({
+        id: idempotencyKey,
+        type: "transaction",
+        url: "/api/transactions",
+        body: {
+          ...formData,
+          businessId,
+          idempotencyKey,
+        },
+      });
+      setQueuedCount(count);
+      setNotice("Saved offline. MoneyBook will sync it later.");
+      return true;
+    }
 
     try {
-      setState(
-        recordTransaction(state, {
-          ...formData,
-          idempotencyKey,
-        }),
-      );
+      setState(optimisticState);
 
       const response = await fetch("/api/transactions", {
         method: "POST",
@@ -370,7 +415,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     quantity: number,
     note?: string,
   ) {
+    if (!state) {
+      return;
+    }
+
     if (!requireOnline()) {
+      setState(applyLocalStockMove(state, itemId, direction, quantity, note));
+      const count = enqueueOfflineItem({
+        id: createClientIdempotencyKey("stock"),
+        type: "stock",
+        url: `/api/inventory/${itemId}/${direction === "in" ? "stock-in" : "stock-out"}`,
+        body: { quantity, note, businessId: state.businessId },
+      });
+      setQueuedCount(count);
+      setNotice("Stock saved offline. MoneyBook will sync it later.");
       return;
     }
 
@@ -478,6 +536,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       <SyncStatusBanner
         isOnline={isOnline}
         status={syncStatus}
+        queuedCount={queuedCount}
         onRetry={retryNow}
       />
       <NoticeToast message={notice} />
@@ -511,10 +570,12 @@ function createClientIdempotencyKey(prefix: string) {
 function SyncStatusBanner({
   isOnline,
   status,
+  queuedCount,
   onRetry,
 }: {
   isOnline: boolean;
   status: SyncStatus;
+  queuedCount: number;
   onRetry: () => void;
 }) {
   if (isOnline && status === "online") {
@@ -523,9 +584,11 @@ function SyncStatusBanner({
 
   const isRetrying = status === "retrying";
   const message = !isOnline
-    ? "Offline. Money changes won’t save until you reconnect."
+    ? queuedCount > 0
+      ? `${queuedCount} change${queuedCount === 1 ? "" : "s"} saved offline.`
+      : "Offline. New changes will sync later."
     : isRetrying
-      ? "Refreshing your latest money records..."
+      ? "Syncing your latest money records..."
       : "Couldn’t refresh. Check your connection and retry.";
 
   return (
@@ -548,4 +611,42 @@ function SyncStatusBanner({
       </button>
     </div>
   );
+}
+
+function applyLocalStockMove(
+  state: MoneybookState,
+  itemId: string,
+  direction: "in" | "out",
+  quantity: number,
+  note?: string,
+): MoneybookState {
+  const createdAt = new Date().toISOString();
+  const items = state.items.map((item): InventoryItem => {
+    if (item.id !== itemId) {
+      return item;
+    }
+
+    const quantityOnHand =
+      direction === "in"
+        ? item.quantityOnHand + quantity
+        : Math.max(0, item.quantityOnHand - quantity);
+
+    return {
+      ...item,
+      quantityOnHand,
+      isLowStock: quantityOnHand <= item.lowStockLevel,
+      movements: [
+        {
+          id: createClientIdempotencyKey("offline-stock"),
+          type: direction === "in" ? "stock_in" : "stock_out",
+          quantity,
+          note,
+          createdAt,
+        },
+        ...item.movements,
+      ],
+    };
+  });
+
+  return { ...state, items };
 }

@@ -45,3 +45,4 @@ Pro should feel like control: staff access, accountant access, audit visibility,
 - Confirm each feature route returns `402` when the business has no active eligible subscription.
 - Confirm the billing page explains price, audience, and included features.
 - Confirm failed or duplicate webhooks do not create duplicate active periods.
+nk and er

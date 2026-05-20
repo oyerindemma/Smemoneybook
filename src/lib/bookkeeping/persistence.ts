@@ -627,6 +627,12 @@ export async function getCustomerControlForUser(userId: string) {
   const customers = await getPrisma().customer.findMany({
     where: { businessId: business.businessId },
     include: {
+      transactions: {
+        where: { type: TransactionType.SALE },
+        include: { inventoryItem: true },
+        orderBy: { occurredAt: "desc" },
+        take: nestedDebtLimit,
+      },
       debts: {
         where: { status: DebtStatus.OPEN },
         include: {
@@ -643,10 +649,37 @@ export async function getCustomerControlForUser(userId: string) {
 
   return customers.map((customer) => {
     const debts = customer.debts.map(mapDebt);
+    const productCounts = new Map<string, { quantity: number; salesTotal: number }>();
+
+    for (const transaction of customer.transactions) {
+      if (!transaction.inventoryItem) {
+        continue;
+      }
+
+      const current = productCounts.get(transaction.inventoryItem.name) ?? {
+        quantity: 0,
+        salesTotal: 0,
+      };
+      productCounts.set(transaction.inventoryItem.name, {
+        quantity: current.quantity + (transaction.inventoryQuantity ?? 1),
+        salesTotal: current.salesTotal + transaction.amount.toNumber(),
+      });
+    }
+
+    const mostBoughtProduct = Array.from(productCounts.entries()).sort(
+      (first, second) => second[1].quantity - first[1].quantity,
+    )[0]?.[0];
+
     return {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      totalBought: customer.transactions.reduce(
+        (sum, transaction) => sum + transaction.amount.toNumber(),
+        0,
+      ),
+      lastPurchase: customer.transactions[0]?.occurredAt.toISOString(),
+      mostBoughtProduct,
       openDebtTotal: debts.reduce((sum, debt) => sum + debt.remainingAmount, 0),
       overdueCount: debts.filter((debt) => debt.isOverdue).length,
       debts,

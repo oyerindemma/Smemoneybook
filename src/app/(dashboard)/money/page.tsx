@@ -3,6 +3,13 @@
 import Link from "next/link";
 import { Bot } from "lucide-react";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import { BusinessGoals } from "@/components/dashboard/BusinessGoals";
+import { BusinessHealthCard } from "@/components/dashboard/BusinessHealthCard";
+import { BusinessTimeline } from "@/components/dashboard/BusinessTimeline";
+import { CashflowSummary } from "@/components/dashboard/CashflowSummary";
+import { DailySummaryCard } from "@/components/dashboard/DailySummaryCard";
+import { LightweightAiInsights } from "@/components/dashboard/LightweightAiInsights";
+import { SmartAlerts } from "@/components/dashboard/SmartAlerts";
 import { ActivityFeed } from "@/components/money/ActivityFeed";
 import { InsightStrip } from "@/components/money/InsightStrip";
 import { MoneyCard } from "@/components/money/MoneyCard";
@@ -19,6 +26,14 @@ export default function MoneyPage() {
 
   return (
     <main className="space-y-8 md:space-y-10">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <DailySummaryCard state={state} />
+        <BusinessHealthCard state={state} />
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <SmartAlerts state={state} />
+        <CashflowSummary state={state} />
+      </div>
       <div className="grid gap-6 md:gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] lg:items-start">
         <div className="space-y-5 md:space-y-6">
           <MoneyCard summary={summary} />
@@ -43,6 +58,11 @@ export default function MoneyPage() {
           activityCount={todayActivityCount}
         />
       </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <BusinessGoals state={state} />
+        <LightweightAiInsights state={state} />
+      </div>
+      <BusinessTimeline state={state} />
       <ActivityFeed
         transactions={state.transactions}
         onReverse={reverseActivity}

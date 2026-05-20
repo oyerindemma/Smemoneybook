@@ -499,9 +499,9 @@ function StockSummaryCard({
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <MoneyMetric label="Cost value" value={totalCostValue} />
-        <MoneyMetric label="Sales value" value={totalSellingValue} />
-        <MoneyMetric label="Expected profit" value={expectedProfitValue} highlight />
+        <MoneyMetric label="Stock Cost Value" value={totalCostValue} />
+        <MoneyMetric label="Potential Revenue" value={totalSellingValue} />
+        <MoneyMetric label="Potential Profit" value={expectedProfitValue} highlight />
       </div>
     </Card>
   );

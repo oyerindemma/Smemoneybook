@@ -58,6 +58,13 @@ export default function MorePage() {
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">More</h1>
         <p className="mt-1 text-sm text-textSecondary md:text-base">Advanced tools stay out of your daily flow.</p>
       </header>
+      <section className="rounded-2xl border border-gray-100 bg-card p-6 shadow-sm">
+        <p className="text-xs font-medium text-textSecondary">Staff access</p>
+        <h2 className="mt-1 text-base font-semibold text-textPrimary">
+          {roleLabel(state.businessRole)}
+        </h2>
+        <p className="mt-2 text-sm text-textSecondary">{roleDescription(state.businessRole)}</p>
+      </section>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
         href="/reports"
@@ -131,4 +138,20 @@ export default function MorePage() {
       </button>
     </main>
   );
+}
+
+function roleLabel(role?: "owner" | "accountant" | "staff") {
+  return {
+    owner: "Owner",
+    staff: "Staff",
+    accountant: "Accountant",
+  }[role ?? "owner"];
+}
+
+function roleDescription(role?: "owner" | "accountant" | "staff") {
+  return {
+    owner: "Full access to money, stock, people, and reports.",
+    staff: "Sales access only.",
+    accountant: "Reports access only.",
+  }[role ?? "owner"];
 }
