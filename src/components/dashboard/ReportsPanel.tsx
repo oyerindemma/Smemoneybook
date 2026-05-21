@@ -5,6 +5,12 @@ import { ListSkeleton } from "@/components/dashboard/Skeleton";
 import { useEffect, useState } from "react";
 import type { MonthlyReport } from "@/components/dashboard/types";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
+import {
+  buildReportShareText,
+  getReferralLink,
+  getWhatsAppShareUrl,
+} from "@/lib/viral/referral-engine";
 
 type ReportPeriod = "day" | "week" | "month";
 
@@ -115,6 +121,24 @@ export function ReportsPanel({
       title: "Unlock reports export",
       description: "Download CSV/PDF reports and share them with your accountant.",
     });
+
+  function shareReport() {
+    if (!report) {
+      return;
+    }
+
+    const referralLink = getReferralLink({
+      origin: typeof window === "undefined" ? undefined : window.location.origin,
+      businessId,
+      businessName: report.businessName,
+    });
+    trackProductEvent("viral_share_clicked", {
+      kind: "report",
+      channel: "whatsapp",
+      period: report.period,
+    });
+    window.open(getWhatsAppShareUrl(buildReportShareText(report, referralLink)), "_blank", "noopener,noreferrer");
+  }
 
   return (
     <section className="rounded-2xl bg-card p-6 shadow-sm border border-gray-100 transition hover:shadow-md sm:p-7">
@@ -253,6 +277,13 @@ export function ReportsPanel({
               onClick={showExportPrompt}
             >
               Export PDF
+            </button>
+            <button
+              className="rounded-xl bg-success px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-success/90"
+              type="button"
+              onClick={shareReport}
+            >
+              Share on WhatsApp
             </button>
           </div>
           <p className="mt-4 text-xs leading-5 text-textMuted">

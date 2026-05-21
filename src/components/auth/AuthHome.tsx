@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ErrorMessage } from "@/components/dashboard/ErrorMessage";
 import { OnboardingSetup } from "@/components/onboarding/OnboardingSetup";
+import type { CaptureFormData } from "@/components/dashboard/types";
 import type { MoneybookState } from "@/lib/bookkeeping/transaction-engine";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 type HomeStatus = "checking" | "signed_out" | "setup_needed" | "error";
 
@@ -147,7 +149,7 @@ function AuthHomeClient({
   async function completeOnboarding(input: {
     businessName: string;
     businessType: string;
-  }) {
+  }): Promise<MoneybookState> {
     const response = await fetch("/api/onboarding/setup", {
       method: "POST",
       credentials: "include",
@@ -164,7 +166,34 @@ function AuthHomeClient({
       localStorage.setItem("selectedBusinessId", payload.state.businessId);
     }
 
-    router.replace("/money");
+    setState(payload.state);
+    return payload.state;
+  }
+
+  async function completeFirstTransaction(formData: CaptureFormData): Promise<MoneybookState> {
+    const businessId = state?.businessId || localStorage.getItem("selectedBusinessId") || formData.businessId;
+    const response = await fetch("/api/transactions", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...formData,
+        businessId,
+        idempotencyKey: `activation-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as DashboardPayload | null;
+
+    if (!response.ok || !payload?.state) {
+      throw new Error(payload?.error ?? "Couldn’t save. Try again.");
+    }
+
+    setState(payload.state);
+    trackProductEvent("first_transaction_completion", {
+      type: formData.type,
+      activation_source: "onboarding",
+    });
+    return payload.state;
   }
 
   if (status === "setup_needed") {
@@ -173,6 +202,8 @@ function AuthHomeClient({
         initialBusinessName={state?.businessName}
         initialBusinessType={state?.businessType}
         onComplete={completeOnboarding}
+        onFirstTransaction={completeFirstTransaction}
+        onDashboard={() => router.replace("/money")}
       />
     );
   }
@@ -222,6 +253,7 @@ function AuthPanel({
   onAuthenticated: (business?: AuthenticatedBusiness | null) => void;
 }) {
   const [authMode, setAuthMode] = useState<"login" | "register">("register");
+  const [hasStarted, setHasStarted] = useState(status !== "signed_out");
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const message = formMessage ?? notice;
@@ -272,6 +304,36 @@ function AuthPanel({
 
   return (
     <section className="mx-auto w-full max-w-md rounded-2xl border border-gray-100 bg-card p-6 shadow-sm sm:p-7">
+      {!hasStarted && status !== "checking" && status !== "error" ? (
+        <div>
+          <p className="text-sm font-medium text-primary">SME MoneyBook</p>
+          <h1 className="mt-3 text-3xl font-semibold leading-tight">
+            Track your business money daily without stress.
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-textSecondary">Takes less than 1 minute.</p>
+          <button
+            className="mt-6 w-full rounded-xl bg-primary px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-primaryHover"
+            type="button"
+            onClick={() => {
+              setHasStarted(true);
+              trackProductEvent("signup_started", { source: "welcome_start_free" });
+            }}
+          >
+            Start Free
+          </button>
+          <button
+            className="mt-3 w-full rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-textSecondary"
+            type="button"
+            onClick={() => {
+              setAuthMode("login");
+              setHasStarted(true);
+            }}
+          >
+            I already have an account
+          </button>
+        </div>
+      ) : (
+        <>
       <div className="mb-5">
         <p className="text-sm text-textSecondary">SME Moneybook</p>
         <h1 className="mt-2 text-2xl font-semibold">
@@ -326,14 +388,6 @@ function AuthPanel({
                   Your name
                   <input className="h-12 rounded-xl border border-gray-200 px-3" name="name" required />
                 </label>
-                <label className="grid gap-2 text-sm font-medium">
-                  Business name
-                  <input
-                    className="h-12 rounded-xl border border-gray-200 px-3"
-                    name="businessName"
-                    required
-                  />
-                </label>
               </>
             ) : null}
             <label className="grid gap-2 text-sm font-medium">
@@ -376,6 +430,8 @@ function AuthPanel({
               {isSubmitting ? "Please wait..." : "Continue"}
             </button>
           </form>
+        </>
+      )}
         </>
       )}
       <div className="mt-6 border-t border-gray-100 pt-4 text-xs leading-6 text-textSecondary">

@@ -2,7 +2,11 @@
 
 import { RefreshCw, WifiOff } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { CaptureFormData, RecordMoneyMode } from "@/components/dashboard/types";
+import type {
+  CaptureFormData,
+  RecordMoneyMode,
+} from "@/components/dashboard/types";
+import type { VoiceBookkeepingDraft } from "@/lib/voice";
 import { RecordMoneySheet } from "@/components/money/RecordMoneySheet";
 import { ListSkeleton, SummarySkeleton } from "@/components/dashboard/Skeleton";
 import { NoticeToast } from "@/components/dashboard/NoticeToast";
@@ -18,6 +22,11 @@ import {
   readOfflineQueue,
   replayOfflineQueue,
 } from "@/lib/offline/offline-queue";
+import {
+  initProductAnalytics,
+  startProductAnalyticsSession,
+  trackProductEvent,
+} from "@/lib/analytics/product-analytics";
 import { sendDebtReminderAction } from "@/server/actions/whatsapp/send-debt-reminder";
 import { sendInvoiceAction } from "@/server/actions/whatsapp/send-invoice";
 import { sendPaymentConfirmationAction } from "@/server/actions/whatsapp/send-payment-confirmation";
@@ -37,6 +46,7 @@ type DashboardContextValue = {
   notice: string;
   setNotice: (message: string) => void;
   openRecordModal: (mode?: RecordMoneyMode) => void;
+  openVoiceDraft: (draft: VoiceBookkeepingDraft) => void;
   recordMoney: (formData: CaptureFormData) => Promise<boolean>;
   reverseActivity: (transactionId: string) => Promise<void>;
   collectDebt: (debtId: string, accountId: string, amount?: number) => Promise<void>;
@@ -72,6 +82,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [queuedCount, setQueuedCount] = useState(0);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
   const [recordMode, setRecordMode] = useState<RecordMoneyMode>("money");
+  const [voiceDraft, setVoiceDraft] = useState<VoiceBookkeepingDraft | null>(null);
   const [upgradePrompt, setUpgradePrompt] = useState<{
     title: string;
     description: string;
@@ -104,6 +115,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok && payload?.state) {
         setState(payload.state);
+        trackProductEvent("dashboard_loaded", {
+          business_type: payload.state.businessType ?? "Unknown",
+          onboarding_completed: Boolean(payload.state.onboardingCompleted),
+          transaction_count: payload.state.transactions.length,
+        });
         setSyncStatus("online");
         if (payload.state.businessId) {
           localStorage.setItem("selectedBusinessId", payload.state.businessId);
@@ -145,6 +161,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, [loadDashboard]);
 
   useEffect(() => {
+    initProductAnalytics();
+    startProductAnalyticsSession();
     const timer = window.setTimeout(() => {
       void loadDashboard();
     }, 0);
@@ -217,6 +235,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
     const idempotencyKey = createClientIdempotencyKey("ui");
     const businessId = state.businessId;
+    const isFirstTransaction = state.transactions.length === 0;
     const optimisticState = recordTransaction(state, {
       ...formData,
       idempotencyKey,
@@ -236,6 +255,19 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       });
       setQueuedCount(count);
       setNotice("Saved offline. MoneyBook will sync it later.");
+      trackProductEvent("transaction_saved", {
+        type: formData.type,
+        offline: true,
+        business_type: state.businessType ?? "Unknown",
+        is_first_transaction: isFirstTransaction,
+      });
+      if (isFirstTransaction) {
+        trackProductEvent("first_transaction_recorded", {
+          type: formData.type,
+          offline: true,
+          business_type: state.businessType ?? "Unknown",
+        });
+      }
       return true;
     }
 
@@ -261,7 +293,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok && payload?.state) {
         setState(payload.state);
-        setNotice("Money saved");
+        setNotice(buildSavedMoneyNotice(payload.state, formData.type, isFirstTransaction));
+        trackProductEvent("transaction_saved", {
+          type: formData.type,
+          offline: false,
+          business_type: state.businessType ?? "Unknown",
+          is_first_transaction: isFirstTransaction,
+        });
+        if (isFirstTransaction) {
+          trackProductEvent("first_transaction_recorded", {
+            type: formData.type,
+            offline: false,
+            business_type: state.businessType ?? "Unknown",
+          });
+          trackProductEvent("activation_aha_moment", {
+            type: formData.type,
+            business_type: state.businessType ?? "Unknown",
+          });
+        }
         return true;
       }
 
@@ -496,7 +545,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         notice,
         setNotice,
         openRecordModal: (mode = "money") => {
+          setVoiceDraft(null);
           setRecordMode(mode);
+          setIsRecordOpen(true);
+          trackProductEvent("quick_action_clicked", {
+            action: mode,
+            business_type: state.businessType ?? "Unknown",
+          });
+        },
+        openVoiceDraft: (draft) => {
+          setVoiceDraft(draft);
+          setRecordMode(draft.intent.kind === "expense" ? "expense" : "sale");
           setIsRecordOpen(true);
         },
         recordMoney,
@@ -517,8 +576,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         <RecordMoneySheet
           accounts={state.accounts}
           initialMode={recordMode}
+          initialDraft={voiceDraft ?? undefined}
           items={state.items}
-          onClose={() => setIsRecordOpen(false)}
+          businessType={state.businessType}
+          onClose={() => {
+            setIsRecordOpen(false);
+            setVoiceDraft(null);
+          }}
           onSubmit={recordMoney}
         />
       ) : null}
@@ -565,6 +629,50 @@ function createClientIdempotencyKey(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildSavedMoneyNotice(
+  state: MoneybookState,
+  type: CaptureFormData["type"],
+  isFirstTransaction: boolean,
+) {
+  const activeTransactions = state.transactions.filter(
+    (transaction) => !transaction.reversedByTransactionId,
+  );
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todaysProfit = activeTransactions
+    .filter((transaction) => transaction.occurredAt.slice(0, 10) === todayKey)
+    .reduce((sum, transaction) => {
+      if (transaction.type === "sale") {
+        return sum + transaction.profit;
+      }
+
+      if (transaction.type === "expense") {
+        return sum - transaction.amount;
+      }
+
+      return sum;
+    }, 0);
+
+  if (isFirstTransaction) {
+    return type === "sale"
+      ? "Great start. Your first sale is now tracked."
+      : "Great start. Your first expense is now tracked.";
+  }
+
+  if (type === "sale" && todaysProfit > 0) {
+    return `Nice. Your business made ${formatCompactNaira(todaysProfit)} profit today.`;
+  }
+
+  return "Saved. Your money is up to date.";
+}
+
+function formatCompactNaira(amount: number) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 function SyncStatusBanner({

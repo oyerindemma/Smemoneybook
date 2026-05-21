@@ -5,7 +5,7 @@ export function createVoiceBookkeepingDraft(rawText: string): VoiceBookkeepingDr
   const amount = extractNairaAmount(text);
   const lowerText = text.toLowerCase();
 
-  if (/\bsold\b|\bsell\b|\bsale\b/.test(lowerText)) {
+  if (/\bsold\b|\bsell\b|\bsale\b|\breceived\b|\bcollected\b|\bgot\b/.test(lowerText)) {
     return {
       intent: {
         kind: "sale",
@@ -23,7 +23,7 @@ export function createVoiceBookkeepingDraft(rawText: string): VoiceBookkeepingDr
     };
   }
 
-  if (/\bpaid\b|\bbought\b|\bspent\b|\bexpense\b/.test(lowerText)) {
+  if (/\bpaid\b|\bbought\b|\bbuy\b|\bspent\b|\bexpense\b|\bpurchased\b/.test(lowerText)) {
     return {
       intent: {
         kind: "expense",
@@ -44,13 +44,22 @@ export function createVoiceBookkeepingDraft(rawText: string): VoiceBookkeepingDr
 
   return {
     intent: { kind: "unknown", rawText: text },
+    capture: amount
+      ? {
+          amount,
+          description: text,
+          paymentStatus: "paid",
+        }
+      : undefined,
     needsReview: true,
   };
 }
 
 function extractNairaAmount(text: string) {
-  const match = text.replace(/,/g, "").match(/(?:₦|ngn|n)\s?(\d+(?:\.\d+)?)/i);
-  return match ? Number(match[1]) : undefined;
+  const normalized = text.replace(/,/g, "");
+  const match = normalized.match(/(?:₦|ngn|n|naira)\s?(\d+(?:\.\d+)?)/i);
+  const fallbackMatch = normalized.match(/\b(\d+(?:\.\d+)?)\b/);
+  return match ? Number(match[1]) : fallbackMatch ? Number(fallbackMatch[1]) : undefined;
 }
 
 function extractPaymentMethod(text: string) {

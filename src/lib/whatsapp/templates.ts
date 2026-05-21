@@ -33,6 +33,7 @@ export function debtReminderText({
 
 export function invoiceNotificationText({
   customerName,
+  businessName,
   amount,
   invoiceNumber,
   dueDate,
@@ -45,7 +46,8 @@ export function invoiceNotificationText({
 }) {
   const invoice = invoiceNumber ?? "your invoice";
   const due = dueDate ? `\nDue date: ${formatDate(dueDate)}.` : "";
-  return `Hello ${customerName},\nInvoice ${invoice} has been issued.\nTotal: ${formatAmount(amount)}.${due}\nThank you for your business.`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://smemoneybook.com";
+  return `Hello ${customerName},\nInvoice ${invoice} has been issued by ${businessName}.\nTotal: ${formatAmount(amount)}.${due}\nThank you for your business.\n\nPowered by SME MoneyBook\n${appUrl}`;
 }
 
 export function paymentReceivedText({

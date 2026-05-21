@@ -59,7 +59,7 @@ export function UniversalSearch() {
         <input
           className="min-h-14 w-full rounded-2xl border border-gray-100 bg-card pl-12 pr-12 text-base font-medium text-textPrimary shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           type="search"
-          placeholder="Search customers, invoices, products"
+          placeholder="Search sales, customers, invoices"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />

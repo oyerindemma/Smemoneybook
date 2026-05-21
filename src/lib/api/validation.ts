@@ -42,7 +42,22 @@ export const businessRequestSchema = z.object({
 export const onboardingSetupRequestSchema = z.object({
   businessName: requiredText("Business name"),
   businessType: z
-    .enum(["Retail", "Services", "Food", "Fashion", "Logistics", "Other"])
+    .enum([
+      "Retail",
+      "Retail shop",
+      "Services",
+      "Food",
+      "Restaurant",
+      "Food business",
+      "POS business",
+      "Fashion",
+      "Pharmacy",
+      "Freelancer",
+      "Beauty salon",
+      "Electronics",
+      "Logistics",
+      "Other",
+    ])
     .default("Retail"),
 });
 

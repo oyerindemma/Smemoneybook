@@ -12,13 +12,16 @@ export function ActivationProgress({
   }
 
   return (
-    <section className="rounded-2xl bg-card p-6 shadow-sm border border-gray-100 transition hover:shadow-md sm:p-7">
+    <section className="rounded-2xl bg-card p-4 shadow-sm border border-gray-100 transition hover:shadow-md sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-textSecondary">Your setup progress</p>
-          <h2 className="mt-1 text-lg font-semibold">
-            Record 3 money activities to understand your business better.
+          <p className="text-sm text-textSecondary">Activation path</p>
+          <h2 className="mt-1 text-base font-semibold leading-6">
+            Record 3 money activities to unlock your first business pattern.
           </h2>
+          <p className="mt-1 text-sm leading-5 text-textSecondary">
+            First sale, first expense, then one more record. That is enough to start seeing useful signals.
+          </p>
         </div>
         <strong className="rounded-full bg-background px-3 py-1 text-sm">
           {progress}/3
@@ -31,11 +34,11 @@ export function ActivationProgress({
         />
       </div>
       <button
-        className="mt-5 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primaryHover"
+        className="mt-4 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primaryHover"
         type="button"
         onClick={onRecord}
       >
-        Record money
+        Add next record
       </button>
     </section>
   );

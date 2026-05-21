@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type {
   Account,
@@ -9,42 +9,57 @@ import type {
   QuickAction,
   RecordMoneyMode,
 } from "@/components/dashboard/types";
+import type { VoiceBookkeepingDraft } from "@/lib/voice";
 import type { PaymentStatus } from "@/lib/bookkeeping/transaction-engine";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
+import { getBusinessTemplate } from "@/lib/bookkeeping/business-templates";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 export function RecordMoneySheet({
   accounts,
   initialMode = "money",
+  initialDraft,
   items,
+  businessType,
   onClose,
   onSubmit,
 }: {
   accounts: Account[];
   initialMode?: RecordMoneyMode;
+  initialDraft?: VoiceBookkeepingDraft;
   items: InventoryItem[];
+  businessType?: string;
   onClose: () => void;
   onSubmit: (formData: CaptureFormData) => Promise<boolean>;
 }) {
-  const [action, setAction] = useState<QuickAction>(initialMode === "invoice" ? "sale" : "sale");
-  const [amount, setAmount] = useState("");
+  const initialAction = getInitialAction(initialMode, initialDraft);
+  const initialAccountId = getInitialAccountId(accounts, initialDraft);
+  const [action, setAction] = useState<QuickAction>(initialAction);
+  const [amount, setAmount] = useState(
+    initialDraft?.capture?.amount ? String(initialDraft.capture.amount) : "",
+  );
   const [accountId, setAccountId] = useState(
-    accounts.find((account) => account.type === "cash")?.id ?? accounts[0]?.id ?? "",
+    initialAccountId,
   );
-  const [destinationAccountId, setDestinationAccountId] = useState(
-    accounts.find((account) => account.type === "bank")?.id ?? accounts[1]?.id ?? "",
-  );
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(initialDraft?.capture?.description ?? "");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [itemQuantity, setItemQuantity] = useState(1);
-  const [paidNow, setPaidNow] = useState(initialMode !== "invoice");
+  const [paidNow, setPaidNow] = useState(
+    initialDraft?.capture?.paymentStatus
+      ? initialDraft.capture.paymentStatus === "paid"
+      : initialMode !== "invoice",
+  );
+  const [category, setCategory] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const startedAtRef = useRef(0);
   const selectedItem = items.find((item) => item.id === selectedItemId);
+  const expenseCategories = getBusinessTemplate(businessType).expenseCategories;
   const normalizedQuantity = Math.max(Number(itemQuantity) || 1, 1);
   const productAmount = selectedItem ? selectedItem.sellingPrice * normalizedQuantity : 0;
   const amountNumber = selectedItem ? productAmount : Number(amount);
@@ -58,11 +73,6 @@ export function RecordMoneySheet({
       dueAt ||
       selectedItemId,
   );
-  const destinationOptions = useMemo(
-    () => accounts.filter((account) => account.id !== accountId),
-    [accounts, accountId],
-  );
-
   const requestClose = useCallback(() => {
     if (isSaving) {
       return;
@@ -72,8 +82,16 @@ export function RecordMoneySheet({
       return;
     }
 
+    if (isDirty) {
+      trackProductEvent("money_entry_abandoned", {
+        mode: initialMode,
+        action,
+        entry_time_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
+      });
+    }
+
     onClose();
-  }, [isDirty, isSaving, onClose]);
+  }, [action, initialMode, isDirty, isSaving, onClose]);
 
   const trapFocus = useCallback((event: KeyboardEvent) => {
     const sheet = document.getElementById("record-money-sheet");
@@ -102,6 +120,7 @@ export function RecordMoneySheet({
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    startedAtRef.current = Date.now();
     window.setTimeout(() => amountInputRef.current?.focus(), 80);
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -148,11 +167,11 @@ export function RecordMoneySheet({
     setError("");
     setIsSaving(true);
 
-    const type = action === "expense" ? "expense" : action === "transfer" ? "transfer" : "sale";
+    const type = action === "expense" ? "expense" : "sale";
     const paymentStatus: PaymentStatus =
-      type === "transfer" ? "paid" : paidNow ? "paid" : type === "sale" ? "credit" : "unpaid";
+      paidNow ? "paid" : type === "sale" ? "credit" : "unpaid";
     const fallbackDescription =
-      type === "sale" ? "Money in" : type === "transfer" ? "Move money" : "Money out";
+      type === "sale" ? "Sale" : "Expense";
     const productDescription = selectedItem
       ? `${selectedItem.name} x ${normalizedQuantity}`
       : "";
@@ -160,8 +179,8 @@ export function RecordMoneySheet({
       type,
       amount: amountNumber,
       accountId,
-      destinationAccountId: type === "transfer" ? destinationAccountId : undefined,
       description: note.trim() || productDescription || fallbackDescription,
+      category: type === "expense" ? category || undefined : undefined,
       paymentStatus,
       partyName:
         paymentStatus === "paid"
@@ -177,6 +196,22 @@ export function RecordMoneySheet({
     setIsSaving(false);
 
     if (saved) {
+      trackProductEvent("money_entry_completed", {
+        type,
+        mode: initialMode,
+        entry_time_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
+        has_customer: Boolean(customerName.trim()),
+        has_note: Boolean(note.trim()),
+        has_category: Boolean(category),
+        offline_capable: true,
+      });
+      if (initialDraft) {
+        trackProductEvent("voice_entry_saved", {
+          type,
+          entry_time_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
+          has_amount: Boolean(amountNumber),
+        });
+      }
       onClose();
     }
   }
@@ -187,6 +222,7 @@ export function RecordMoneySheet({
     setError("");
     setSelectedItemId("");
     setItemQuantity(1);
+    setCategory("");
     window.setTimeout(() => amountInputRef.current?.focus(), 0);
   }
 
@@ -210,8 +246,19 @@ export function RecordMoneySheet({
           <div>
             <p className="text-xs font-medium text-textSecondary md:text-sm">Fast entry</p>
             <h2 className="text-xl font-semibold tracking-tight md:text-2xl" id="record-money-title">
-              {initialMode === "invoice" ? "Create invoice" : "Record money"}
+              {initialDraft
+                ? "Review voice entry"
+                : initialMode === "invoice"
+                ? "Send invoice"
+                : action === "expense"
+                  ? "Add expense"
+                  : "Add sale"}
             </h2>
+            {initialDraft ? (
+              <p className="mt-1 text-sm leading-5 text-textSecondary">
+                Heard: “{initialDraft.intent.rawText}”
+              </p>
+            ) : null}
           </div>
           <button
             ref={closeButtonRef}
@@ -224,15 +271,12 @@ export function RecordMoneySheet({
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <ActionButton active={action === "sale"} onClick={() => selectAction("sale")}>
-            + I got money
+            Add Sale
           </ActionButton>
           <ActionButton active={action === "expense"} onClick={() => selectAction("expense")}>
-            - I spent money
-          </ActionButton>
-          <ActionButton active={action === "transfer"} onClick={() => selectAction("transfer")}>
-            Move money
+            Add Expense
           </ActionButton>
         </div>
 
@@ -280,7 +324,7 @@ export function RecordMoneySheet({
           ) : null}
 
           <label className="grid gap-2 text-sm font-medium" htmlFor="record-amount">
-            {selectedItem ? "Amount from stock item" : "Amount"}
+            Amount
             <input
               ref={amountInputRef}
               className={`h-14 rounded-xl border bg-white px-4 text-2xl font-bold tabular-nums outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-background disabled:text-textSecondary ${
@@ -298,8 +342,27 @@ export function RecordMoneySheet({
             {error ? <p className="text-xs font-medium text-danger">{error}</p> : null}
           </label>
 
+          {action === "expense" ? (
+            <label className="grid gap-2 text-sm font-medium" htmlFor="record-category">
+              Category
+              <select
+                className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                id="record-category"
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+              >
+                <option value="">Choose one</option>
+                {expenseCategories.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
           <label className="grid gap-2 text-sm font-medium" htmlFor="record-account">
-            {action === "transfer" ? "From" : "Where?"}
+            Money location
             <select
               className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               id="record-account"
@@ -314,27 +377,8 @@ export function RecordMoneySheet({
             </select>
           </label>
 
-          {action === "transfer" ? (
-            <label className="grid gap-2 text-sm font-medium" htmlFor="record-destination">
-              To
-              <select
-                className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                id="record-destination"
-                value={destinationAccountId || destinationOptions[0]?.id || ""}
-                onChange={(event) => setDestinationAccountId(event.target.value)}
-              >
-                {destinationOptions.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          {action !== "transfer" ? (
-            <label className="flex min-h-14 items-center justify-between gap-4 rounded-2xl bg-background px-4 py-3 text-sm font-medium">
-              <span>{action === "sale" ? "Paid now, not invoice" : "Paid now"}</span>
+          <label className="flex min-h-14 items-center justify-between gap-4 rounded-2xl bg-background px-4 py-3 text-sm font-medium">
+              <span>{action === "sale" ? "Customer paid now" : "Paid already"}</span>
               <input
                 checked={paidNow}
                 className="h-5 w-5 rounded border-gray-200 text-primary focus:ring-primary/20"
@@ -343,7 +387,6 @@ export function RecordMoneySheet({
               />
               <span className="sr-only">Customer will pay later when unchecked</span>
             </label>
-          ) : null}
 
           {isInvoice ? (
             <div className="grid gap-4 rounded-2xl border border-gray-100 bg-background/70 p-4">
@@ -385,7 +428,7 @@ export function RecordMoneySheet({
           ) : null}
 
           <label className="grid gap-2 text-sm font-medium" htmlFor="record-note">
-            {isInvoice ? "Invoice note optional" : "Short note optional"}
+            {isInvoice ? "Invoice note optional" : action === "sale" ? "Customer or note optional" : "Note optional"}
             <input
               className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               id="record-note"
@@ -406,11 +449,40 @@ export function RecordMoneySheet({
             type="submit"
             disabled={isSaving}
           >
-            {isSaving ? "Saving..." : isInvoice ? "Save invoice" : "Save money"}
+            {isSaving ? "Saving..." : isInvoice ? "Save invoice" : action === "expense" ? "Save expense" : "Save sale"}
           </button>
         </form>
       </section>
     </div>
+  );
+}
+
+function getInitialAction(
+  initialMode: RecordMoneyMode,
+  initialDraft?: VoiceBookkeepingDraft,
+): QuickAction {
+  if (initialDraft?.intent.kind === "expense") {
+    return "expense";
+  }
+
+  if (initialDraft?.intent.kind === "sale") {
+    return "sale";
+  }
+
+  return initialMode === "expense" ? "expense" : "sale";
+}
+
+function getInitialAccountId(accounts: Account[], initialDraft?: VoiceBookkeepingDraft) {
+  const paymentMethod =
+    initialDraft?.intent.kind === "sale" || initialDraft?.intent.kind === "expense"
+      ? initialDraft.intent.paymentMethod
+      : undefined;
+
+  return (
+    accounts.find((account) => account.type === paymentMethod)?.id ??
+    accounts.find((account) => account.type === "cash")?.id ??
+    accounts[0]?.id ??
+    ""
   );
 }
 

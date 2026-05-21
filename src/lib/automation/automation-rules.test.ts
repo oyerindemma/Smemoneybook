@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getBusinessAssistantContext = vi.fn();
 const upsertPreference = vi.fn();
+const findBusinessMember = vi.fn();
 
 vi.mock("@/lib/assistant/assistant-context", () => ({
   getBusinessAssistantContext,
@@ -11,6 +12,9 @@ vi.mock("@/lib/prisma", () => ({
   getPrisma: () => ({
     automationPreference: {
       upsert: upsertPreference,
+    },
+    businessMember: {
+      findFirst: findBusinessMember,
     },
   }),
 }));
@@ -30,6 +34,7 @@ describe("automation rules v1", () => {
       lowStockAlertEnabled: true,
       weeklySummaryEnabled: false,
     });
+    findBusinessMember.mockResolvedValue(null);
   });
 
   it("creates safe in-app automation suggestions", async () => {
