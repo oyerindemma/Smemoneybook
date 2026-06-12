@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { parseJsonBody } from "@/lib/api/validation";
 import { getBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 import { createAssistantReply } from "@/lib/assistant/assistant-client";
@@ -10,16 +12,25 @@ import { guardUserMessage, requiresConfirmation, sanitizeAssistantText } from "@
 export const runtime = "nodejs";
 
 const chatRequestSchema = z.object({
-  businessId: z.string().min(1),
-  message: z.string().trim().min(1).max(1000),
-  threadId: z.string().optional(),
+  businessId: z.preprocess((val) => val ?? "", z.string().min(1, "Choose a business.")),
+  message: z.preprocess(
+    (val) => val ?? "",
+    z.string().trim().min(1, "Enter a message.").max(1000, "Keep your message under 1000 characters."),
+  ),
+  threadId: z.preprocess((val) => val ?? "", z.string()).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
     const user = await requireUser();
-    const body = chatRequestSchema.parse(await request.json().catch(() => ({})));
+    const body = await parseJsonBody(request, chatRequestSchema);
+    const limited = await enforceRateLimit(request, "assistant.chat.write", 60, 60 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
     const access = await getBusinessAccess(user.id, body.businessId);
 
     if (!access) {

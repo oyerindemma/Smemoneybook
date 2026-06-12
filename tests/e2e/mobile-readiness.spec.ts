@@ -18,17 +18,23 @@ async function signUpAndOnboard(page: Page, prefix = "mobile-qa") {
   });
   await page.goto("/");
   await expect(page.getByText("SME Moneybook").first()).toBeVisible();
+  await page.getByRole("button", { name: "Start Free" }).click();
   await page.getByLabel("Your name").fill("Mobile QA Owner");
-  await page.getByLabel("Business name").fill(businessName);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator("body")).toContainText(/Let’s set up your money tracker|Available balance/, {
+  await expect(page.locator("body")).toContainText(/What business do you run\?|Available balance/, {
     timeout: 25_000,
   });
 
-  if ((await page.locator("body").innerText()).includes("Let’s set up your money tracker")) {
+  if ((await page.locator("body").innerText()).includes("What business do you run?")) {
+    await page.getByLabel("Business name optional").fill(businessName);
     await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Record my first transaction" }).click();
+    await page.getByLabel("Amount").fill("1000");
+    await page.getByRole("button", { name: "Save first record" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Not now" }).click();
   }
 
   await expect(page.getByText("Available balance")).toBeVisible({ timeout: 25_000 });
@@ -39,12 +45,17 @@ async function signUpAndOnboard(page: Page, prefix = "mobile-qa") {
 async function signOut(page: Page) {
   await page.goto("/more");
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "I already have an account" })).toBeVisible({ timeout: 15_000 });
 }
 
 async function signIn(page: Page, email: string) {
   await page.goto("/");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  const existingAccountButton = page.getByRole("button", { name: "I already have an account" });
+  if (await existingAccountButton.count()) {
+    await existingAccountButton.click();
+  } else {
+    await page.getByRole("button", { name: "Sign in" }).click();
+  }
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Continue" }).click();

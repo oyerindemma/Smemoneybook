@@ -1,22 +1,25 @@
+import { z } from "zod";
 import { requireUser } from "@/lib/auth/session";
 import { assertSameOriginRequest, jsonError } from "@/lib/api/http";
+import { parseJsonBody } from "@/lib/api/validation";
 import { getPrisma } from "@/lib/prisma";
+import { handleApiError } from "@/lib/api/error-middleware";
 
 export const runtime = "nodejs";
 
-type DeleteRequestPayload = {
-  confirmation?: unknown;
-  understood?: unknown;
-  reason?: unknown;
-};
+const deleteRequestSchema = z.object({
+  confirmation: z.preprocess((val) => val ?? "", z.string()).default(""),
+  understood: z.boolean().default(false),
+  reason: z.preprocess((val) => val ?? "", z.string().trim().max(500)).optional(),
+});
 
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
     const user = await requireUser();
-    const payload = (await request.json().catch(() => null)) as DeleteRequestPayload | null;
-    const confirmation = typeof payload?.confirmation === "string" ? payload.confirmation.trim() : "";
-    const understood = payload?.understood === true;
+    const payload = await parseJsonBody(request, deleteRequestSchema);
+    const confirmation = payload.confirmation.trim();
+    const understood = payload.understood;
 
     if (confirmation !== "DELETE") {
       return jsonError("Type DELETE to confirm.");
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
       return jsonError("You already have a pending deletion request.", 409);
     }
 
-    const reason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 500) : undefined;
+    const reason = payload.reason?.trim();
 
     await prisma.accountDeletionRequest.create({
       data: {
@@ -63,7 +66,6 @@ export async function POST(request: Request) {
       return jsonError("Sign in to continue.", error.status);
     }
 
-    console.error(error);
-    return jsonError("Something went wrong. Try again.", 500);
+    return handleApiError(request, error, "Something went wrong. Try again.");
   }
 }

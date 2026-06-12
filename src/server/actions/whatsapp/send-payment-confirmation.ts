@@ -2,6 +2,7 @@
 
 import { DebtStatus, DebtType } from "@prisma/client";
 import { requireUser } from "@/lib/auth/session";
+import { hasMinimumPlan } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 import { sendPaymentReceived } from "@/lib/whatsapp/service";
@@ -14,6 +15,11 @@ export async function sendPaymentConfirmationAction(input: {
   try {
     const user = await requireUser();
     const business = await requireBusinessAccess(user.id, "money:write", input.businessId);
+
+    if (!(await hasMinimumPlan(user.id, business.businessId, "growth"))) {
+      return { ok: false, message: "Upgrade to Growth to send payment confirmations." };
+    }
+
     const debt = await getPrisma().debt.findFirst({
       where: {
         id: input.debtId,

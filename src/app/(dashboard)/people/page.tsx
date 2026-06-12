@@ -10,7 +10,6 @@ export default function PeoplePage() {
     collectDebt,
     settleSupplierDebt,
     remindDebt,
-    sendInvoice,
     sendPaymentConfirmation,
     openRecordModal,
     showUpgradePrompt,
@@ -24,12 +23,12 @@ export default function PeoplePage() {
       />
       <ReceivablesSummary debts={state.debts} />
       <DebtList
+        businessId={state.businessId}
         accounts={state.accounts}
         debts={state.debts}
         onCollect={collectDebt}
         onSettleSupplier={settleSupplierDebt}
         onRemind={remindDebt}
-        onSendInvoice={sendInvoice}
         onSendPaymentConfirmation={sendPaymentConfirmation}
         onRecord={openRecordModal}
         onUpgradePrompt={showUpgradePrompt}

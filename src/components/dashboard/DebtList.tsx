@@ -7,22 +7,22 @@ import type { Account, Debt } from "@/components/dashboard/types";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 
 export function DebtList({
+  businessId,
   accounts,
   debts,
   onCollect,
   onSettleSupplier,
   onRemind,
-  onSendInvoice,
   onSendPaymentConfirmation,
   onUpgradePrompt,
   onRecord,
 }: {
+  businessId?: string;
   accounts: Account[];
   debts: Debt[];
   onCollect: (debtId: string, accountId: string, amount?: number) => void;
   onSettleSupplier: (debtId: string, accountId: string, amount?: number) => void;
   onRemind: (debtId: string, channel: "manual" | "whatsapp" | "sms") => Promise<void>;
-  onSendInvoice: (debtId: string) => Promise<void>;
   onSendPaymentConfirmation: (debtId: string, amount?: number) => Promise<void>;
   onUpgradePrompt?: (prompt: { title: string; description: string }) => void;
   onRecord?: () => void;
@@ -39,6 +39,7 @@ export function DebtList({
 
       <div className="mt-6 grid gap-6">
         <DebtGroup
+          businessId={businessId}
           accounts={accounts}
           debts={customerDebts}
           emptyTitle="No one owes you yet"
@@ -48,12 +49,12 @@ export function DebtList({
           tone="customer"
           onAction={onCollect}
           onRemind={onRemind}
-          onSendInvoice={onSendInvoice}
           onSendPaymentConfirmation={onSendPaymentConfirmation}
           onUpgradePrompt={onUpgradePrompt}
           onRecord={onRecord}
         />
         <DebtGroup
+          businessId={businessId}
           accounts={accounts}
           debts={supplierDebts}
           emptyTitle="No supplier bills yet"
@@ -63,7 +64,6 @@ export function DebtList({
           tone="supplier"
           onAction={onSettleSupplier}
           onRemind={onRemind}
-          onSendInvoice={onSendInvoice}
           onSendPaymentConfirmation={onSendPaymentConfirmation}
           onUpgradePrompt={onUpgradePrompt}
           onRecord={onRecord}
@@ -74,6 +74,7 @@ export function DebtList({
 }
 
 function DebtGroup({
+  businessId,
   accounts,
   debts,
   title,
@@ -83,11 +84,11 @@ function DebtGroup({
   tone,
   onAction,
   onRemind,
-  onSendInvoice,
   onSendPaymentConfirmation,
   onUpgradePrompt,
   onRecord,
 }: {
+  businessId?: string;
   accounts: Account[];
   debts: Debt[];
   title: string;
@@ -97,7 +98,6 @@ function DebtGroup({
   tone: "customer" | "supplier";
   onAction: (debtId: string, accountId: string, amount?: number) => void;
   onRemind: (debtId: string, channel: "manual" | "whatsapp" | "sms") => Promise<void>;
-  onSendInvoice: (debtId: string) => Promise<void>;
   onSendPaymentConfirmation: (debtId: string, amount?: number) => Promise<void>;
   onUpgradePrompt?: (prompt: { title: string; description: string }) => void;
   onRecord?: () => void;
@@ -111,19 +111,21 @@ function DebtGroup({
     ? debts.find((debt) => debt.id === selectedInvoice.id) ?? selectedInvoice
     : null;
 
-  function sendInvoice(debt: Debt, channel: "whatsapp" | "sms") {
+  async function sendInvoice(debt: Debt, channel: "whatsapp" | "sms") {
+    if (!(await canUseMessagingAutomation(businessId))) {
+      onUpgradePrompt?.({
+        title: "Unlock WhatsApp invoices",
+        description: "Upgrade to Growth to send invoices, reminders, and payment confirmations.",
+      });
+      return;
+    }
+
     const message = buildInvoiceMessage(debt);
     const encodedMessage = encodeURIComponent(message);
 
     if (channel === "whatsapp") {
       const phone = cleanPhone(debt.partyPhone);
-      window.open(
-        phone
-          ? `https://wa.me/${phone}?text=${encodedMessage}`
-          : `https://wa.me/?text=${encodedMessage}`,
-        "_blank",
-        "noopener,noreferrer",
-      );
+      window.open(buildWhatsAppUrl(phone, encodedMessage), "_blank", "noopener,noreferrer");
       return;
     }
 
@@ -232,11 +234,11 @@ function DebtGroup({
                       disabled={Boolean(busyAction)}
                       onClick={(event) => {
                         event.stopPropagation();
-                        void runDebtAction(`invoice-${debt.id}`, () => onSendInvoice(debt.id));
+                        void sendInvoice(debt, "whatsapp");
                       }}
                     >
                       <ReceiptText size={16} aria-hidden="true" />
-                      {busyAction === `invoice-${debt.id}` ? "Sending..." : "Send invoice"}
+                      Send invoice
                     </button>
                     <button
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-textPrimary hover:bg-background"
@@ -429,10 +431,7 @@ function DebtGroup({
             onAction(activeInvoice.id, selectedAccountId, amount);
             setSelectedInvoice(null);
           }}
-          onSend={sendInvoice}
-          onSendCloudInvoice={() =>
-            runDebtAction(`invoice-${activeInvoice.id}`, () => onSendInvoice(activeInvoice.id))
-          }
+          onSendInvoice={sendInvoice}
           onSendPaymentConfirmation={() =>
             runDebtAction(`payment-${activeInvoice.id}`, () =>
               onSendPaymentConfirmation(
@@ -457,8 +456,7 @@ function InvoiceModal({
   onAmountChange,
   onClose,
   onCollect,
-  onSend,
-  onSendCloudInvoice,
+  onSendInvoice,
   onSendPaymentConfirmation,
   busyAction,
 }: {
@@ -470,8 +468,7 @@ function InvoiceModal({
   onAmountChange: (amount: string) => void;
   onClose: () => void;
   onCollect: () => void;
-  onSend: (debt: Debt, channel: "whatsapp" | "sms") => void;
-  onSendCloudInvoice: () => void;
+  onSendInvoice: (debt: Debt, channel: "whatsapp" | "sms") => void | Promise<void>;
   onSendPaymentConfirmation: () => void;
   busyAction: string;
 }) {
@@ -524,16 +521,16 @@ function InvoiceModal({
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-textPrimary hover:bg-background"
             type="button"
             disabled={Boolean(busyAction)}
-            onClick={onSendCloudInvoice}
+            onClick={() => void onSendInvoice(debt, "whatsapp")}
           >
             <MessageCircle size={16} aria-hidden="true" />
-            {busyAction === `invoice-${debt.id}` ? "Sending..." : "Send via WhatsApp"}
+            Send via WhatsApp
           </button>
           <button
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-textPrimary hover:bg-background"
             type="button"
             disabled={Boolean(busyAction)}
-            onClick={() => onSend(debt, "sms")}
+            onClick={() => void onSendInvoice(debt, "sms")}
           >
             <Smartphone size={16} aria-hidden="true" />
             Send via SMS
@@ -610,6 +607,55 @@ function buildInvoiceMessage(debt: Debt) {
   return `Hello ${debt.partyName}, you owe ${formatNaira(debt.remainingAmount)}.${note ? ` ${note}` : ""}`;
 }
 
+function buildWhatsAppUrl(phone: string, encodedMessage: string) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isMobile) {
+    return phone
+      ? `https://wa.me/${phone}?text=${encodedMessage}`
+      : `https://wa.me/?text=${encodedMessage}`;
+  }
+
+  return phone
+    ? `https://web.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`
+    : `https://web.whatsapp.com/send?text=${encodedMessage}`;
+}
+
+async function canUseMessagingAutomation(businessId?: string) {
+  if (!businessId) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `/api/paystack/subscription?businessId=${encodeURIComponent(businessId)}`,
+      { credentials: "include", cache: "no-store" },
+    );
+    const payload = (await response.json().catch(() => null)) as {
+      currentPlan?: { id?: string } | null;
+    } | null;
+    const planId = payload?.currentPlan?.id;
+
+    return response.ok && (planId === "growth" || planId === "pro");
+  } catch {
+    return false;
+  }
+}
+
 function cleanPhone(phone?: string) {
-  return phone?.replace(/[^\d]/g, "");
+  const digits = phone?.replace(/[^\d]/g, "") ?? "";
+
+  if (/^0[789][01]\d{8}$/.test(digits)) {
+    return `234${digits.slice(1)}`;
+  }
+
+  if (/^234[789][01]\d{8}$/.test(digits)) {
+    return digits;
+  }
+
+  if (/^[789][01]\d{8}$/.test(digits)) {
+    return `234${digits}`;
+  }
+
+  return "";
 }

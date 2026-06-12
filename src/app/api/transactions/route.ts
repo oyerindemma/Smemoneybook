@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import {
   parseJsonBody,
@@ -9,7 +10,14 @@ import {
   getDashboardStateForUser,
   recordPersistentTransaction,
 } from "@/lib/bookkeeping/persistence";
+import {
+  requirePeopleAllowance,
+  requireTransactionAllowance,
+  willCreateBillablePerson,
+} from "@/lib/billing/free-limits";
+import { requireBusinessAccess } from "@/lib/operations/access";
 import { logApiFailure } from "@/lib/operations/monitoring";
+import { activateReferralRewards } from "@/lib/viral/referral-service";
 
 export const runtime = "nodejs";
 
@@ -41,6 +49,26 @@ export async function POST(request: Request) {
     const user = await requireUser();
     userId = user.id;
     const body = await parseJsonBody(request, transactionRequestSchema);
+    const limited = await enforceRateLimit(request, "transactions.write", 120, 15 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
+    const access = await requireBusinessAccess(user.id, "money:write", body.businessId);
+    const recordGate = await requireTransactionAllowance(user.id, access.businessId);
+
+    if (recordGate) {
+      return recordGate;
+    }
+
+    if (willCreateBillablePerson(body)) {
+      const peopleGate = await requirePeopleAllowance(user.id, access.businessId);
+
+      if (peopleGate) {
+        return peopleGate;
+      }
+    }
 
     const state = await recordPersistentTransaction({
       userId: user.id,
@@ -62,6 +90,10 @@ export async function POST(request: Request) {
         occurredAt: body.occurredAt,
         dueAt: body.dueAt,
       },
+    });
+
+    void activateReferralRewards({ referredUserId: user.id }).catch((error) => {
+      console.error("referral.activation_failed", error);
     });
 
     return Response.json({ state }, { status: 201 });

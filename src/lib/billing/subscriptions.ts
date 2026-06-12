@@ -1,8 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { Prisma, SubscriptionStatus } from "@prisma/client";
-import { getBillingPlan, getBillingPlanByDbPlan, type BillingFeature } from "@/lib/billing/plans";
+import {
+  getBillingPlan,
+  getBillingPlanByDbPlan,
+  type BillingFeature,
+  type BillingPlanId,
+} from "@/lib/billing/plans";
 import type { PaystackVerifyData } from "@/lib/billing/paystack";
 import { getPrisma } from "@/lib/prisma";
+
+const planRank: Record<BillingPlanId, number> = {
+  starter: 1,
+  growth: 2,
+  pro: 3,
+};
 
 export function createPaymentReference(planId: string) {
   return `sme_${planId}_${Date.now()}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
@@ -154,13 +165,67 @@ export async function getActiveSubscription(userId: string, businessId: string) 
   });
 }
 
-export async function requireFeatureAccess(userId: string, businessId: string, feature: BillingFeature) {
+export async function getActiveBillingPlan(userId: string, businessId: string) {
   const subscription = await getActiveSubscription(userId, businessId);
-  const plan = subscription ? getBillingPlanByDbPlan(subscription.plan) : null;
+  return subscription ? getBillingPlanByDbPlan(subscription.plan) : null;
+}
+
+export async function hasMinimumPlan(
+  userId: string,
+  businessId: string,
+  requiredPlan: BillingPlanId,
+) {
+  const plan = await getActiveBillingPlan(userId, businessId);
+
+  if (!plan) {
+    return false;
+  }
+
+  return planRank[plan.id] >= planRank[requiredPlan];
+}
+
+export async function hasAnyMinimumPlan(userId: string, requiredPlan: BillingPlanId) {
+  const subscriptions = await getPrisma().subscription.findMany({
+    where: {
+      userId,
+      status: SubscriptionStatus.ACTIVE,
+      currentPeriodEnd: { gt: new Date() },
+    },
+  });
+
+  return subscriptions.some((subscription) => {
+    const plan = getBillingPlanByDbPlan(subscription.plan);
+    return Boolean(plan && planRank[plan.id] >= planRank[requiredPlan]);
+  });
+}
+
+export async function requireMinimumPlan(
+  userId: string,
+  businessId: string,
+  requiredPlan: BillingPlanId,
+  message = `Upgrade to ${requiredPlan} to use this feature.`,
+) {
+  if (await hasMinimumPlan(userId, businessId, requiredPlan)) {
+    return null;
+  }
+
+  return Response.json(
+    {
+      error: message,
+      requiredPlan,
+    },
+    { status: 402 },
+  );
+}
+
+export async function requireFeatureAccess(userId: string, businessId: string, feature: BillingFeature) {
+  const plan = await getActiveBillingPlan(userId, businessId);
 
   if (!plan?.features.includes(feature)) {
     return Response.json(
-      { error: "Upgrade your plan to use this feature." },
+      {
+        error: "Upgrade your plan to use this feature.",
+      },
       { status: 402 },
     );
   }

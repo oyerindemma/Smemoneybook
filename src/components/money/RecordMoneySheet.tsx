@@ -64,7 +64,9 @@ export function RecordMoneySheet({
   const productAmount = selectedItem ? selectedItem.sellingPrice * normalizedQuantity : 0;
   const amountNumber = selectedItem ? productAmount : Number(amount);
   const isSale = action === "sale";
-  const isInvoice = isSale && !paidNow;
+  const isInvoiceMode = initialMode === "invoice" && isSale;
+  const isCreditSale = isSale && !paidNow;
+  const shouldCaptureCustomer = isInvoiceMode || isCreditSale;
   const isDirty = Boolean(
     amount.trim() ||
       note.trim() ||
@@ -154,7 +156,7 @@ export function RecordMoneySheet({
       return;
     }
 
-    if (isInvoice && !customerName.trim()) {
+    if (shouldCaptureCustomer && !customerName.trim()) {
       setError("Enter the customer name for this invoice.");
       return;
     }
@@ -175,6 +177,21 @@ export function RecordMoneySheet({
     const productDescription = selectedItem
       ? `${selectedItem.name} x ${normalizedQuantity}`
       : "";
+    const invoiceMessage = isInvoiceMode
+      ? buildInvoiceMessage({
+          amount: amountNumber,
+          customerName: customerName.trim(),
+          dueAt,
+          note: note.trim() || productDescription,
+          paidNow,
+        })
+      : "";
+    const invoiceWindow = isInvoiceMode ? window.open("", "_blank") : null;
+
+    if (invoiceWindow) {
+      invoiceWindow.opener = null;
+    }
+
     const saved = await onSubmit({
       type,
       amount: amountNumber,
@@ -183,7 +200,7 @@ export function RecordMoneySheet({
       category: type === "expense" ? category || undefined : undefined,
       paymentStatus,
       partyName:
-        paymentStatus === "paid"
+        paymentStatus === "paid" && !isInvoiceMode
           ? undefined
           : customerName.trim() || note.trim() || undefined,
       partyPhone: customerPhone.trim() || undefined,
@@ -212,7 +229,12 @@ export function RecordMoneySheet({
           has_amount: Boolean(amountNumber),
         });
       }
+      if (isInvoiceMode) {
+        openWhatsAppInvoice(customerPhone, invoiceMessage, invoiceWindow);
+      }
       onClose();
+    } else {
+      invoiceWindow?.close();
     }
   }
 
@@ -388,7 +410,7 @@ export function RecordMoneySheet({
               <span className="sr-only">Customer will pay later when unchecked</span>
             </label>
 
-          {isInvoice ? (
+          {shouldCaptureCustomer ? (
             <div className="grid gap-4 rounded-2xl border border-gray-100 bg-background/70 p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium" htmlFor="record-customer-name">
@@ -428,12 +450,12 @@ export function RecordMoneySheet({
           ) : null}
 
           <label className="grid gap-2 text-sm font-medium" htmlFor="record-note">
-            {isInvoice ? "Invoice note optional" : action === "sale" ? "Customer or note optional" : "Note optional"}
+            {isInvoiceMode || isCreditSale ? "Invoice note optional" : action === "sale" ? "Customer or note optional" : "Note optional"}
             <input
               className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               id="record-note"
               placeholder={
-                isInvoice
+                isInvoiceMode || isCreditSale
                   ? "e.g. 2 bags of rice"
                   : action === "sale"
                     ? "Customer or sale note"
@@ -449,7 +471,15 @@ export function RecordMoneySheet({
             type="submit"
             disabled={isSaving}
           >
-            {isSaving ? "Saving..." : isInvoice ? "Save invoice" : action === "expense" ? "Save expense" : "Save sale"}
+            {isSaving
+              ? isInvoiceMode
+                ? "Sending..."
+                : "Saving..."
+              : isInvoiceMode
+                ? "Send invoice"
+                : action === "expense"
+                  ? "Save expense"
+                  : "Save sale"}
           </button>
         </form>
       </section>
@@ -484,6 +514,90 @@ function getInitialAccountId(accounts: Account[], initialDraft?: VoiceBookkeepin
     accounts[0]?.id ??
     ""
   );
+}
+
+function buildInvoiceMessage({
+  amount,
+  customerName,
+  dueAt,
+  note,
+  paidNow,
+}: {
+  amount: number;
+  customerName: string;
+  dueAt?: string;
+  note?: string;
+  paidNow: boolean;
+}) {
+  const lines = [
+    `Hello ${customerName},`,
+    `Your invoice total is ${formatNaira(amount)}.`,
+    paidNow ? "Status: Paid." : "Status: Unpaid.",
+  ];
+
+  if (!paidNow && dueAt) {
+    lines.push(`Due date: ${formatInvoiceDate(dueAt)}.`);
+  }
+
+  if (note) {
+    lines.push(`Details: ${note}.`);
+  }
+
+  lines.push("Thank you.");
+  return lines.join("\n");
+}
+
+function openWhatsAppInvoice(phone: string, message: string, invoiceWindow?: Window | null) {
+  const encodedMessage = encodeURIComponent(message);
+  const normalizedPhone = normalizeWhatsAppPhone(phone);
+  const url = buildWhatsAppInvoiceUrl(normalizedPhone, encodedMessage);
+
+  if (invoiceWindow) {
+    invoiceWindow.location.href = url;
+    return;
+  }
+
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function buildWhatsAppInvoiceUrl(phone: string, encodedMessage: string) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isMobile) {
+    return phone
+      ? `https://wa.me/${phone}?text=${encodedMessage}`
+      : `https://wa.me/?text=${encodedMessage}`;
+  }
+
+  return phone
+    ? `https://web.whatsapp.com/send?phone=${phone}&text=${encodedMessage}`
+    : `https://web.whatsapp.com/send?text=${encodedMessage}`;
+}
+
+function normalizeWhatsAppPhone(phone: string) {
+  const digits = phone.replace(/[^\d]/g, "");
+
+  if (/^0[789][01]\d{8}$/.test(digits)) {
+    return `234${digits.slice(1)}`;
+  }
+
+  if (/^234[789][01]\d{8}$/.test(digits)) {
+    return digits;
+  }
+
+  if (/^[789][01]\d{8}$/.test(digits)) {
+    return `234${digits}`;
+  }
+
+  return "";
+}
+
+function formatInvoiceDate(value: string) {
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 function ActionButton({

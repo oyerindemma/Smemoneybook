@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasNullishValue, logMalformedPayload, sanitizePayload } from "@/lib/utils/sanitize";
 
 export class RequestValidationError extends Error {
   constructor(message: string) {
@@ -7,32 +8,49 @@ export class RequestValidationError extends Error {
   }
 }
 
-const optionalText = z
-  .string()
-  .trim()
-  .max(240)
-  .optional()
-  .transform((value) => value || undefined);
+const safeString = (schema: z.ZodType<string> = z.string()) =>
+  z.preprocess((val) => val ?? "", schema);
+
+const safeEmail = (message: string) =>
+  safeString(z.email(message).trim().toLowerCase());
+
+const optionalText = safeString(z.string().trim().max(240)).optional();
+
+const defaultText = (fallback: string) =>
+  safeString(z.string().trim().max(240)).transform((value) => value || fallback);
 
 const requiredText = (label: string, max = 120) =>
-  z
-    .string({ error: `${label} is required.` })
-    .trim()
-    .min(1, `${label} is required.`)
-    .max(max, `${label} is too long.`);
+  z.preprocess(
+    (val) => val ?? "",
+    z
+      .string({ error: `${label} is required.` })
+      .trim()
+      .min(1, `${label} is required.`)
+      .max(max, `${label} is too long.`),
+  );
 
 const selectedBusinessId = requiredText("Business", 240);
 
 export const registerRequestSchema = z.object({
   name: requiredText("Your name"),
-  email: z.email("Enter a valid email.").trim().toLowerCase(),
-  password: z.string().min(12, "Enter a 12+ character password."),
+  email: safeEmail("Enter a valid email."),
+  password: safeString(z.string().min(12, "Enter a 12+ character password.")),
   businessName: optionalText,
+  referralCode: optionalText,
 });
 
 export const loginRequestSchema = z.object({
-  email: z.email("Enter a valid email.").trim().toLowerCase(),
-  password: z.string().min(1, "Enter your password."),
+  email: safeEmail("Enter a valid email."),
+  password: safeString(z.string().min(1, "Enter your password.")),
+});
+
+export const passwordResetRequestSchema = z.object({
+  email: safeEmail("Enter a valid email."),
+});
+
+export const passwordResetConfirmSchema = z.object({
+  token: requiredText("Reset link", 240),
+  password: safeString(z.string().min(12, "Enter a 12+ character password.")),
 });
 
 export const businessRequestSchema = z.object({
@@ -69,7 +87,7 @@ export const transactionRequestSchema = z
     amount: z.coerce.number().finite().positive("Enter an amount greater than zero."),
     accountId: requiredText("Account"),
     destinationAccountId: optionalText,
-    description: optionalText.default("Activity"),
+    description: defaultText("Activity"),
     category: optionalText,
     paymentStatus: z.enum(["paid", "credit", "unpaid"]),
     partyName: optionalText,
@@ -206,7 +224,7 @@ export const remindDebtRequestSchema = z.object({
 
 export const staffInvitationRequestSchema = z.object({
   businessId: selectedBusinessId,
-  email: z.email("Enter a valid staff email.").trim().toLowerCase(),
+  email: safeEmail("Enter a valid staff email."),
   role: z.enum(["staff", "accountant"]).default("staff"),
 });
 
@@ -221,7 +239,7 @@ export const receiptUploadRequestSchema = z.object({
   businessId: selectedBusinessId,
   fileName: requiredText("Receipt filename"),
   mimeType: optionalText,
-  text: z.string().max(10_000).optional().default(""),
+  text: safeString(z.string().max(10_000)).default(""),
 });
 
 export const billingCheckoutRequestSchema = z.object({
@@ -234,9 +252,9 @@ export const restoreBackupRequestSchema = z.object({
   backup: z
     .object({
       version: z.literal(1),
-      exportedAt: z.string(),
+      exportedAt: safeString(),
       business: z.object({
-        name: z.string(),
+        name: safeString(),
         accounts: z.array(z.unknown()).default([]),
         transactions: z.array(z.unknown()).default([]),
         customers: z.array(z.unknown()).default([]),
@@ -266,13 +284,35 @@ export async function parseJsonBody<T extends z.ZodType>(
   schema: T,
 ): Promise<z.infer<T>> {
   const body = await request.json().catch(() => undefined);
-  const result = schema.safeParse(body);
+  if (body === undefined) {
+    logMalformedPayload({ request, reason: "invalid_json" });
+  } else if (hasNullishValue(body)) {
+    logMalformedPayload({ request, reason: "nullish_values", body });
+  }
+
+  const sanitizedBody = sanitizePayload(body);
+  const result = schema.safeParse(sanitizedBody);
 
   if (!result.success) {
-    throw new RequestValidationError(result.error.issues[0]?.message ?? "Check your entry.");
+    logMalformedPayload({ request, reason: "validation_failed", body: sanitizedBody });
+    throw new RequestValidationError(toFriendlyValidationMessage(result.error));
   }
 
   return result.data;
+}
+
+export function toFriendlyValidationMessage(error: z.ZodError) {
+  const firstIssue = error.issues[0];
+  if (!firstIssue) {
+    return "Check your entry and try again.";
+  }
+
+  if (firstIssue.message && firstIssue.message !== "Invalid input") {
+    return firstIssue.message;
+  }
+
+  const field = firstIssue.path.at(-1);
+  return field ? `Check ${String(field)} and try again.` : "Check your entry and try again.";
 }
 
 export function parseMonthYear(request: Request) {

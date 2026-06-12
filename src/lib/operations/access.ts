@@ -16,7 +16,7 @@ export type BusinessAccess = {
 
 const permissions: Record<Role, Permission[]> = {
   OWNER: ["admin", "money:write", "reports:write", "inventory:write", "backup:read"],
-  ACCOUNTANT: ["money:write", "reports:write", "inventory:write", "backup:read"],
+  ACCOUNTANT: ["reports:write", "backup:read"],
   STAFF: ["money:write", "inventory:write"],
 };
 

@@ -9,7 +9,6 @@ Set these in local, staging, and production:
 ```env
 PAYSTACK_PUBLIC_KEY=pk_test_xxx
 PAYSTACK_SECRET_KEY=sk_test_xxx
-PAYSTACK_WEBHOOK_SECRET=paystack-webhook-note
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
 
@@ -27,7 +26,7 @@ Events handled:
 
 - `charge.success`
 
-The route verifies `x-paystack-signature` with the Paystack secret key before processing.
+The route verifies `x-paystack-signature` with `PAYSTACK_SECRET_KEY` before processing.
 
 ## Deployment Checklist
 

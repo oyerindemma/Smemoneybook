@@ -22,7 +22,7 @@ export function AssistantChat() {
       content: "Ask me about sales, customers owing, stock, reports, or VAT estimates. I will keep it simple.",
     },
   ]);
-  const [threadId, setThreadId] = useState<string>();
+  const [threadId, setThreadId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +44,7 @@ export function AssistantChat() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessId: state.businessId, threadId, message: text }),
+        body: JSON.stringify({ businessId: state.businessId, threadId: threadId || undefined, message: text }),
       });
       const payload = (await response.json().catch(() => null)) as {
         threadId?: string;
@@ -57,7 +57,7 @@ export function AssistantChat() {
         return;
       }
 
-      setThreadId(payload.threadId);
+      setThreadId(payload.threadId ?? "");
       setMessages((current) => [
         ...current,
         {

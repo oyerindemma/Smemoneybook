@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUser = vi.fn();
+const enforceRateLimit = vi.fn();
 const recordPersistentTransaction = vi.fn();
 const getDashboardStateForUser = vi.fn();
+const requireBusinessAccess = vi.fn();
+const requireTransactionAllowance = vi.fn();
+const requirePeopleAllowance = vi.fn();
+const willCreateBillablePerson = vi.fn();
+const activateReferralRewards = vi.fn();
 
 vi.mock("@/lib/auth/session", () => ({
   requireUser,
+}));
+
+vi.mock("@/lib/auth/rate-limit", () => ({
+  enforceRateLimit,
 }));
 
 vi.mock("@/lib/bookkeeping/persistence", () => ({
@@ -13,11 +23,31 @@ vi.mock("@/lib/bookkeeping/persistence", () => ({
   recordPersistentTransaction,
 }));
 
+vi.mock("@/lib/operations/access", () => ({
+  requireBusinessAccess,
+}));
+
+vi.mock("@/lib/billing/free-limits", () => ({
+  requireTransactionAllowance,
+  requirePeopleAllowance,
+  willCreateBillablePerson,
+}));
+
+vi.mock("@/lib/viral/referral-service", () => ({
+  activateReferralRewards,
+}));
+
 describe("/api/transactions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ id: "user_1", name: "Owner", email: "owner@test.ng" });
+    enforceRateLimit.mockResolvedValue(null);
     recordPersistentTransaction.mockResolvedValue({ businessName: "Demo", accounts: [] });
+    requireBusinessAccess.mockResolvedValue({ businessId: "biz_1" });
+    requireTransactionAllowance.mockResolvedValue(null);
+    requirePeopleAllowance.mockResolvedValue(null);
+    willCreateBillablePerson.mockReturnValue(false);
+    activateReferralRewards.mockResolvedValue(null);
   });
 
   it("rejects invalid transaction payloads before persistence", async () => {
@@ -78,6 +108,7 @@ describe("/api/transactions", () => {
         dueAt: undefined,
       },
     });
+    expect(activateReferralRewards).toHaveBeenCalledWith({ referredUserId: "user_1" });
   });
 
   it("accepts transfers with a destination account", async () => {
@@ -138,5 +169,80 @@ describe("/api/transactions", () => {
         }),
       }),
     );
+  });
+
+  it("returns the Starter paywall when the free record limit is reached", async () => {
+    requireTransactionAllowance.mockResolvedValue(
+      Response.json({ error: "Upgrade to Starter.", requiredPlan: "starter" }, { status: 402 }),
+    );
+    const { POST } = await import("@/app/api/transactions/route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          idempotencyKey: "limit-1",
+          businessId: "biz_1",
+          type: "sale",
+          amount: "15000",
+          accountId: "cash",
+          description: "Walk-in sale",
+          paymentStatus: "paid",
+          costOfGoods: "0",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(402);
+    expect(recordPersistentTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns the Starter paywall when a free credit sale would add too many people", async () => {
+    willCreateBillablePerson.mockReturnValue(true);
+    requirePeopleAllowance.mockResolvedValue(
+      Response.json({ error: "Upgrade to Starter.", requiredPlan: "starter" }, { status: 402 }),
+    );
+    const { POST } = await import("@/app/api/transactions/route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          idempotencyKey: "people-limit-1",
+          businessId: "biz_1",
+          type: "sale",
+          amount: "15000",
+          accountId: "cash",
+          description: "Credit sale",
+          partyName: "Ada",
+          paymentStatus: "credit",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(402);
+    expect(recordPersistentTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rate limits repeated money writes", async () => {
+    enforceRateLimit.mockResolvedValueOnce(
+      Response.json({ error: "Too many attempts." }, { status: 429 }),
+    );
+    const { POST } = await import("@/app/api/transactions/route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          idempotencyKey: "rate-limit-1",
+          businessId: "biz_1",
+          type: "sale",
+          amount: "15000",
+          accountId: "cash",
+          description: "Walk-in sale",
+          paymentStatus: "paid",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(recordPersistentTransaction).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,8 @@ import { parseJsonBody, registerRequestSchema } from "@/lib/api/validation";
 import { createBusinessForUser } from "@/lib/bookkeeping/persistence";
 import { getPrisma } from "@/lib/prisma";
 import { logApiFailure } from "@/lib/operations/monitoring";
+import { sanitizeString } from "@/lib/utils/sanitize";
+import { recordReferralSignup } from "@/lib/viral/referral-service";
 
 export const runtime = "nodejs";
 
@@ -17,7 +19,7 @@ export async function POST(request: Request) {
       return limited;
     }
 
-    const { name, email, password, businessName } = await parseJsonBody(
+    const { name, email, password, businessName, referralCode } = await parseJsonBody(
       request,
       registerRequestSchema,
     );
@@ -39,10 +41,24 @@ export async function POST(request: Request) {
       ? await createBusinessForUser(user.id, businessName)
       : null;
 
+    try {
+      await recordReferralSignup({
+        referralCode,
+        referredUserId: user.id,
+        referredBusinessId: business?.id,
+      });
+    } catch (error) {
+      console.error("referral.signup_attribution_failed", error);
+    }
+
     await createSession(user.id, request);
 
     return Response.json({
-      user: { id: user.id, name: user.name, email: user.email },
+      user: {
+        id: sanitizeString(user.id),
+        name: sanitizeString(user.name),
+        email: sanitizeString(user.email),
+      },
       business: business
         ? {
             id: business.id,

@@ -17,6 +17,7 @@ model User {
   members         BusinessMember[]
   auditLogs       AuditLog[]
   sessions        Session[]
+  passwordResets  PasswordResetToken[]
   sentInvitations BusinessInvitation[] @relation("InvitationSender")
   DebtEvent       DebtEvent[]
   ReportSnapshot  ReportSnapshot[]
@@ -24,6 +25,21 @@ model User {
   assistantThreads AssistantThread[]
   assistantMessages AssistantMessage[]
   pendingAssistantActions PendingAssistantAction[]
+  referralAttributions ReferralAttribution[] @relation("ReferredUser")
+  referralRewards ReferralReward[] @relation("ReferralRewardUser")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Session {
@@ -72,6 +88,48 @@ model Business {
   automationPreference AutomationPreference?
   automationLogs      AutomationLog[]
   pendingAssistantActions PendingAssistantAction[]
+  referralAttributions ReferralAttribution[] @relation("ReferrerBusiness")
+  referredAttributions ReferralAttribution[] @relation("ReferredBusiness")
+  referralRewards      ReferralReward[]
+}
+
+model ReferralAttribution {
+  id                 String           @id @default(cuid())
+  referralCode       String
+  referrerBusinessId String?
+  referredUserId     String           @unique
+  referredBusinessId String?
+  source             String           @default("signup")
+  status             String           @default("SIGNED_UP")
+  createdAt          DateTime         @default(now())
+  referrerBusiness   Business?        @relation("ReferrerBusiness", fields: [referrerBusinessId], references: [id], onDelete: SetNull)
+  referredBusiness   Business?        @relation("ReferredBusiness", fields: [referredBusinessId], references: [id], onDelete: SetNull)
+  referredUser       User             @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  rewards            ReferralReward[]
+
+  @@index([referralCode, createdAt])
+  @@index([referrerBusinessId, createdAt])
+  @@index([referredBusinessId])
+}
+
+model ReferralReward {
+  id            String               @id @default(cuid())
+  attributionId String?
+  beneficiaryUserId String?
+  beneficiaryBusinessId String?
+  type          String
+  status        String               @default("PENDING")
+  description   String
+  value         Int?
+  createdAt     DateTime             @default(now())
+  redeemedAt    DateTime?
+  attribution   ReferralAttribution? @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+  beneficiaryUser User?              @relation("ReferralRewardUser", fields: [beneficiaryUserId], references: [id], onDelete: SetNull)
+  beneficiaryBusiness Business?      @relation(fields: [beneficiaryBusinessId], references: [id], onDelete: SetNull)
+
+  @@index([beneficiaryUserId, status])
+  @@index([beneficiaryBusinessId, status])
+  @@index([type, createdAt])
 }
 
 model BusinessMember {

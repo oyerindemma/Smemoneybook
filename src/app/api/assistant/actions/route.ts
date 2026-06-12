@@ -2,15 +2,16 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/session";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { parseJsonBody } from "@/lib/api/validation";
 import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
 const actionRequestSchema = z.object({
-  businessId: z.string().min(1),
-  actionId: z.string().optional(),
-  type: z.string().min(1).optional(),
+  businessId: z.preprocess((val) => val ?? "", z.string().min(1, "Choose a business.")),
+  actionId: z.preprocess((val) => val ?? "", z.string()).optional(),
+  type: z.preprocess((val) => val ?? "", z.string().min(1, "Choose an action type.")).optional(),
   payload: z.unknown().optional(),
   decision: z.enum(["approve", "reject"]).optional(),
 });
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
     const user = await requireUser();
-    const body = actionRequestSchema.parse(await request.json().catch(() => ({})));
+    const body = await parseJsonBody(request, actionRequestSchema);
     const access = await requireBusinessAccess(user.id, "money:write", body.businessId);
 
     if (!body.actionId) {

@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { inventoryMovementRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import { moveInventoryForUser } from "@/lib/bookkeeping/persistence";
@@ -14,6 +15,11 @@ export async function POST(
     const user = await requireUser();
     const { id } = await params;
     const body = await parseJsonBody(request, inventoryMovementRequestSchema);
+    const limited = await enforceRateLimit(request, "inventory.movements.write", 120, 15 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
 
     const state = await moveInventoryForUser({
       userId: user.id,

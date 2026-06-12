@@ -14,7 +14,7 @@ test("home screen loads a usable shell", async ({ page }) => {
   await expect(page.getByText("SME Moneybook").first()).toBeVisible();
   await expect(
     page.getByRole("heading", {
-      name: /Track your money daily|Database setup needed/i,
+      name: /Track your business money daily without stress\.|Track your money daily|Database setup needed/i,
     }),
   ).toBeVisible();
 });

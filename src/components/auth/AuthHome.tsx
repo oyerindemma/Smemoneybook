@@ -3,11 +3,13 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { ErrorMessage } from "@/components/dashboard/ErrorMessage";
 import { OnboardingSetup } from "@/components/onboarding/OnboardingSetup";
 import type { CaptureFormData } from "@/components/dashboard/types";
 import type { MoneybookState } from "@/lib/bookkeeping/transaction-engine";
 import { trackProductEvent } from "@/lib/analytics/product-analytics";
+import { sanitizeString } from "@/lib/utils/sanitize";
 
 type HomeStatus = "checking" | "signed_out" | "setup_needed" | "error";
 
@@ -26,6 +28,12 @@ type AuthenticatedBusiness = {
 type AuthPayload = {
   error?: string;
   business?: AuthenticatedBusiness | null;
+};
+
+type PasswordResetPayload = {
+  error?: string;
+  message?: string;
+  resetUrl?: string;
 };
 
 type AuthHomeProps = {
@@ -252,11 +260,26 @@ function AuthPanel({
   notice: string;
   onAuthenticated: (business?: AuthenticatedBusiness | null) => void;
 }) {
-  const [authMode, setAuthMode] = useState<"login" | "register">("register");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("register");
   const [hasStarted, setHasStarted] = useState(status !== "signed_out");
   const [formMessage, setFormMessage] = useState<string | null>(null);
+  const [resetUrl, setResetUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const message = formMessage ?? notice;
+
+  useEffect(() => {
+    const referralCode = new URLSearchParams(window.location.search).get("ref")?.trim();
+
+    if (referralCode) {
+      localStorage.setItem("referralCode", referralCode);
+    }
+  }, []);
+
+  function changeAuthMode(nextMode: "login" | "register" | "forgot") {
+    setAuthMode(nextMode);
+    setFormMessage(null);
+    setResetUrl(null);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -275,21 +298,68 @@ function AuthPanel({
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            name: form.get("name"),
-            email: form.get("email"),
-            password: form.get("password"),
-            businessName: form.get("businessName"),
+            name: sanitizeString(form.get("name")),
+            email: sanitizeString(form.get("email")),
+            password: sanitizeString(form.get("password")),
+            businessName: sanitizeString(form.get("businessName")),
+            referralCode:
+              authMode === "register"
+                ? sanitizeString(localStorage.getItem("referralCode"))
+                : undefined,
           }),
         },
       );
       const payload = (await response.json().catch(() => null)) as AuthPayload | null;
 
       if (!response.ok) {
-        setFormMessage(payload?.error ?? "Something went wrong. Try again.");
+        setFormMessage(getFriendlyAuthError(payload?.error));
         return;
       }
 
       onAuthenticated(payload?.business ?? null);
+      if (authMode === "register") {
+        localStorage.removeItem("referralCode");
+      }
+    } catch (error) {
+      setFormMessage(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "The server took too long to respond. Please try again."
+          : "Could not reach the app server. Check that the dev server is still running and try again.",
+      );
+    } finally {
+      window.clearTimeout(timeout);
+      setIsSubmitting(false);
+    }
+  }
+
+  async function submitForgotPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12_000);
+
+    setIsSubmitting(true);
+    setFormMessage(null);
+    setResetUrl(null);
+    try {
+      const response = await fetch("/api/auth/password-reset/request", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          email: sanitizeString(form.get("email")),
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as PasswordResetPayload | null;
+
+      if (!response.ok) {
+        setFormMessage(getFriendlyAuthError(payload?.error));
+        return;
+      }
+
+      setFormMessage(payload?.message ?? "If that email is registered, we sent password reset instructions.");
+      setResetUrl(payload?.resetUrl ?? null);
     } catch (error) {
       setFormMessage(
         error instanceof DOMException && error.name === "AbortError"
@@ -325,7 +395,7 @@ function AuthPanel({
             className="mt-3 w-full rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-textSecondary"
             type="button"
             onClick={() => {
-              setAuthMode("login");
+              changeAuthMode("login");
               setHasStarted(true);
             }}
           >
@@ -334,104 +404,139 @@ function AuthPanel({
         </div>
       ) : (
         <>
-      <div className="mb-5">
-        <p className="text-sm text-textSecondary">SME Moneybook</p>
-        <h1 className="mt-2 text-2xl font-semibold">
-          {status === "error" ? "Something went wrong" : "Track your money daily"}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-textSecondary">{message}</p>
-      </div>
-
-      {status === "checking" ? (
-        <div className="rounded-2xl bg-background p-5 text-sm font-medium text-textSecondary">
-          Loading...
-        </div>
-      ) : status === "error" ? (
-        <ErrorMessage message={message} />
-      ) : (
-        <>
-          <div className="mb-4 grid grid-cols-2 rounded-xl bg-background p-1">
-            <button
-              className={`h-11 rounded-xl text-sm font-semibold ${
-                authMode === "register"
-                  ? "bg-primary text-white hover:bg-primaryHover"
-                  : "text-textSecondary"
-              }`}
-              type="button"
-              onClick={() => {
-                setAuthMode("register");
-                setFormMessage(null);
-              }}
-            >
-              Create
-            </button>
-            <button
-              className={`h-11 rounded-xl text-sm font-semibold ${
-                authMode === "login"
-                  ? "bg-primary text-white hover:bg-primaryHover"
-                  : "text-textSecondary"
-              }`}
-              type="button"
-              onClick={() => {
-                setAuthMode("login");
-                setFormMessage(null);
-              }}
-            >
-              Sign in
-            </button>
+          <div className="mb-5">
+            <p className="text-sm text-textSecondary">SME Moneybook</p>
+            <h1 className="mt-2 text-2xl font-semibold">
+              {status === "error" ? "Something went wrong" : "Track your money daily"}
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-textSecondary">{message}</p>
           </div>
 
-          <form className="grid gap-4" onSubmit={submit}>
-            {authMode === "register" ? (
-              <>
-                <label className="grid gap-2 text-sm font-medium">
-                  Your name
-                  <input className="h-12 rounded-xl border border-gray-200 px-3" name="name" required />
-                </label>
-              </>
-            ) : null}
-            <label className="grid gap-2 text-sm font-medium">
-              Email
-              <input
-                className="h-12 rounded-xl border border-gray-200 px-3"
-                name="email"
-                type="email"
-                required
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-medium">
-              Password
-              <input
-                className="h-12 rounded-xl border border-gray-200 px-3"
-                name="password"
-                type="password"
-                minLength={8}
-                required
-              />
-            </label>
-            {authMode === "register" ? (
-              <p className="text-xs leading-5 text-textSecondary">
-                By creating an account, you agree to SME MoneyBook&apos;s{" "}
-                <Link className="font-semibold text-primary hover:underline" href="/legal/terms-of-service">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link className="font-semibold text-primary hover:underline" href="/legal/privacy-policy">
-                  Privacy Policy
-                </Link>
-                .
-              </p>
-            ) : null}
-            <button
-              className="mt-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white shadow-sm hover:bg-primaryHover disabled:bg-textMuted"
-              type="submit"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Please wait..." : "Continue"}
-            </button>
-          </form>
-        </>
-      )}
+          {status === "checking" ? (
+            <div className="rounded-2xl bg-background p-5 text-sm font-medium text-textSecondary">
+              Loading...
+            </div>
+          ) : status === "error" ? (
+            <ErrorMessage message={message} />
+          ) : (
+            <>
+              {authMode === "forgot" ? (
+                <button
+                  className="mb-4 text-sm font-semibold text-primary hover:underline"
+                  type="button"
+                  onClick={() => changeAuthMode("login")}
+                >
+                  Back to sign in
+                </button>
+              ) : (
+                <div className="mb-4 grid grid-cols-2 rounded-xl bg-background p-1">
+                  <button
+                    className={`h-11 rounded-xl text-sm font-semibold ${
+                      authMode === "register"
+                        ? "bg-primary text-white hover:bg-primaryHover"
+                        : "text-textSecondary"
+                    }`}
+                    type="button"
+                    onClick={() => changeAuthMode("register")}
+                  >
+                    Create
+                  </button>
+                  <button
+                    className={`h-11 rounded-xl text-sm font-semibold ${
+                      authMode === "login"
+                        ? "bg-primary text-white hover:bg-primaryHover"
+                        : "text-textSecondary"
+                    }`}
+                    type="button"
+                    onClick={() => changeAuthMode("login")}
+                  >
+                    Sign in
+                  </button>
+                </div>
+              )}
+
+              {authMode === "forgot" ? (
+                <form className="grid gap-4" onSubmit={submitForgotPassword}>
+                  <label className="grid gap-2 text-sm font-medium">
+                    Email
+                    <input
+                      className="h-12 rounded-xl border border-gray-200 px-3"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                    />
+                  </label>
+                  {resetUrl ? (
+                    <Link className="text-sm font-semibold text-primary hover:underline" href={resetUrl}>
+                      Open reset link
+                    </Link>
+                  ) : null}
+                  <button
+                    className="mt-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white shadow-sm hover:bg-primaryHover disabled:bg-textMuted"
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Please wait..." : "Send reset link"}
+                  </button>
+                </form>
+              ) : (
+                <form className="grid gap-4" onSubmit={submit}>
+                  {authMode === "register" ? (
+                    <label className="grid gap-2 text-sm font-medium">
+                      Your name
+                      <input
+                        className="h-12 rounded-xl border border-gray-200 px-3"
+                        name="name"
+                        autoComplete="name"
+                        required
+                      />
+                    </label>
+                  ) : null}
+                  <label className="grid gap-2 text-sm font-medium">
+                    Email
+                    <input
+                      className="h-12 rounded-xl border border-gray-200 px-3"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                    />
+                  </label>
+                  <PasswordInput autoComplete={authMode === "register" ? "new-password" : "current-password"} />
+                  {authMode === "login" ? (
+                    <button
+                      className="-mt-2 justify-self-start text-sm font-semibold text-primary hover:underline"
+                      type="button"
+                      onClick={() => changeAuthMode("forgot")}
+                    >
+                      Forgot password?
+                    </button>
+                  ) : null}
+                  {authMode === "register" ? (
+                    <p className="text-xs leading-5 text-textSecondary">
+                      By creating an account, you agree to SME MoneyBook&apos;s{" "}
+                      <Link className="font-semibold text-primary hover:underline" href="/legal/terms-of-service">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link className="font-semibold text-primary hover:underline" href="/legal/privacy-policy">
+                        Privacy Policy
+                      </Link>
+                      .
+                    </p>
+                  ) : null}
+                  <button
+                    className="mt-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white shadow-sm hover:bg-primaryHover disabled:bg-textMuted"
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Please wait..." : "Continue"}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
         </>
       )}
       <div className="mt-6 border-t border-gray-100 pt-4 text-xs leading-6 text-textSecondary">
@@ -456,4 +561,49 @@ function AuthPanel({
       </div>
     </section>
   );
+}
+
+function PasswordInput({
+  autoComplete,
+}: {
+  autoComplete: "current-password" | "new-password";
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div className="grid gap-2 text-sm font-medium">
+      <label htmlFor="auth-password">Password</label>
+      <span className="relative block">
+        <input
+          id="auth-password"
+          className="h-12 w-full rounded-xl border border-gray-200 px-3 pr-12"
+          name="password"
+          type={isVisible ? "text" : "password"}
+          minLength={12}
+          autoComplete={autoComplete}
+          required
+        />
+        <button
+          aria-label={isVisible ? "Hide password" : "Show password"}
+          className="absolute inset-y-0 right-2 my-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-background hover:text-primary"
+          type="button"
+          onClick={() => setIsVisible((visible) => !visible)}
+        >
+          {isVisible ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+function getFriendlyAuthError(error?: string) {
+  if (!error) {
+    return "Something went wrong. Try again.";
+  }
+
+  if (/invalid input|expected .* received|zod/i.test(error)) {
+    return "Check your details and try again.";
+  }
+
+  return error;
 }

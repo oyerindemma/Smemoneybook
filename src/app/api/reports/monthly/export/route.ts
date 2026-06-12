@@ -1,6 +1,9 @@
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { requireFeatureAccess } from "@/lib/billing/subscriptions";
 import { getMonthlyReportForUser } from "@/lib/bookkeeping/persistence";
+import { requireBusinessAccess } from "@/lib/operations/access";
 import { monthlyReportToCsv } from "@/lib/reports/csv";
 import { reportToPdf } from "@/lib/reports/pdf";
 import { getReportPeriod } from "@/app/api/reports/monthly/route";
@@ -10,10 +13,23 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
+    const limited = await enforceRateLimit(request, "reports.monthly.export", 40, 60 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
     const { businessId, month, year, period, date } = getReportPeriod(request);
+    const access = await requireBusinessAccess(user.id, undefined, businessId);
+    const gated = await requireFeatureAccess(user.id, access.businessId, "basic_exports");
+
+    if (gated) {
+      return gated;
+    }
+
     const report = await getMonthlyReportForUser({
       userId: user.id,
-      businessId,
+      businessId: access.businessId,
       month,
       year,
       period,

@@ -1,6 +1,8 @@
 import { requireUser } from "@/lib/auth/session";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { saveTaxRunForUser } from "@/lib/bookkeeping/persistence";
+import { requireFeatureAccess } from "@/lib/billing/subscriptions";
+import { requireBusinessAccess } from "@/lib/operations/access";
 import { getMonthYear } from "@/app/api/reports/monthly/route";
 
 export const runtime = "nodejs";
@@ -10,7 +12,14 @@ export async function POST(request: Request) {
     assertSameOriginRequest(request);
     const user = await requireUser();
     const { businessId, month, year } = getMonthYear(request);
-    const report = await saveTaxRunForUser({ userId: user.id, businessId, month, year });
+    const access = await requireBusinessAccess(user.id, "reports:write", businessId);
+    const gated = await requireFeatureAccess(user.id, access.businessId, "advanced_reports");
+
+    if (gated) {
+      return gated;
+    }
+
+    const report = await saveTaxRunForUser({ userId: user.id, businessId: access.businessId, month, year });
 
     return Response.json({ report, message: "VAT summary saved." });
   } catch (error) {

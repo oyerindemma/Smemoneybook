@@ -1,22 +1,25 @@
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { parseJsonBody } from "@/lib/api/validation";
+import { requireMinimumPlan } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
 const preferenceSchema = z.object({
-  businessId: z.string().min(1),
+  businessId: z.preprocess((val) => val ?? "", z.string().min(1, "Choose a business.")),
   dailyReminderEnabled: z.boolean().optional(),
-  dailyReminderTime: z.string().optional().nullable(),
+  dailyReminderTime: z.preprocess((val) => val ?? "", z.string()).optional(),
   debtReminderEnabled: z.boolean().optional(),
   lowStockAlertEnabled: z.boolean().optional(),
   weeklySummaryEnabled: z.boolean().optional(),
   whatsappAutomationEnabled: z.boolean().optional(),
-  quietHoursStart: z.string().optional().nullable(),
-  quietHoursEnd: z.string().optional().nullable(),
-  timezone: z.string().optional(),
+  quietHoursStart: z.preprocess((val) => val ?? "", z.string()).optional(),
+  quietHoursEnd: z.preprocess((val) => val ?? "", z.string()).optional(),
+  timezone: z.preprocess((val) => val ?? "", z.string()).optional(),
 });
 
 export async function GET(request: Request) {
@@ -44,8 +47,25 @@ export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
     const user = await requireUser();
-    const body = preferenceSchema.parse(await request.json().catch(() => ({})));
+    const body = await parseJsonBody(request, preferenceSchema);
+    const limited = await enforceRateLimit(request, "automation.preferences.write", 40, 60 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
     const access = await requireBusinessAccess(user.id, "admin", body.businessId);
+    const gated = await requireMinimumPlan(
+      user.id,
+      access.businessId,
+      "growth",
+      "Upgrade to Growth to configure messaging automation.",
+    );
+
+    if (gated) {
+      return gated;
+    }
+
     const preferenceData = {
       dailyReminderEnabled: body.dailyReminderEnabled,
       dailyReminderTime: body.dailyReminderTime,

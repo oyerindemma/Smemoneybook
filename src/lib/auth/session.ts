@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/prisma";
+import { sanitizeString } from "@/lib/utils/sanitize";
 
 const sessionCookieName = "sme_moneybook_session";
 const sessionDays = 30;
@@ -111,7 +112,18 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     });
   }
 
-  return session.user;
+  const safeUser = {
+    id: sanitizeString(session.user?.id),
+    name: sanitizeString(session.user?.name),
+    email: sanitizeString(session.user?.email),
+  };
+
+  if (!safeUser.id || !safeUser.email) {
+    await getPrisma().session.deleteMany({ where: { token } });
+    return null;
+  }
+
+  return safeUser;
 }
 
 export async function requireUser() {

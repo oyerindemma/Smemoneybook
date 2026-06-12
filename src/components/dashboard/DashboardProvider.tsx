@@ -28,7 +28,6 @@ import {
   trackProductEvent,
 } from "@/lib/analytics/product-analytics";
 import { sendDebtReminderAction } from "@/server/actions/whatsapp/send-debt-reminder";
-import { sendInvoiceAction } from "@/server/actions/whatsapp/send-invoice";
 import { sendPaymentConfirmationAction } from "@/server/actions/whatsapp/send-payment-confirmation";
 import { sendStockAlertAction } from "@/server/actions/whatsapp/send-stock-alert";
 
@@ -52,7 +51,6 @@ type DashboardContextValue = {
   collectDebt: (debtId: string, accountId: string, amount?: number) => Promise<void>;
   settleSupplierDebt: (debtId: string, accountId: string, amount?: number) => Promise<void>;
   remindDebt: (debtId: string, channel: "manual" | "whatsapp" | "sms") => Promise<void>;
-  sendInvoice: (debtId: string) => Promise<void>;
   sendPaymentConfirmation: (debtId: string, amount?: number) => Promise<void>;
   sendStockAlert: (itemId: string, ownerPhone: string) => Promise<void>;
   createInventoryItem: (input: {
@@ -416,15 +414,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setNotice("Something went wrong. Check your internet and try again.");
   }
 
-  async function sendInvoice(debtId: string) {
-    if (!state?.businessId || !requireOnline()) {
-      return;
-    }
-
-    const result = await sendInvoiceAction({ businessId: state.businessId, debtId });
-    setNotice(result.message);
-  }
-
   async function sendPaymentConfirmation(debtId: string, amount?: number) {
     if (!state?.businessId || !requireOnline()) {
       return;
@@ -563,7 +552,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         collectDebt,
         settleSupplierDebt,
         remindDebt,
-        sendInvoice,
         sendPaymentConfirmation,
         createInventoryItem,
         moveInventory,
@@ -593,7 +581,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           onClose={() => setUpgradePrompt(null)}
           onUpgrade={() => {
             setUpgradePrompt(null);
-            setNotice("Upgrade checkout is not ready yet.");
+            window.location.assign("/more/billing");
           }}
         />
       ) : null}

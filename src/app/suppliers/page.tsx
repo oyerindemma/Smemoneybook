@@ -10,7 +10,7 @@ export default async function SuppliersPage() {
   return (
     <main className="min-h-screen bg-background px-5 py-8 text-textPrimary sm:px-8 sm:py-10">
       <section className="mx-auto w-full max-w-5xl">
-        <Link className="text-sm font-semibold text-textSecondary" href="/">
+        <Link className="text-sm font-semibold text-textSecondary" href="/money">
           Back to dashboard
         </Link>
         <h1 className="mt-3 text-2xl font-semibold">Suppliers</h1>

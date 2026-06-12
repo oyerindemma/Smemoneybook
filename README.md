@@ -144,7 +144,7 @@ Use this only for local or staging databases.
 - Category assist uses deterministic SME rules locally and can be replaced with an AI provider behind `/api/assist/categorize`.
 - Receipt extraction stores uploaded receipt text, suggested amount, vendor and category for review.
 - Offline transaction captures are stored in the browser and synced through `/api/offline/transactions` when the network returns.
-- Billing checkout records plan intent for ₦3,000, ₦6,000 and ₦10,000 tiers. Connect Paystack or Stripe before live charges.
+- Billing checkout records plan intent for ₦3,500, ₦7,000 and ₦12,000 tiers. Connect Paystack or Stripe before live charges.
 - Users can belong to multiple businesses; the dashboard can load a selected business by `businessId`.
 - Accountant exports provide a lightweight CSV pack while full backups remain available to owner/accountant roles.
 
@@ -153,9 +153,13 @@ Use this only for local or staging databases.
 For Vercel + Neon:
 
 1. Create the Neon database and set `DATABASE_URL`.
-2. Run `npm run db:generate`.
-3. Apply migrations from a trusted environment.
-4. Deploy after `npm run ci` passes.
-5. Confirm the app can register, sign in, record a paid sale, record a credit sale, collect debt and export a monthly CSV.
+2. Set `NEXT_PUBLIC_APP_URL` to the production HTTPS origin.
+3. Set `ADMIN_EMAILS` to a comma-separated allowlist for internal `/admin` access.
+4. Run `npm run db:generate`.
+5. Apply migrations from a trusted environment.
+6. Deploy after `npm run ci` passes.
+7. Confirm the app can register, sign in, record a paid sale, record a credit sale, collect debt, export a monthly CSV and open `/admin` from an allowlisted admin email.
+
+Production `/admin` access is denied unless the signed-in user email is listed in `ADMIN_EMAILS`. In local development only, an empty `ADMIN_EMAILS` allows signed-in users and shows a warning banner.
 
 Current npm audit status: `npm install` reports two moderate advisories. Do not run forced upgrades blindly; review the dependency tree and test the app after any remediation.

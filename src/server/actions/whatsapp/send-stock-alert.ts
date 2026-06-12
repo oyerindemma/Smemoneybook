@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser } from "@/lib/auth/session";
+import { hasMinimumPlan } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 import { sendLowStockAlert } from "@/lib/whatsapp/service";
@@ -13,6 +14,11 @@ export async function sendStockAlertAction(input: {
   try {
     const user = await requireUser();
     const business = await requireBusinessAccess(user.id, "inventory:write", input.businessId);
+
+    if (!(await hasMinimumPlan(user.id, business.businessId, "growth"))) {
+      return { ok: false, message: "Upgrade to Growth to send stock alerts." };
+    }
+
     const item = await getPrisma().inventoryItem.findFirst({
       where: { id: input.itemId, businessId: business.businessId },
     });

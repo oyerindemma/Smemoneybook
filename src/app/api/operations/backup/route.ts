@@ -1,5 +1,8 @@
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { requireFeatureAccess } from "@/lib/billing/subscriptions";
+import { requireBusinessAccess } from "@/lib/operations/access";
 import { exportBusinessBackup } from "@/lib/operations/service";
 import { logApiFailure } from "@/lib/operations/monitoring";
 
@@ -11,8 +14,21 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser();
     userId = user.id;
+    const limited = await enforceRateLimit(request, "operations.backup.export", 20, 60 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
     const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
-    const backup = await exportBusinessBackup(user.id, businessId);
+    const access = await requireBusinessAccess(user.id, "backup:read", businessId);
+    const gated = await requireFeatureAccess(user.id, access.businessId, "basic_exports");
+
+    if (gated) {
+      return gated;
+    }
+
+    const backup = await exportBusinessBackup(user.id, access.businessId);
 
     return Response.json(backup, {
       headers: {

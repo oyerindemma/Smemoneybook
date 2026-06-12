@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, restoreBackupRequestSchema } from "@/lib/api/validation";
 import { validateRestoreBackup } from "@/lib/operations/service";
@@ -14,6 +15,12 @@ export async function POST(request: Request) {
     const user = await requireUser();
     userId = user.id;
     const body = await parseJsonBody(request, restoreBackupRequestSchema);
+    const limited = await enforceRateLimit(request, "operations.restore.validate", 10, 60 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
     const result = await validateRestoreBackup(user.id, body, body.businessId);
 
     return Response.json(result);

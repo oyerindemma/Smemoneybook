@@ -6,9 +6,9 @@ import { verifyPaystackSignature } from "@/lib/billing/paystack";
 describe("Paystack billing", () => {
   it("defines the expected Nigerian billing plans in kobo", () => {
     expect(billingPlans.map((plan) => [plan.id, plan.amountKobo])).toEqual([
-      ["starter", 300000],
-      ["growth", 600000],
-      ["pro", 1000000],
+      ["starter", 350000],
+      ["growth", 700000],
+      ["pro", 1200000],
     ]);
   });
 

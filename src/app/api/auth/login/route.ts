@@ -6,6 +6,7 @@ import { loginRequestSchema, parseJsonBody } from "@/lib/api/validation";
 import { getFirstBusinessForUser } from "@/lib/bookkeeping/persistence";
 import { getPrisma } from "@/lib/prisma";
 import { logApiFailure } from "@/lib/operations/monitoring";
+import { sanitizeString } from "@/lib/utils/sanitize";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,11 @@ export async function POST(request: Request) {
     const business = await getFirstBusinessForUser(user.id);
 
     return Response.json({
-      user: { id: user.id, name: user.name, email: user.email },
+      user: {
+        id: sanitizeString(user.id),
+        name: sanitizeString(user.name),
+        email: sanitizeString(user.email),
+      },
       business: business
         ? {
             id: business.businessId,

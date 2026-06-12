@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import {
   parseJsonBody,
@@ -17,6 +18,12 @@ export async function POST(
     const user = await requireUser();
     const { id } = await params;
     const body = await parseJsonBody(request, settleSupplierDebtRequestSchema);
+    const limited = await enforceRateLimit(request, "debts.settle.write", 120, 15 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
     const state = await settleSupplierDebtForUser({
       userId: user.id,
       businessId: body.businessId,

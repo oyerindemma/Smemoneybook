@@ -5,6 +5,7 @@ import {
   createBusinessForUser,
   getFirstBusinessForUser,
 } from "@/lib/bookkeeping/persistence";
+import { requireBusinessWorkspaceAllowance } from "@/lib/billing/free-limits";
 import { mapRole } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
 
@@ -42,6 +43,11 @@ export async function POST(request: Request) {
     assertSameOriginRequest(request);
     const user = await requireUser();
     const { name } = await parseJsonBody(request, businessRequestSchema);
+    const gated = await requireBusinessWorkspaceAllowance(user.id);
+
+    if (gated) {
+      return gated;
+    }
 
     const business = await createBusinessForUser(user.id, name);
     return Response.json({ business }, { status: 201 });

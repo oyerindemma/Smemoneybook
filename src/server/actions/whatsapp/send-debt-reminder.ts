@@ -2,10 +2,16 @@
 
 import { requireUser } from "@/lib/auth/session";
 import { remindDebtForUser } from "@/lib/bookkeeping/persistence";
+import { hasMinimumPlan } from "@/lib/billing/subscriptions";
 
 export async function sendDebtReminderAction(input: { businessId: string; debtId: string }) {
   try {
     const user = await requireUser();
+
+    if (!(await hasMinimumPlan(user.id, input.businessId, "growth"))) {
+      return { ok: false, message: "Upgrade to Growth to send WhatsApp reminders." };
+    }
+
     const result = await remindDebtForUser({
       userId: user.id,
       businessId: input.businessId,

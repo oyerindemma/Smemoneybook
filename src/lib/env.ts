@@ -1,24 +1,27 @@
 import { z } from "zod";
 
+const safeEnvString = (schema: z.ZodString = z.string()) =>
+  z.preprocess((val) => val ?? "", schema);
+
 const appEnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.url("NEXT_PUBLIC_APP_URL must be a valid URL.").optional(),
 });
 
 const whatsappEnvSchema = z.object({
-  WHATSAPP_ACCESS_TOKEN: z.string().min(1, "WHATSAPP_ACCESS_TOKEN is required."),
-  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1, "WHATSAPP_PHONE_NUMBER_ID is required."),
-  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().min(16, "WHATSAPP_WEBHOOK_VERIFY_TOKEN must be at least 16 characters."),
-  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().min(1, "WHATSAPP_BUSINESS_ACCOUNT_ID is required."),
-  WHATSAPP_APP_SECRET: z.string().min(1).optional(),
+  WHATSAPP_ACCESS_TOKEN: safeEnvString(z.string().min(1, "WHATSAPP_ACCESS_TOKEN is required.")),
+  WHATSAPP_PHONE_NUMBER_ID: safeEnvString(z.string().min(1, "WHATSAPP_PHONE_NUMBER_ID is required.")),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: safeEnvString(z.string().min(16, "WHATSAPP_WEBHOOK_VERIFY_TOKEN must be at least 16 characters.")),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: safeEnvString(z.string().min(1, "WHATSAPP_BUSINESS_ACCOUNT_ID is required.")),
+  WHATSAPP_APP_SECRET: safeEnvString(z.string().min(1)).optional(),
 });
 
 const openAIEnvSchema = z.object({
-  OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required."),
-  OPENAI_MODEL: z.string().min(1).default("gpt-4.1-mini"),
+  OPENAI_API_KEY: safeEnvString(z.string().min(1, "OPENAI_API_KEY is required.")),
+  OPENAI_MODEL: safeEnvString(z.string().min(1)).default("gpt-4.1-mini"),
 });
 
 const cronEnvSchema = z.object({
-  CRON_SECRET: z.string().min(16, "CRON_SECRET must be at least 16 characters."),
+  CRON_SECRET: safeEnvString(z.string().min(16, "CRON_SECRET must be at least 16 characters.")),
 });
 
 export type AppEnv = z.infer<typeof appEnvSchema> & {
