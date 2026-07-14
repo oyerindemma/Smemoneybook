@@ -154,11 +154,12 @@ For Vercel + Neon:
 
 1. Create the Neon database and set `DATABASE_URL`.
 2. Set `NEXT_PUBLIC_APP_URL` to the production HTTPS origin.
-3. Set `ADMIN_EMAILS` to a comma-separated allowlist for internal `/admin` access.
-4. Run `npm run db:generate`.
-5. Apply migrations from a trusted environment.
-6. Deploy after `npm run ci` passes.
-7. Confirm the app can register, sign in, record a paid sale, record a credit sale, collect debt, export a monthly CSV and open `/admin` from an allowlisted admin email.
+3. Set `RESEND_API_KEY` and `EMAIL_FROM` for password reset emails. `EMAIL_FROM` must use a sender/domain verified in Resend. Existing Vercel projects may use `ADMIN_EMAIL` or `Admin_Email` as a fallback sender, but `EMAIL_FROM` is preferred.
+4. Set `ADMIN_EMAILS` to a comma-separated allowlist for internal `/admin` access.
+5. Run `npm run db:generate`.
+6. Apply migrations from a trusted environment.
+7. Deploy after `npm run ci` passes.
+8. Confirm the app can register, sign in, request a password reset email, record a paid sale, record a credit sale, collect debt, export a monthly CSV and open `/admin` from an allowlisted admin email.
 
 Production `/admin` access is denied unless the signed-in user email is listed in `ADMIN_EMAILS`. In local development only, an empty `ADMIN_EMAILS` allows signed-in users and shows a warning banner.
 

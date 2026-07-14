@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { LogoMark } from "@/components/brand/LogoMark";
 
 const AuthHomeClientOnly = dynamic(
   () => import("@/components/auth/AuthHome").then((mod) => mod.AuthHome),
@@ -20,7 +21,10 @@ function AuthHomeFallback() {
     <main className="flex min-h-screen items-center bg-background p-4 text-textPrimary">
       <section className="mx-auto w-full max-w-md rounded-2xl border border-gray-100 bg-card p-6 shadow-sm sm:p-7">
         <div className="mb-5">
-          <p className="text-sm text-textSecondary">SME Moneybook</p>
+          <div className="flex items-center gap-2">
+            <LogoMark />
+            <p className="text-sm text-textSecondary">SME MoneyBook</p>
+          </div>
           <h1 className="mt-2 text-2xl font-semibold">Track your money daily</h1>
           <p className="mt-2 text-sm leading-6 text-textSecondary">Opening sign-in...</p>
         </div>

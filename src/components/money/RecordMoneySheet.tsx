@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import type {
   Account,
   CaptureFormData,
@@ -14,6 +14,23 @@ import type { PaymentStatus } from "@/lib/bookkeeping/transaction-engine";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 import { getBusinessTemplate } from "@/lib/bookkeeping/business-templates";
 import { trackProductEvent } from "@/lib/analytics/product-analytics";
+
+type InvoiceDraftLine = {
+  inventoryItemId: string;
+  quantity: number;
+};
+
+type InvoiceMessageLine = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+};
+
+const emptyInvoiceLine: InvoiceDraftLine = {
+  inventoryItemId: "",
+  quantity: 1,
+};
 
 export function RecordMoneySheet({
   accounts,
@@ -45,8 +62,9 @@ export function RecordMoneySheet({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [dueAt, setDueAt] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState("");
-  const [itemQuantity, setItemQuantity] = useState(1);
+  const [invoiceLines, setInvoiceLines] = useState<InvoiceDraftLine[]>([
+    { ...emptyInvoiceLine },
+  ]);
   const [paidNow, setPaidNow] = useState(
     initialDraft?.capture?.paymentStatus
       ? initialDraft.capture.paymentStatus === "paid"
@@ -58,11 +76,31 @@ export function RecordMoneySheet({
   const amountInputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const startedAtRef = useRef(0);
-  const selectedItem = items.find((item) => item.id === selectedItemId);
   const expenseCategories = getBusinessTemplate(businessType).expenseCategories;
-  const normalizedQuantity = Math.max(Number(itemQuantity) || 1, 1);
-  const productAmount = selectedItem ? selectedItem.sellingPrice * normalizedQuantity : 0;
-  const amountNumber = selectedItem ? productAmount : Number(amount);
+  const selectedInvoiceItems = invoiceLines
+    .map((line) => {
+      const item = items.find((stockItem) => stockItem.id === line.inventoryItemId);
+      const quantity = Math.max(Number(line.quantity) || 1, 1);
+
+      return item
+        ? {
+            inventoryItemId: item.id,
+            name: item.name,
+            quantity,
+            unitPrice: item.sellingPrice,
+            costPrice: item.costPrice,
+            total: item.sellingPrice * quantity,
+          }
+        : null;
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line));
+  const hasProductLines = selectedInvoiceItems.length > 0;
+  const productAmount = selectedInvoiceItems.reduce((total, item) => total + item.total, 0);
+  const costOfGoods = selectedInvoiceItems.reduce(
+    (total, item) => total + item.costPrice * item.quantity,
+    0,
+  );
+  const amountNumber = hasProductLines ? productAmount : Number(amount);
   const isSale = action === "sale";
   const isInvoiceMode = initialMode === "invoice" && isSale;
   const isCreditSale = isSale && !paidNow;
@@ -73,7 +111,7 @@ export function RecordMoneySheet({
       customerName.trim() ||
       customerPhone.trim() ||
       dueAt ||
-      selectedItemId,
+      invoiceLines.some((line) => line.inventoryItemId),
   );
   const requestClose = useCallback(() => {
     if (isSaving) {
@@ -146,7 +184,7 @@ export function RecordMoneySheet({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!selectedItem && !amount.trim()) {
+    if (!hasProductLines && !amount.trim()) {
       setError("Enter an amount.");
       return;
     }
@@ -161,8 +199,21 @@ export function RecordMoneySheet({
       return;
     }
 
-    if (selectedItem && selectedItem.quantityOnHand < normalizedQuantity) {
-      setError("You do not have enough stock for this invoice.");
+    const productQuantities = new Map<string, number>();
+
+    for (const item of selectedInvoiceItems) {
+      productQuantities.set(
+        item.inventoryItemId,
+        (productQuantities.get(item.inventoryItemId) ?? 0) + item.quantity,
+      );
+    }
+
+    const outOfStockItem = items.find(
+      (item) => (productQuantities.get(item.id) ?? 0) > item.quantityOnHand,
+    );
+
+    if (outOfStockItem) {
+      setError(`You do not have enough stock for ${outOfStockItem.name}.`);
       return;
     }
 
@@ -174,14 +225,15 @@ export function RecordMoneySheet({
       paidNow ? "paid" : type === "sale" ? "credit" : "unpaid";
     const fallbackDescription =
       type === "sale" ? "Sale" : "Expense";
-    const productDescription = selectedItem
-      ? `${selectedItem.name} x ${normalizedQuantity}`
-      : "";
+    const productDescription = selectedInvoiceItems
+      .map((item) => `${item.name} x ${item.quantity}`)
+      .join(", ");
     const invoiceMessage = isInvoiceMode
       ? buildInvoiceMessage({
           amount: amountNumber,
           customerName: customerName.trim(),
           dueAt,
+          items: selectedInvoiceItems,
           note: note.trim() || productDescription,
           paidNow,
         })
@@ -204,19 +256,25 @@ export function RecordMoneySheet({
           ? undefined
           : customerName.trim() || note.trim() || undefined,
       partyPhone: customerPhone.trim() || undefined,
-      inventoryItemId: selectedItem?.id,
-      inventoryQuantity: selectedItem ? normalizedQuantity : undefined,
-      costOfGoods: selectedItem ? selectedItem.costPrice * normalizedQuantity : undefined,
+      inventoryItemId: selectedInvoiceItems[0]?.inventoryItemId,
+      inventoryQuantity: selectedInvoiceItems[0]?.quantity,
+      invoiceItems: selectedInvoiceItems.map((item) => ({
+        inventoryItemId: item.inventoryItemId,
+        quantity: item.quantity,
+      })),
+      costOfGoods: hasProductLines ? costOfGoods : undefined,
       dueAt: dueAt || undefined,
     });
 
     setIsSaving(false);
 
     if (saved) {
+      const entryTimeSeconds = getElapsedSeconds(startedAtRef.current);
+
       trackProductEvent("money_entry_completed", {
         type,
         mode: initialMode,
-        entry_time_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
+        entry_time_seconds: entryTimeSeconds,
         has_customer: Boolean(customerName.trim()),
         has_note: Boolean(note.trim()),
         has_category: Boolean(category),
@@ -225,7 +283,7 @@ export function RecordMoneySheet({
       if (initialDraft) {
         trackProductEvent("voice_entry_saved", {
           type,
-          entry_time_seconds: Math.round((Date.now() - startedAtRef.current) / 1000),
+          entry_time_seconds: entryTimeSeconds,
           has_amount: Boolean(amountNumber),
         });
       }
@@ -242,10 +300,30 @@ export function RecordMoneySheet({
     setAction(nextAction);
     setPaidNow(true);
     setError("");
-    setSelectedItemId("");
-    setItemQuantity(1);
+    setInvoiceLines([{ ...emptyInvoiceLine }]);
     setCategory("");
     window.setTimeout(() => amountInputRef.current?.focus(), 0);
+  }
+
+  function updateInvoiceLine(index: number, nextLine: InvoiceDraftLine) {
+    setInvoiceLines((current) =>
+      current.map((line, lineIndex) => (lineIndex === index ? nextLine : line)),
+    );
+    setError("");
+  }
+
+  function removeInvoiceLine(index: number) {
+    setInvoiceLines((current) =>
+      current.length === 1
+        ? [{ ...emptyInvoiceLine }]
+        : current.filter((_, lineIndex) => lineIndex !== index),
+    );
+    setError("");
+  }
+
+  function addInvoiceLine() {
+    setInvoiceLines((current) => [...current, { ...emptyInvoiceLine }]);
+    setError("");
   }
 
   return (
@@ -305,41 +383,90 @@ export function RecordMoneySheet({
         <form className="mt-6 grid gap-4" onSubmit={submit}>
           {isSale && items.length > 0 ? (
             <div className="grid gap-3 rounded-2xl bg-background p-4">
-              <div className="grid gap-3 sm:grid-cols-[1fr_112px]">
-                <label className="grid gap-2 text-sm font-medium" htmlFor="record-product">
-                  Goods sold
-                  <select
-                    className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    id="record-product"
-                    value={selectedItemId}
-                    onChange={(event) => {
-                      setSelectedItemId(event.target.value);
-                      setError("");
-                    }}
-                  >
-                    <option value="">No stock item</option>
-                    {items.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} ({item.quantityOnHand} left)
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-medium" htmlFor="record-product-quantity">
-                  Qty
-                  <input
-                    className="h-14 rounded-xl border border-gray-200 bg-white px-4 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    id="record-product-quantity"
-                    min="1"
-                    type="number"
-                    value={itemQuantity}
-                    onChange={(event) => setItemQuantity(Number(event.target.value))}
-                  />
-                </label>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Goods sold</p>
+                <button
+                  className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold text-textPrimary transition hover:bg-background"
+                  type="button"
+                  onClick={addInvoiceLine}
+                >
+                  <Plus size={15} aria-hidden="true" />
+                  Add product
+                </button>
               </div>
-              {selectedItem ? (
+
+              <div className="grid gap-3">
+                {invoiceLines.map((line, index) => {
+                  const rowItem = items.find((item) => item.id === line.inventoryItemId);
+                  const rowTotal = rowItem
+                    ? rowItem.sellingPrice * Math.max(Number(line.quantity) || 1, 1)
+                    : 0;
+
+                  return (
+                    <div
+                      className="grid gap-3 rounded-xl border border-gray-100 bg-white p-3 sm:grid-cols-[1fr_96px_44px]"
+                      key={`${index}-${line.inventoryItemId}`}
+                    >
+                      <label className="grid gap-2 text-sm font-medium" htmlFor={`record-product-${index}`}>
+                        Product
+                        <select
+                          className="h-12 rounded-xl border border-gray-200 bg-white px-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          id={`record-product-${index}`}
+                          value={line.inventoryItemId}
+                          onChange={(event) =>
+                            updateInvoiceLine(index, {
+                              ...line,
+                              inventoryItemId: event.target.value,
+                            })
+                          }
+                        >
+                          <option value="">No stock item</option>
+                          {items.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name} ({item.quantityOnHand} left)
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="grid gap-2 text-sm font-medium" htmlFor={`record-product-quantity-${index}`}>
+                        Qty
+                        <input
+                          className="h-12 rounded-xl border border-gray-200 bg-white px-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          id={`record-product-quantity-${index}`}
+                          min="1"
+                          type="number"
+                          value={line.quantity}
+                          onChange={(event) =>
+                            updateInvoiceLine(index, {
+                              ...line,
+                              quantity: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                      <button
+                        aria-label="Remove product"
+                        className="mt-auto flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 text-textSecondary transition hover:bg-background"
+                        type="button"
+                        onClick={() => removeInvoiceLine(index)}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                      {rowItem ? (
+                        <p className="text-xs text-textSecondary sm:col-span-3">
+                          {formatNaira(rowTotal)} · stock will reduce by{" "}
+                          {Math.max(Number(line.quantity) || 1, 1)}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {hasProductLines ? (
                 <p className="text-sm text-textSecondary">
-                  Invoice total {formatNaira(productAmount)} · stock will reduce by {normalizedQuantity}
+                  Invoice total {formatNaira(productAmount)} across {selectedInvoiceItems.length}{" "}
+                  product{selectedInvoiceItems.length === 1 ? "" : "s"}.
                 </p>
               ) : null}
             </div>
@@ -352,13 +479,13 @@ export function RecordMoneySheet({
               className={`h-14 rounded-xl border bg-white px-4 text-2xl font-bold tabular-nums outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-background disabled:text-textSecondary ${
                 error ? "border-danger" : "border-gray-200"
               }`}
-              disabled={Boolean(selectedItem)}
+              disabled={hasProductLines}
               id="record-amount"
               inputMode="decimal"
               min="1"
               placeholder="25000"
               type="number"
-              value={selectedItem ? String(productAmount) : amount}
+              value={hasProductLines ? String(productAmount) : amount}
               onChange={(event) => setAmount(event.target.value)}
             />
             {error ? <p className="text-xs font-medium text-danger">{error}</p> : null}
@@ -520,12 +647,14 @@ function buildInvoiceMessage({
   amount,
   customerName,
   dueAt,
+  items,
   note,
   paidNow,
 }: {
   amount: number;
   customerName: string;
   dueAt?: string;
+  items: InvoiceMessageLine[];
   note?: string;
   paidNow: boolean;
 }) {
@@ -534,6 +663,16 @@ function buildInvoiceMessage({
     `Your invoice total is ${formatNaira(amount)}.`,
     paidNow ? "Status: Paid." : "Status: Unpaid.",
   ];
+
+  if (items.length > 0) {
+    lines.push("Items:");
+    lines.push(
+      ...items.map(
+        (item, index) =>
+          `${index + 1}. ${item.name} x ${item.quantity} @ ${formatNaira(item.unitPrice)} = ${formatNaira(item.total)}`,
+      ),
+    );
+  }
 
   if (!paidNow && dueAt) {
     lines.push(`Due date: ${formatInvoiceDate(dueAt)}.`);
@@ -598,6 +737,10 @@ function formatInvoiceDate(value: string) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function getElapsedSeconds(startedAt: number) {
+  return Math.round((Date.now() - startedAt) / 1000);
 }
 
 function ActionButton({

@@ -52,7 +52,7 @@ type DashboardContextValue = {
   settleSupplierDebt: (debtId: string, accountId: string, amount?: number) => Promise<void>;
   remindDebt: (debtId: string, channel: "manual" | "whatsapp" | "sms") => Promise<void>;
   sendPaymentConfirmation: (debtId: string, amount?: number) => Promise<void>;
-  sendStockAlert: (itemId: string, ownerPhone: string) => Promise<void>;
+  sendStockAlert: (itemId: string, ownerPhone: string) => Promise<{ whatsappUrl?: string } | void>;
   createInventoryItem: (input: {
     name: string;
     sellingPrice: number;
@@ -493,6 +493,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       ownerPhone,
     });
     setNotice(result.message);
+    return result.whatsappUrl ? { whatsappUrl: result.whatsappUrl } : undefined;
   }
 
   async function refreshFromResponse(response: Response, successMessage: string) {

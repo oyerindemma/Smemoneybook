@@ -25,6 +25,7 @@ type ProductInput = {
 type StockDirection = "in" | "out";
 
 type FormErrors = Partial<Record<keyof ProductInput, string>>;
+type NotifyOwnerResult = { whatsappUrl?: string } | void;
 
 export function ProductList({
   items,
@@ -42,7 +43,7 @@ export function ProductList({
     quantity: number,
     note?: string,
   ) => Promise<void>;
-  onNotifyOwner: (itemId: string, ownerPhone: string) => Promise<void>;
+  onNotifyOwner: (itemId: string, ownerPhone: string) => Promise<NotifyOwnerResult>;
 }) {
   const productNameRef = useRef<HTMLInputElement>(null);
   const [showAddProduct, setShowAddProduct] = useState(items.length === 0);
@@ -160,9 +161,26 @@ export function ProductList({
       return;
     }
 
+    const whatsappWindow = window.open("", "_blank");
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+    }
+
     setNotifyingItemId(item.id);
     try {
-      await onNotifyOwner(item.id, ownerPhone);
+      const result = await onNotifyOwner(item.id, ownerPhone);
+      if (result?.whatsappUrl) {
+        if (whatsappWindow) {
+          whatsappWindow.location.href = result.whatsappUrl;
+        } else {
+          window.open(result.whatsappUrl, "_blank", "noopener,noreferrer");
+        }
+      } else {
+        whatsappWindow?.close();
+      }
+    } catch (error) {
+      whatsappWindow?.close();
+      throw error;
     } finally {
       setNotifyingItemId("");
     }

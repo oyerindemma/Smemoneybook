@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE } from "@/lib/auth/password-policy";
 import { hasNullishValue, logMalformedPayload, sanitizePayload } from "@/lib/utils/sanitize";
 
 export class RequestValidationError extends Error {
@@ -30,18 +31,20 @@ const requiredText = (label: string, max = 120) =>
   );
 
 const selectedBusinessId = requiredText("Business", 240);
+const pinCode = safeString(z.string().regex(/^\d{6}$/, "Enter a 6-digit PIN."));
 
 export const registerRequestSchema = z.object({
   name: requiredText("Your name"),
   email: safeEmail("Enter a valid email."),
-  password: safeString(z.string().min(12, "Enter a 12+ character password.")),
+  password: safeString(z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE)),
+  pin: pinCode,
   businessName: optionalText,
   referralCode: optionalText,
 });
 
 export const loginRequestSchema = z.object({
   email: safeEmail("Enter a valid email."),
-  password: safeString(z.string().min(1, "Enter your password.")),
+  password: safeString(z.string().min(1, "Enter your password or PIN.")),
 });
 
 export const passwordResetRequestSchema = z.object({
@@ -50,7 +53,8 @@ export const passwordResetRequestSchema = z.object({
 
 export const passwordResetConfirmSchema = z.object({
   token: requiredText("Reset link", 240),
-  password: safeString(z.string().min(12, "Enter a 12+ character password.")),
+  password: safeString(z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE)),
+  pin: pinCode,
 });
 
 export const businessRequestSchema = z.object({
@@ -94,6 +98,14 @@ export const transactionRequestSchema = z
     partyPhone: optionalText,
     inventoryItemId: optionalText,
     inventoryQuantity: z.coerce.number().int().positive().optional(),
+    invoiceItems: z
+      .array(
+        z.object({
+          inventoryItemId: requiredText("Product"),
+          quantity: z.coerce.number().int().positive(),
+        }),
+      )
+      .optional(),
     costOfGoods: z.coerce.number().finite().nonnegative().optional(),
     occurredAt: optionalText,
     dueAt: optionalText,
@@ -159,6 +171,14 @@ export const transactionRequestSchema = z
       context.addIssue({
         code: "custom",
         path: ["inventoryItemId"],
+        message: "Products can only be attached to sales.",
+      });
+    }
+
+    if (value.invoiceItems?.length && value.type !== "sale") {
+      context.addIssue({
+        code: "custom",
+        path: ["invoiceItems"],
         message: "Products can only be attached to sales.",
       });
     }

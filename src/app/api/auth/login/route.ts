@@ -10,6 +10,10 @@ import { sanitizeString } from "@/lib/utils/sanitize";
 
 export const runtime = "nodejs";
 
+function isPinCredential(value: string) {
+  return /^\d{6}$/.test(value);
+}
+
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
@@ -21,8 +25,13 @@ export async function POST(request: Request) {
     const { email, password } = await parseJsonBody(request, loginRequestSchema);
 
     const user = await getPrisma().user.findUnique({ where: { email } });
-    if (!user || !(await verifyPassword(password, user.password))) {
-      return jsonError("Email or password is not correct.", 401);
+    const isPasswordMatch = user ? await verifyPassword(password, user.password) : false;
+    const isPinMatch = user?.pinHash && isPinCredential(password)
+      ? await verifyPassword(password, user.pinHash)
+      : false;
+
+    if (!user || (!isPasswordMatch && !isPinMatch)) {
+      return jsonError("Email or password/PIN is not correct.", 401);
     }
 
     await createSession(user.id, request);

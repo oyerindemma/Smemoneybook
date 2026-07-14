@@ -103,6 +103,7 @@ describe("/api/transactions", () => {
         partyPhone: undefined,
         inventoryItemId: undefined,
         inventoryQuantity: undefined,
+        invoiceItems: undefined,
         costOfGoods: 9_000,
         occurredAt: undefined,
         dueAt: undefined,
@@ -166,6 +167,41 @@ describe("/api/transactions", () => {
         input: expect.objectContaining({
           inventoryItemId: "item_1",
           inventoryQuantity: 2,
+        }),
+      }),
+    );
+  });
+
+  it("accepts multi-product invoice metadata", async () => {
+    const { POST } = await import("@/app/api/transactions/route");
+    const response = await POST(
+      new Request("http://localhost/api/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          idempotencyKey: "multi-product-sale-1",
+          businessId: "biz_1",
+          type: "sale",
+          amount: "54000",
+          accountId: "cash",
+          description: "Invoice for Amina Stores",
+          paymentStatus: "credit",
+          partyName: "Amina Stores",
+          invoiceItems: [
+            { inventoryItemId: "item_1", quantity: "2" },
+            { inventoryItemId: "item_2", quantity: 1 },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(recordPersistentTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          invoiceItems: [
+            { inventoryItemId: "item_1", quantity: 2 },
+            { inventoryItemId: "item_2", quantity: 1 },
+          ],
         }),
       }),
     );

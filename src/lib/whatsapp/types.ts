@@ -56,6 +56,12 @@ export type DebtReminderInput = WhatsAppAuditContext & {
 
 export type InvoiceNotificationInput = DebtReminderInput & {
   invoiceNumber?: string;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
 };
 
 export type PaymentReceivedInput = WhatsAppAuditContext & {

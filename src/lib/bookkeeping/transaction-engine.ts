@@ -3,6 +3,17 @@ export type TransactionType = "sale" | "expense" | "transfer" | "adjustment";
 export type PaymentStatus = "paid" | "credit" | "unpaid";
 export type DebtType = "customer_owes_business" | "business_owes_supplier";
 
+export type InvoiceLineItemInput = {
+  inventoryItemId: string;
+  quantity: number;
+};
+
+export type InvoiceLineItem = InvoiceLineItemInput & {
+  name: string;
+  unitPrice: number;
+  total: number;
+};
+
 export type Account = {
   id: string;
   name: string;
@@ -24,6 +35,7 @@ export type TransactionInput = {
   partyPhone?: string;
   inventoryItemId?: string;
   inventoryQuantity?: number;
+  invoiceItems?: InvoiceLineItemInput[];
   costOfGoods?: number;
   occurredAt?: string;
   dueAt?: string;

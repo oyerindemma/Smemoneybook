@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
+import { LogoMark } from "@/components/brand/LogoMark";
+import { PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import { sanitizeString } from "@/lib/utils/sanitize";
 
 type PasswordResetFormProps = {
@@ -21,6 +23,7 @@ export function PasswordResetForm({ token }: PasswordResetFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isPinVisible, setIsPinVisible] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,6 +42,7 @@ export function PasswordResetForm({ token }: PasswordResetFormProps) {
         body: JSON.stringify({
           token,
           password: sanitizeString(form.get("password")),
+          pin: sanitizeString(form.get("pin")),
         }),
       });
       const payload = (await response.json().catch(() => null)) as PasswordResetPayload | null;
@@ -49,7 +53,7 @@ export function PasswordResetForm({ token }: PasswordResetFormProps) {
       }
 
       setIsComplete(true);
-      setMessage(payload?.message ?? "Your password has been updated. Sign in with your new password.");
+      setMessage(payload?.message ?? "Your password and PIN have been updated. Sign in with either one.");
     } catch (error) {
       setMessage(
         error instanceof DOMException && error.name === "AbortError"
@@ -65,10 +69,13 @@ export function PasswordResetForm({ token }: PasswordResetFormProps) {
   return (
     <section className="mx-auto w-full max-w-md rounded-2xl border border-gray-100 bg-card p-6 shadow-sm sm:p-7">
       <div className="mb-5">
-        <p className="text-sm text-textSecondary">SME Moneybook</p>
+        <div className="flex items-center gap-2">
+          <LogoMark />
+          <p className="text-sm text-textSecondary">SME MoneyBook</p>
+        </div>
         <h1 className="mt-2 text-2xl font-semibold">Reset password</h1>
         <p className="mt-2 text-sm leading-6 text-textSecondary">
-          Create a new password with at least 12 characters.
+          Create a new password and 6-digit PIN for quick sign in.
         </p>
       </div>
 
@@ -93,7 +100,7 @@ export function PasswordResetForm({ token }: PasswordResetFormProps) {
                 className="h-12 w-full rounded-xl border border-gray-200 px-3 pr-12"
                 name="password"
                 type={isPasswordVisible ? "text" : "password"}
-                minLength={12}
+                minLength={PASSWORD_MIN_LENGTH}
                 autoComplete="new-password"
                 disabled={!token}
                 required
@@ -106,6 +113,33 @@ export function PasswordResetForm({ token }: PasswordResetFormProps) {
                 onClick={() => setIsPasswordVisible((visible) => !visible)}
               >
                 {isPasswordVisible ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
+              </button>
+            </span>
+          </div>
+          <div className="grid gap-2 text-sm font-medium">
+            <label htmlFor="reset-pin">New 6-digit access PIN</label>
+            <span className="relative block">
+              <input
+                id="reset-pin"
+                className="h-12 w-full rounded-xl border border-gray-200 px-3 pr-12 tracking-[0.35em]"
+                name="pin"
+                type={isPinVisible ? "text" : "password"}
+                inputMode="numeric"
+                autoComplete="new-password"
+                pattern="[0-9]{6}"
+                minLength={6}
+                maxLength={6}
+                disabled={!token}
+                required
+              />
+              <button
+                aria-label={isPinVisible ? "Hide PIN" : "Show PIN"}
+                className="absolute inset-y-0 right-2 my-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-background hover:text-primary disabled:opacity-50"
+                type="button"
+                disabled={!token}
+                onClick={() => setIsPinVisible((visible) => !visible)}
+              >
+                {isPinVisible ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
               </button>
             </span>
           </div>

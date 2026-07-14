@@ -7,6 +7,7 @@ import {
   debtReminderText,
   invoiceNotificationText,
   lowStockAlertText,
+  lowStockAlertTemplate,
   paymentReceivedText,
 } from "@/lib/whatsapp/templates";
 import type {
@@ -185,10 +186,23 @@ export function sendPaymentReceivedMessage(input: PaymentReceivedInput) {
 }
 
 export function sendLowStockAlert(input: LowStockAlertInput) {
+  const message = lowStockAlertText(input);
+  const template = lowStockAlertTemplate(input);
+  const metadata = { ...input.metadata, communicationType: "low_stock_alert" };
+
+  if (template) {
+    return sendTemplateMessage({
+      ...input,
+      template,
+      fallbackMessage: message,
+      metadata,
+    });
+  }
+
   return sendTextMessage({
     ...input,
-    message: lowStockAlertText(input),
-    metadata: { ...input.metadata, communicationType: "low_stock_alert" },
+    message,
+    metadata,
   });
 }
 
@@ -323,6 +337,10 @@ function getAuditMessage(input: {
 
   if (communicationType === "payment_received") {
     return `Payment confirmation ${status}`;
+  }
+
+  if (communicationType === "low_stock_alert") {
+    return `Low stock WhatsApp alert ${status}.`;
   }
 
   return `WhatsApp ${input.type} message ${status}.`;

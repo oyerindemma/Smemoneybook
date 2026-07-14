@@ -34,6 +34,10 @@ export type CaptureFormData = {
   partyPhone?: string;
   inventoryItemId?: string;
   inventoryQuantity?: number;
+  invoiceItems?: Array<{
+    inventoryItemId: string;
+    quantity: number;
+  }>;
   costOfGoods?: number;
   occurredAt?: string;
   dueAt?: string;

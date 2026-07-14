@@ -116,6 +116,7 @@ export function buildDuplicateFingerprint(
     input.destinationAccountId ?? "",
     input.inventoryItemId ?? "",
     input.inventoryQuantity ?? "",
+    JSON.stringify(input.invoiceItems ?? []),
     input.paymentStatus,
     input.description.trim().toLowerCase(),
     input.category?.trim().toLowerCase() ?? "",

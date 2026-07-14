@@ -128,14 +128,19 @@ export function OperationsPanel({
           businessId,
         }),
       });
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+        error?: string;
+      } | null;
+
       if (!response.ok) {
-        onNotice("Couldn’t save. Try again");
+        onNotice(payload?.error ?? "Couldn’t save. Try again");
         return;
       }
 
       event.currentTarget.reset();
       await loadOperations();
-      onNotice("Staff invitation created.");
+      onNotice(payload?.message ?? "Staff invitation created.");
     } catch {
       onNotice("Could not connect. Check your internet and try again.");
     }

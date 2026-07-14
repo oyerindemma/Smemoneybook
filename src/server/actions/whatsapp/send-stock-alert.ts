@@ -4,7 +4,9 @@ import { requireUser } from "@/lib/auth/session";
 import { hasMinimumPlan } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
+import { normalizeNigerianPhoneNumber } from "@/lib/whatsapp/formatter";
 import { sendLowStockAlert } from "@/lib/whatsapp/service";
+import { lowStockAlertText } from "@/lib/whatsapp/templates";
 
 export async function sendStockAlertAction(input: {
   businessId: string;
@@ -27,8 +29,22 @@ export async function sendStockAlertAction(input: {
       throw new Error("Choose a valid product.");
     }
 
+    let normalizedPhone: string;
+    try {
+      normalizedPhone = normalizeNigerianPhoneNumber(input.ownerPhone);
+    } catch {
+      return { ok: false, message: "Enter a valid Nigerian WhatsApp phone number." };
+    }
+
+    const fallbackMessage = lowStockAlertText({
+      businessName: business.businessName,
+      productName: item.name,
+      quantityOnHand: item.quantityOnHand,
+      lowStockLevel: item.lowStockLevel,
+    });
+    const fallbackUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(fallbackMessage)}`;
     const result = await sendLowStockAlert({
-      to: input.ownerPhone,
+      to: normalizedPhone,
       businessName: business.businessName,
       productName: item.name,
       quantityOnHand: item.quantityOnHand,
@@ -40,7 +56,11 @@ export async function sendStockAlertAction(input: {
     });
 
     if (!result.ok) {
-      throw new Error(result.error ?? "Could not send stock alert.");
+      return {
+        ok: false,
+        message: `${result.error ?? "Could not send stock alert."} Opening WhatsApp so you can send it manually.`,
+        whatsappUrl: fallbackUrl,
+      };
     }
 
     return { ok: true, message: "Stock alert sent." };

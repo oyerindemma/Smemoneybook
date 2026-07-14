@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return limited;
     }
 
-    const { token, password } = await parseJsonBody(request, passwordResetConfirmSchema);
+    const { token, password, pin } = await parseJsonBody(request, passwordResetConfirmSchema);
     const tokenHash = hashResetToken(token);
     const resetToken = await getPrisma().passwordResetToken.findUnique({
       where: { tokenHash },
@@ -34,7 +34,10 @@ export async function POST(request: Request) {
     await getPrisma().$transaction([
       getPrisma().user.update({
         where: { id: resetToken.userId },
-        data: { password: await hashPassword(password) },
+        data: {
+          password: await hashPassword(password),
+          pinHash: await hashPassword(pin),
+        },
       }),
       getPrisma().passwordResetToken.update({
         where: { id: resetToken.id },
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
       }),
     ]);
 
-    return Response.json({ message: "Your password has been updated. Sign in with your new password." });
+    return Response.json({ message: "Your password and PIN have been updated. Sign in with either one." });
   } catch (error) {
     console.error(error);
     await logApiFailure({ request, error });

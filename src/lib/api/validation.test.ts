@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   loginRequestSchema,
+  passwordResetConfirmSchema,
   parseJsonBody,
   registerRequestSchema,
   RequestValidationError,
@@ -23,7 +24,7 @@ describe("parseJsonBody", () => {
     }), loginRequestSchema).catch((error) => error);
 
     expect(body).toBeInstanceOf(RequestValidationError);
-    expect((body as RequestValidationError).message).toBe("Enter your password.");
+    expect((body as RequestValidationError).message).toBe("Enter your password or PIN.");
     expect(consoleWarn).toHaveBeenCalled();
     consoleWarn.mockRestore();
   });
@@ -43,12 +44,36 @@ describe("parseJsonBody", () => {
     const result = await parseJsonBody(jsonRequest({
       name: "EOO",
       email: null,
-      password: "123456789012",
+      password: "12345678",
+      pin: "123456",
       businessName: null,
     }), registerRequestSchema).catch((error) => error);
 
     expect(result).toBeInstanceOf(RequestValidationError);
     expect((result as RequestValidationError).message).toBe("Enter a valid email.");
+  });
+
+  it("requires a 6-digit PIN when registering", async () => {
+    const result = await parseJsonBody(jsonRequest({
+      name: "EOO",
+      email: "owner@example.com",
+      password: "12345678",
+      pin: "12345",
+    }), registerRequestSchema).catch((error) => error);
+
+    expect(result).toBeInstanceOf(RequestValidationError);
+    expect((result as RequestValidationError).message).toBe("Enter a 6-digit PIN.");
+  });
+
+  it("requires a 6-digit PIN when confirming password reset", async () => {
+    const result = await parseJsonBody(jsonRequest({
+      token: "reset-token",
+      password: "12345678",
+      pin: "abcdef",
+    }), passwordResetConfirmSchema).catch((error) => error);
+
+    expect(result).toBeInstanceOf(RequestValidationError);
+    expect((result as RequestValidationError).message).toBe("Enter a 6-digit PIN.");
   });
 
   it("accepts optional null string fields as empty optional values", async () => {

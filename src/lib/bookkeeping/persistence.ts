@@ -14,6 +14,7 @@ import type {
   Account,
   AgingBuckets,
   Debt,
+  InvoiceLineItem,
   InventoryItem,
   MonthlyReport,
   MoneybookState,
@@ -71,6 +72,10 @@ type TopProductRow = {
   quantity: number | bigint | string | null;
   salesTotal: number | string | null;
   profitTotal: number | string | null;
+};
+
+type ResolvedInvoiceLineItem = InvoiceLineItem & {
+  costPrice: number;
 };
 
 export async function createBusinessForUser(
@@ -278,40 +283,28 @@ export async function recordPersistentTransaction({
       }
     }
 
-    let inventoryItem:
-      | {
-          id: string;
-          name: string;
-          sellingPrice: Prisma.Decimal;
-          costPrice: Prisma.Decimal;
-          quantityOnHand: number;
-        }
-      | null = null;
-    let inventoryQuantity = input.inventoryQuantity ?? 0;
+    const invoiceItems = normalizeInvoiceItems(input);
+    const hasInventoryItems = invoiceItems.length > 0;
 
-    if (input.inventoryItemId) {
-      inventoryItem = await tx.inventoryItem.findFirst({
-        where: { id: input.inventoryItemId, businessId: business.businessId },
-      });
+    if (hasInventoryItems && input.type !== "sale") {
+      throw new Error("Products can only be attached to sales.");
+    }
 
-      if (!inventoryItem) {
-        throw new Error("Choose a valid product.");
-      }
+    const resolvedInvoiceItems = hasInventoryItems
+      ? await resolveInvoiceItems({
+          tx,
+          businessId: business.businessId,
+          invoiceItems,
+        })
+      : [];
+    const primaryInvoiceItem = resolvedInvoiceItems[0];
 
-      if (input.type !== "sale") {
-        throw new Error("Products can only be attached to sales.");
-      }
-
-      if (inventoryQuantity <= 0) {
-        inventoryQuantity = 1;
-      }
-
-      if (inventoryItem.quantityOnHand < inventoryQuantity) {
-        throw new Error("You do not have enough stock for this sale.");
-      }
-
-      input.amount = inventoryItem.sellingPrice.toNumber() * inventoryQuantity;
-      input.costOfGoods = inventoryItem.costPrice.toNumber() * inventoryQuantity;
+    if (hasInventoryItems) {
+      input.invoiceItems = invoiceItems;
+      input.inventoryItemId = primaryInvoiceItem.inventoryItemId;
+      input.inventoryQuantity = primaryInvoiceItem.quantity;
+      input.amount = sumLineItems(resolvedInvoiceItems, "total");
+      input.costOfGoods = sumLineItems(resolvedInvoiceItems, "costTotal");
     }
 
     const movementWithInventory = createMoneyMovement(input);
@@ -368,25 +361,34 @@ export async function recordPersistentTransaction({
         category: movementWithInventory.transaction.category,
         customerId: party.customerId,
         supplierId: party.supplierId,
-        inventoryItemId: inventoryItem?.id,
-        inventoryQuantity: inventoryItem ? inventoryQuantity : undefined,
+        inventoryItemId: primaryInvoiceItem?.inventoryItemId,
+        inventoryQuantity: primaryInvoiceItem?.quantity,
+        invoiceItems: hasInventoryItems
+          ? resolvedInvoiceItems.map((item) => ({
+              inventoryItemId: item.inventoryItemId,
+              name: item.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              total: item.total,
+            }))
+          : undefined,
         occurredAt: movementWithInventory.transaction.occurredAt,
       },
     });
 
-    if (inventoryItem) {
+    for (const item of resolvedInvoiceItems) {
       await tx.inventoryItem.update({
-        where: { id: inventoryItem.id },
-        data: { quantityOnHand: { decrement: inventoryQuantity } },
+        where: { id: item.inventoryItemId },
+        data: { quantityOnHand: { decrement: item.quantity } },
       });
 
       await tx.inventoryMovement.create({
         data: {
-          itemId: inventoryItem.id,
+          itemId: item.inventoryItemId,
           accountId: input.accountId,
           transactionId: transaction.id,
           type: InventoryMovementType.STOCK_OUT,
-          quantity: inventoryQuantity,
+          quantity: item.quantity,
           note: `Sold via ${transaction.description}`,
         },
       });
@@ -525,7 +527,26 @@ export async function reverseTransactionForUser({
       );
     }
 
-    if (original.inventoryItemId && original.inventoryQuantity) {
+    const itemsToRestore = parseStoredInvoiceItems(original.invoiceItems);
+
+    if (itemsToRestore.length > 0) {
+      for (const item of itemsToRestore) {
+        await tx.inventoryItem.update({
+          where: { id: item.inventoryItemId },
+          data: { quantityOnHand: { increment: item.quantity } },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            itemId: item.inventoryItemId,
+            accountId: original.accountId,
+            type: InventoryMovementType.ADJUSTMENT,
+            quantity: item.quantity,
+            note: `Restored by reversing ${original.description}`,
+          },
+        });
+      }
+    } else if (original.inventoryItemId && original.inventoryQuantity) {
       await tx.inventoryItem.update({
         where: { id: original.inventoryItemId },
         data: { quantityOnHand: { increment: original.inventoryQuantity } },
@@ -1745,6 +1766,129 @@ async function createDebtIfNeeded({
   }
 }
 
+function normalizeInvoiceItems(input: TransactionInput) {
+  const rawItems =
+    input.invoiceItems && input.invoiceItems.length > 0
+      ? input.invoiceItems
+      : input.inventoryItemId
+        ? [
+            {
+              inventoryItemId: input.inventoryItemId,
+              quantity: input.inventoryQuantity ?? 1,
+            },
+          ]
+        : [];
+  const quantityByItemId = new Map<string, number>();
+
+  for (const item of rawItems) {
+    const inventoryItemId = item.inventoryItemId?.trim();
+    const quantity = Math.max(Math.trunc(Number(item.quantity) || 0), 0);
+
+    if (!inventoryItemId || quantity <= 0) {
+      continue;
+    }
+
+    quantityByItemId.set(
+      inventoryItemId,
+      (quantityByItemId.get(inventoryItemId) ?? 0) + quantity,
+    );
+  }
+
+  return Array.from(quantityByItemId, ([inventoryItemId, quantity]) => ({
+    inventoryItemId,
+    quantity,
+  }));
+}
+
+async function resolveInvoiceItems({
+  tx,
+  businessId,
+  invoiceItems,
+}: {
+  tx: PrismaTransaction;
+  businessId: string;
+  invoiceItems: Array<{ inventoryItemId: string; quantity: number }>;
+}): Promise<ResolvedInvoiceLineItem[]> {
+  const inventoryRecords = await tx.inventoryItem.findMany({
+    where: {
+      businessId,
+      id: { in: invoiceItems.map((item) => item.inventoryItemId) },
+    },
+  });
+  const inventoryById = new Map(inventoryRecords.map((item) => [item.id, item]));
+
+  return invoiceItems.map((item) => {
+    const inventoryItem = inventoryById.get(item.inventoryItemId);
+
+    if (!inventoryItem) {
+      throw new Error("Choose a valid product.");
+    }
+
+    if (inventoryItem.quantityOnHand < item.quantity) {
+      throw new Error(`You do not have enough stock for ${inventoryItem.name}.`);
+    }
+
+    const unitPrice = inventoryItem.sellingPrice.toNumber();
+    const costPrice = inventoryItem.costPrice.toNumber();
+
+    return {
+      inventoryItemId: item.inventoryItemId,
+      name: inventoryItem.name,
+      quantity: item.quantity,
+      unitPrice,
+      costPrice,
+      total: unitPrice * item.quantity,
+    };
+  });
+}
+
+function sumLineItems(
+  items: ResolvedInvoiceLineItem[],
+  field: "total" | "costTotal",
+) {
+  return items.reduce((total, item) => {
+    if (field === "costTotal") {
+      return total + item.costPrice * item.quantity;
+    }
+
+    return total + item.total;
+  }, 0);
+}
+
+function parseStoredInvoiceItems(value: Prisma.JsonValue | null | undefined): InvoiceLineItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const candidate = item as Record<string, unknown>;
+    const inventoryItemId =
+      typeof candidate.inventoryItemId === "string" ? candidate.inventoryItemId : "";
+    const name = typeof candidate.name === "string" ? candidate.name : "";
+    const quantity = Number(candidate.quantity);
+    const unitPrice = Number(candidate.unitPrice);
+    const total = Number(candidate.total);
+
+    if (!inventoryItemId || !name || !Number.isFinite(quantity) || quantity <= 0) {
+      return [];
+    }
+
+    return [
+      {
+        inventoryItemId,
+        name,
+        quantity,
+        unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
+        total: Number.isFinite(total) ? total : 0,
+      },
+    ];
+  });
+}
+
 async function applyAccountDelta(
   tx: PrismaTransaction,
   accountId: string,
@@ -1788,6 +1932,7 @@ function mapTransaction(transaction: {
   destinationAccountId: string | null;
   inventoryItemId: string | null;
   inventoryQuantity: number | null;
+  invoiceItems: Prisma.JsonValue | null;
   description: string;
   category: string | null;
   paymentStatus: PaymentStatus;
@@ -1805,8 +1950,9 @@ function mapTransaction(transaction: {
     amount: transaction.amount.toNumber(),
     accountId: transaction.accountId,
     destinationAccountId: transaction.destinationAccountId ?? undefined,
-    inventoryItemId: transaction.inventoryItemId ?? undefined,
-    inventoryQuantity: transaction.inventoryQuantity ?? undefined,
+        inventoryItemId: transaction.inventoryItemId ?? undefined,
+        inventoryQuantity: transaction.inventoryQuantity ?? undefined,
+    invoiceItems: parseStoredInvoiceItems(transaction.invoiceItems),
     description: transaction.description,
     category: transaction.category ?? undefined,
     paymentStatus: transaction.paymentStatus.toLowerCase() as Transaction["paymentStatus"],

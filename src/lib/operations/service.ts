@@ -147,7 +147,7 @@ export async function getOperationsOverview(userId: string, businessId?: string)
       role: mapRole(member.role),
       joinedAt: member.createdAt.toISOString(),
     })),
-    invitations: invitations.map((invitation) => mapInvitation(invitation)),
+    invitations: invitations.map((invitation) => mapInvitation(invitation, { includeToken: true })),
     auditLogs: auditLogs.map((log) => ({
       id: log.id,
       action: log.action,

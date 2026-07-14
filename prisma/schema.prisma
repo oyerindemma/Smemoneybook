@@ -12,6 +12,7 @@ model User {
   name            String
   email           String               @unique
   password        String
+  pinHash         String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   members         BusinessMember[]
@@ -198,6 +199,7 @@ model Transaction {
   supplierId            String?
   inventoryItemId       String?
   inventoryQuantity     Int?
+  invoiceItems          Json?
   reversesTransactionId String?             @unique
   business              Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
   account               Account             @relation("TransactionAccount", fields: [accountId], references: [id])

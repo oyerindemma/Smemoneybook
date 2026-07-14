@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return limited;
     }
 
-    const { name, email, password, businessName, referralCode } = await parseJsonBody(
+    const { name, email, password, pin, businessName, referralCode } = await parseJsonBody(
       request,
       registerRequestSchema,
     );
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
         name,
         email,
         password: await hashPassword(password),
+        pinHash: await hashPassword(pin),
       },
     });
 

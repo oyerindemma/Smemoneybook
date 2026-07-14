@@ -4,9 +4,11 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
+import { LogoMark } from "@/components/brand/LogoMark";
 import { ErrorMessage } from "@/components/dashboard/ErrorMessage";
 import { OnboardingSetup } from "@/components/onboarding/OnboardingSetup";
 import type { CaptureFormData } from "@/components/dashboard/types";
+import { PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import type { MoneybookState } from "@/lib/bookkeeping/transaction-engine";
 import { trackProductEvent } from "@/lib/analytics/product-analytics";
 import { sanitizeString } from "@/lib/utils/sanitize";
@@ -301,6 +303,7 @@ function AuthPanel({
             name: sanitizeString(form.get("name")),
             email: sanitizeString(form.get("email")),
             password: sanitizeString(form.get("password")),
+            pin: sanitizeString(form.get("pin")),
             businessName: sanitizeString(form.get("businessName")),
             referralCode:
               authMode === "register"
@@ -376,7 +379,10 @@ function AuthPanel({
     <section className="mx-auto w-full max-w-md rounded-2xl border border-gray-100 bg-card p-6 shadow-sm sm:p-7">
       {!hasStarted && status !== "checking" && status !== "error" ? (
         <div>
-          <p className="text-sm font-medium text-primary">SME MoneyBook</p>
+          <div className="flex items-center gap-2">
+            <LogoMark />
+            <p className="text-sm font-medium text-primary">SME MoneyBook</p>
+          </div>
           <h1 className="mt-3 text-3xl font-semibold leading-tight">
             Track your business money daily without stress.
           </h1>
@@ -405,7 +411,10 @@ function AuthPanel({
       ) : (
         <>
           <div className="mb-5">
-            <p className="text-sm text-textSecondary">SME Moneybook</p>
+            <div className="flex items-center gap-2">
+              <LogoMark />
+              <p className="text-sm text-textSecondary">SME MoneyBook</p>
+            </div>
             <h1 className="mt-2 text-2xl font-semibold">
               {status === "error" ? "Something went wrong" : "Track your money daily"}
             </h1>
@@ -503,7 +512,12 @@ function AuthPanel({
                       required
                     />
                   </label>
-                  <PasswordInput autoComplete={authMode === "register" ? "new-password" : "current-password"} />
+                  <PasswordInput
+                    autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                    label={authMode === "register" ? "Password" : "Password or 6-digit PIN"}
+                    minLength={authMode === "register" ? PASSWORD_MIN_LENGTH : 1}
+                  />
+                  {authMode === "register" ? <PinInput /> : null}
                   {authMode === "login" ? (
                     <button
                       className="-mt-2 justify-self-start text-sm font-semibold text-primary hover:underline"
@@ -565,21 +579,25 @@ function AuthPanel({
 
 function PasswordInput({
   autoComplete,
+  label,
+  minLength,
 }: {
   autoComplete: "current-password" | "new-password";
+  label: string;
+  minLength: number;
 }) {
   const [isVisible, setIsVisible] = useState(false);
 
   return (
     <div className="grid gap-2 text-sm font-medium">
-      <label htmlFor="auth-password">Password</label>
+      <label htmlFor="auth-password">{label}</label>
       <span className="relative block">
         <input
           id="auth-password"
           className="h-12 w-full rounded-xl border border-gray-200 px-3 pr-12"
           name="password"
           type={isVisible ? "text" : "password"}
-          minLength={12}
+          minLength={minLength}
           autoComplete={autoComplete}
           required
         />
@@ -592,6 +610,41 @@ function PasswordInput({
           {isVisible ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
         </button>
       </span>
+    </div>
+  );
+}
+
+function PinInput() {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div className="grid gap-2 text-sm font-medium">
+      <label htmlFor="auth-pin">6-digit access PIN</label>
+      <span className="relative block">
+        <input
+          id="auth-pin"
+          className="h-12 w-full rounded-xl border border-gray-200 px-3 pr-12 tracking-[0.35em]"
+          name="pin"
+          type={isVisible ? "text" : "password"}
+          inputMode="numeric"
+          autoComplete="new-password"
+          pattern="[0-9]{6}"
+          minLength={6}
+          maxLength={6}
+          required
+        />
+        <button
+          aria-label={isVisible ? "Hide PIN" : "Show PIN"}
+          className="absolute inset-y-0 right-2 my-auto inline-flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-background hover:text-primary"
+          type="button"
+          onClick={() => setIsVisible((visible) => !visible)}
+        >
+          {isVisible ? <EyeOff aria-hidden="true" size={20} /> : <Eye aria-hidden="true" size={20} />}
+        </button>
+      </span>
+      <p className="text-xs leading-5 text-textSecondary">
+        You can use this PIN instead of your password when signing in.
+      </p>
     </div>
   );
 }

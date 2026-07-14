@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, databaseErrorMessage, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody, passwordResetRequestSchema } from "@/lib/api/validation";
+import { isPasswordResetEmailConfigured, sendPasswordResetEmail } from "@/lib/email/password-reset";
 import { getPrisma } from "@/lib/prisma";
 import { logApiFailure } from "@/lib/operations/monitoring";
 
@@ -56,6 +57,12 @@ export async function POST(request: Request) {
       });
 
       resetUrl = getResetUrl(request, token);
+      if (isPasswordResetEmailConfigured()) {
+        await sendPasswordResetEmail({ to: user.email, resetUrl });
+      } else if (process.env.NODE_ENV === "production") {
+        throw new Error("Password reset email is not configured. Add RESEND_API_KEY and EMAIL_FROM.");
+      }
+
       if (process.env.NODE_ENV !== "production") {
         console.info(`Password reset link for ${user.email}: ${resetUrl}`);
       }

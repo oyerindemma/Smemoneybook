@@ -18,7 +18,10 @@ export async function sendInvoiceAction(input: { businessId: string; debtId: str
         status: DebtStatus.OPEN,
         type: DebtType.CUSTOMER_OWES_BUSINESS,
       },
-      include: { customer: true },
+      include: {
+        customer: true,
+        sourceTransaction: true,
+      },
     });
 
     if (!debt?.customer?.phone) {
@@ -31,6 +34,7 @@ export async function sendInvoiceAction(input: { businessId: string; debtId: str
       customerName: debt.customer.name,
       businessName: business.businessName,
       amount,
+      items: parseInvoiceItems(debt.sourceTransaction.invoiceItems),
       dueDate: debt.dueAt,
       invoiceNumber: debt.sourceTransactionId.slice(0, 8).toUpperCase(),
       businessId: business.businessId,
@@ -50,4 +54,37 @@ export async function sendInvoiceAction(input: { businessId: string; debtId: str
       message: error instanceof Error ? error.message : "Could not send invoice.",
     };
   }
+}
+
+function parseInvoiceItems(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const items = value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const candidate = item as Record<string, unknown>;
+    const name = typeof candidate.name === "string" ? candidate.name : "";
+    const quantity = Number(candidate.quantity);
+    const unitPrice = Number(candidate.unitPrice);
+    const total = Number(candidate.total);
+
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) {
+      return [];
+    }
+
+    return [
+      {
+        name,
+        quantity,
+        unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
+        total: Number.isFinite(total) ? total : 0,
+      },
+    ];
+  });
+
+  return items.length > 0 ? items : undefined;
 }
