@@ -10,6 +10,7 @@ import {
   PrismaClient,
   Role,
   StockAdjustmentType,
+  SubscriptionStatus,
   TransactionType,
 } from "@prisma/client";
 import type {
@@ -33,6 +34,7 @@ import {
   type MoneyMovement,
 } from "@/lib/bookkeeping/domain";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
+import { getBillingPlanByDbPlan } from "@/lib/billing/plans";
 import {
   applyInventoryBalanceChange,
   ensureDefaultLocationInTransaction,
@@ -217,6 +219,7 @@ export async function getDashboardState(
     auditLogs,
     memberships,
     locations,
+    activeSubscription,
   ] = await Promise.all([
     prisma.business.findUniqueOrThrow({
       where: { id: businessId },
@@ -312,7 +315,20 @@ export async function getDashboardState(
           },
         })
       : Promise.resolve([]),
+    userId
+      ? prisma.subscription.findFirst({
+          where: {
+            businessId,
+            status: SubscriptionStatus.ACTIVE,
+            OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+          },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve(null),
   ]);
+  const activePlan = activeSubscription
+    ? getBillingPlanByDbPlan(activeSubscription.plan)
+    : null;
 
   return {
     businessId: business.id,
@@ -342,8 +358,20 @@ export async function getDashboardState(
           canManageAccounts: hasPermission(role, "admin"),
           canSaveReports: hasPermission(role, "reports:write"),
           canExportBackup: hasPermission(role, "backup:read"),
+          canViewLocations: hasPermission(role, "locations:view"),
+          canManageLocations: hasPermission(role, "locations:create"),
+          canViewTransfers: hasPermission(role, "transfers:view"),
+          canManageTransfers: hasPermission(role, "transfers:create"),
+          canApproveTransfers: hasPermission(role, "transfers:approve"),
+          canReceiveTransfers: hasPermission(role, "transfers:receive"),
+          canManageTax: hasPermission(role, "admin"),
         }
       : undefined,
+    billing: {
+      planId: activePlan?.id ?? "free",
+      planName: activePlan?.name ?? "Free",
+      features: activePlan?.features ?? [],
+    },
     accounts: accounts.map(mapAccount),
     transactions: transactions.map(mapTransaction),
     debts: debts.map(mapDebt),

@@ -2,18 +2,44 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { Building2, CreditCard, FileChartColumn, Settings, UserPlus } from "lucide-react";
 import { OperationsPanel } from "@/components/dashboard/OperationsPanel";
 import { PaidTierPanel } from "@/components/dashboard/PaidTierPanel";
 import { Phase2SettingsPanel } from "@/components/dashboard/Phase2SettingsPanel";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { OfflineSyncReviewPanel } from "@/components/offline/OfflineSyncReviewPanel";
 import { ReceiptSettingsPanel } from "@/components/receipts/ReceiptSettingsPanel";
+import { canShowPhase2Navigation, hasEntitlement } from "@/lib/phase2/client-access";
 
 export default function MorePage() {
   const { state, setNotice, saveReceiptConfig } = useDashboard();
   const router = useRouter();
   const [billingLive, setBillingLive] = useState(false);
+  const canManageBusinessSettings =
+    canShowPhase2Navigation({
+      state,
+      flag: "locations",
+      entitlement: "multi_location",
+      permission: "canManageLocations",
+    }) ||
+    canShowPhase2Navigation({
+      state,
+      flag: "tax",
+      entitlement: "tax_management",
+      permission: "canManageTax",
+    });
+  const canManageStaff = Boolean(
+    state.permissions?.canManageStaff && hasEntitlement(state, "team_management"),
+  );
+  const canUseAdvancedReports = canShowPhase2Navigation({
+    state,
+    flag: "reportingCentre",
+    entitlement: "advanced_reports",
+    permission: "canSaveReports",
+  });
+  const canManageBilling = Boolean(state.permissions?.canManageAccounts);
 
   useEffect(() => {
     let mounted = true;
@@ -68,13 +94,55 @@ export default function MorePage() {
         </h2>
         <p className="mt-2 text-sm text-textSecondary">{roleDescription(state.businessRole)}</p>
       </section>
-      <Link
-        className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
-        href="/reports"
-      >
-        Reports
-        <span className="text-sm text-textMuted">View</span>
-      </Link>
+      <section className="grid gap-3 md:grid-cols-2">
+        {canManageBusinessSettings ? (
+          <MoreLink
+            href="/more/business-settings"
+            icon={<Settings size={18} aria-hidden="true" />}
+            label="Business Settings"
+            meta="Locations · Tax"
+          />
+        ) : null}
+        {canUseAdvancedReports ? (
+          <MoreLink
+            href="/reports"
+            icon={<FileChartColumn size={18} aria-hidden="true" />}
+            label="Reports"
+            meta="Advanced"
+          />
+        ) : (
+          <MoreLink
+            href="/reports"
+            icon={<FileChartColumn size={18} aria-hidden="true" />}
+            label="Reports"
+            meta="Basic"
+          />
+        )}
+        {canManageStaff ? (
+          <MoreLink
+            href="/more/staff"
+            icon={<UserPlus size={18} aria-hidden="true" />}
+            label="Staff"
+            meta="Invite Staff"
+          />
+        ) : null}
+        {canManageBilling ? (
+          <MoreLink
+            href="/more/billing"
+            icon={<CreditCard size={18} aria-hidden="true" />}
+            label="Billing"
+            meta={billingLive ? "Upgrade Plan" : "Setup"}
+          />
+        ) : null}
+        {canManageBusinessSettings ? (
+          <MoreLink
+            href="/stock/warehouses"
+            icon={<Building2 size={18} aria-hidden="true" />}
+            label="Warehouses"
+            meta="Stock"
+          />
+        ) : null}
+      </section>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
         href="/assistant"
@@ -121,15 +189,6 @@ export default function MorePage() {
           </Link>
         </div>
       </section>
-      {billingLive ? (
-        <Link
-          className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
-          href="/more/billing"
-        >
-          Billing settings
-          <span className="text-sm text-textMuted">Manage</span>
-        </Link>
-      ) : null}
       <ReceiptSettingsPanel config={state.receiptConfig} onSave={saveReceiptConfig} />
       <Phase2SettingsPanel businessId={state.businessId} onNotice={setNotice} />
       <OfflineSyncReviewPanel businessId={state.businessId} onNotice={setNotice} />
@@ -143,6 +202,33 @@ export default function MorePage() {
         Sign out
       </button>
     </main>
+  );
+}
+
+function MoreLink({
+  href,
+  icon,
+  label,
+  meta,
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  meta: string;
+}) {
+  return (
+    <Link
+      className="flex min-h-14 items-center justify-between rounded-2xl border border-gray-100 bg-card px-5 py-4 text-sm font-semibold shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.99]"
+      href={href}
+    >
+      <span className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-background text-primary">
+          {icon}
+        </span>
+        {label}
+      </span>
+      <span className="text-xs text-textMuted">{meta}</span>
+    </Link>
   );
 }
 

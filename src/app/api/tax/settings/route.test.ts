@@ -9,4 +9,17 @@ describe("/api/tax/settings", () => {
     expect(response.status).toBe(404);
     expect(payload.error).toBe("Tax settings is not available right now.");
   });
+
+  it("keeps tax summary hidden while the Phase 2 tax rollout is disabled", async () => {
+    const { POST } = await import("@/app/api/tax/summary/route");
+    const response = await POST(
+      new Request("http://localhost/api/tax/summary?businessId=biz_1&month=7&year=2026", {
+        method: "POST",
+      }),
+    );
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(404);
+    expect(payload.error).toBe("Tax summary is not available right now.");
+  });
 });

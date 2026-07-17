@@ -1,3 +1,5 @@
+import type { BillingFeature, BillingPlanId } from "@/lib/billing/plans";
+
 export type AccountType = "cash" | "bank" | "pos" | "mobile_money";
 export type TransactionType = "sale" | "expense" | "transfer" | "adjustment";
 export type PaymentStatus = "paid" | "credit" | "unpaid";
@@ -260,6 +262,18 @@ export type MoneybookState = {
     canManageAccounts: boolean;
     canSaveReports: boolean;
     canExportBackup: boolean;
+    canViewLocations?: boolean;
+    canManageLocations?: boolean;
+    canViewTransfers?: boolean;
+    canManageTransfers?: boolean;
+    canApproveTransfers?: boolean;
+    canReceiveTransfers?: boolean;
+    canManageTax?: boolean;
+  };
+  billing?: {
+    planId: BillingPlanId | "free";
+    planName: string;
+    features: BillingFeature[];
   };
   accounts: Account[];
   transactions: Transaction[];
@@ -285,6 +299,29 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canManageAccounts: true,
       canSaveReports: true,
       canExportBackup: true,
+      canViewLocations: true,
+      canManageLocations: true,
+      canViewTransfers: true,
+      canManageTransfers: true,
+      canApproveTransfers: true,
+      canReceiveTransfers: true,
+      canManageTax: true,
+    },
+    billing: {
+      planId: "pro",
+      planName: "Pro",
+      features: [
+        "basic_exports",
+        "advanced_reports",
+        "multi_location",
+        "warehouse_transfers",
+        "professional_pdf_exports",
+        "invoice_branding",
+        "tax_management",
+        "granular_permissions",
+        "team_management",
+        "audit_tools",
+      ],
     },
     accounts: [
       { id: "cash", name: "Cash", type: "cash", openingBalance: 125000, balance: 125000 },

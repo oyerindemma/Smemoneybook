@@ -1,12 +1,12 @@
 import { requireUser } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
-import { parseJsonBody, staffInvitationRequestSchema } from "@/lib/api/validation";
+import { parseJsonBody, staffInvitationActionRequestSchema } from "@/lib/api/validation";
 import { requireFeatureAccess } from "@/lib/billing/subscriptions";
 import { isStaffInvitationEmailConfigured, sendStaffInvitationEmail } from "@/lib/email/staff-invitation";
 import { requireBusinessAccess } from "@/lib/operations/access";
-import { getStaffInvitationOverview, inviteStaff } from "@/lib/operations/service";
 import { logApiFailure } from "@/lib/operations/monitoring";
+import { resendStaffInvitationForUser } from "@/lib/operations/service";
 
 export const runtime = "nodejs";
 
@@ -16,45 +16,19 @@ function getInviteUrl(request: Request, token: string) {
   return `${origin}/invite/${encodeURIComponent(token)}`;
 }
 
-export async function GET(request: Request) {
-  let userId: string | undefined;
-
-  try {
-    const user = await requireUser();
-    userId = user.id;
-    const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
-    const access = await requireBusinessAccess(user.id, "admin", businessId);
-    const gated = await requireFeatureAccess(user.id, access.businessId, "team_management");
-
-    if (gated) {
-      return gated;
-    }
-
-    const overview = await getStaffInvitationOverview(user.id, access.businessId);
-    return Response.json({
-      ...overview,
-      emailConfigured: isStaffInvitationEmailConfigured(),
-    });
-  } catch (error) {
-    if (error instanceof Response) {
-      return jsonError("Sign in to continue.", error.status);
-    }
-
-    console.error(error);
-    await logApiFailure({ request, error, actorId: userId });
-    return jsonErrorFromUnknown(error, "Could not load staff invitations.");
-  }
-}
-
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   let userId: string | undefined;
 
   try {
     assertSameOriginRequest(request);
     const user = await requireUser();
     userId = user.id;
-    const body = await parseJsonBody(request, staffInvitationRequestSchema);
-    const limited = await enforceRateLimit(request, "staff.invitations.write", 20, 60 * 60 * 1000);
+    const { id } = await params;
+    const body = await parseJsonBody(request, staffInvitationActionRequestSchema);
+    const limited = await enforceRateLimit(request, "staff.invitations.resend", 20, 60 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -67,12 +41,12 @@ export async function POST(request: Request) {
       return gated;
     }
 
-    const invitation = await inviteStaff({
-      actorId: user.id,
+    const { invitation, businessName } = await resendStaffInvitationForUser({
+      userId: user.id,
       businessId: access.businessId,
-      email: body.email,
-      role: body.role,
+      invitationId: id,
     });
+
     if (!invitation.token) {
       throw new Error("Could not create a staff invitation link.");
     }
@@ -84,37 +58,32 @@ export async function POST(request: Request) {
         await sendStaffInvitationEmail({
           to: invitation.email,
           inviteUrl,
-          businessName: access.businessName,
+          businessName,
           inviterName: user.name,
-          role: body.role,
+          role: invitation.role === "accountant" ? "accountant" : "staff",
           expiresAt: invitation.expiresAt,
         });
       } catch (error) {
-        console.error("staff.invitation_email_failed", error);
+        console.error("staff.invitation_resend_email_failed", error);
         await logApiFailure({ request, error, actorId: user.id, businessId: access.businessId });
 
         return Response.json({
           invitation,
           inviteUrl,
           emailSent: false,
-          message: "Invitation created, but the email could not be sent. Copy the invite link and share it manually.",
-        }, { status: 201 });
+          message: "Invitation renewed, but the email could not be sent. Copy the invite link and share it manually.",
+        });
       }
-
-      return Response.json({
-        invitation,
-        inviteUrl,
-        emailSent: true,
-        message: "Staff invitation emailed.",
-      }, { status: 201 });
     }
 
     return Response.json({
       invitation,
       inviteUrl,
-      emailSent: false,
-      message: "Invitation created. Email is not configured yet, so copy the invite link and share it manually.",
-    }, { status: 201 });
+      emailSent: isStaffInvitationEmailConfigured(),
+      message: isStaffInvitationEmailConfigured()
+        ? "Invitation resent."
+        : "Invitation renewed. Copy the invite link and share it manually.",
+    });
   } catch (error) {
     if (error instanceof Response) {
       return jsonError("Sign in to continue.", error.status);
@@ -122,6 +91,6 @@ export async function POST(request: Request) {
 
     console.error(error);
     await logApiFailure({ request, error, actorId: userId });
-    return jsonErrorFromUnknown(error, "Could not invite this staff member.");
+    return jsonErrorFromUnknown(error, "Could not resend invitation.");
   }
 }

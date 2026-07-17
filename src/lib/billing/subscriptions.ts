@@ -153,13 +153,12 @@ export async function activatePaystackSubscription({
   });
 }
 
-export async function getActiveSubscription(userId: string, businessId: string) {
+export async function getActiveSubscription(_userId: string, businessId: string) {
   return getPrisma().subscription.findFirst({
     where: {
-      userId,
       businessId,
       status: SubscriptionStatus.ACTIVE,
-      currentPeriodEnd: { gt: new Date() },
+      OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -189,7 +188,7 @@ export async function hasAnyMinimumPlan(userId: string, requiredPlan: BillingPla
     where: {
       userId,
       status: SubscriptionStatus.ACTIVE,
-      currentPeriodEnd: { gt: new Date() },
+      OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
     },
   });
 

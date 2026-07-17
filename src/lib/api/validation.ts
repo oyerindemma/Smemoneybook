@@ -652,6 +652,10 @@ export const staffInvitationRequestSchema = z.object({
   role: z.enum(["staff", "accountant"]).default("staff"),
 });
 
+export const staffInvitationActionRequestSchema = z.object({
+  businessId: selectedBusinessId,
+});
+
 export const categorizationRequestSchema = z.object({
   businessId: selectedBusinessId,
   description: requiredText("Description"),

@@ -3,6 +3,7 @@ import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/
 import { saveTaxRunForUser } from "@/lib/bookkeeping/persistence";
 import { requireFeatureAccess } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess } from "@/lib/operations/access";
+import { requirePhase2Feature } from "@/lib/phase2/feature-flags";
 import { getMonthYear } from "@/app/api/reports/monthly/route";
 
 export const runtime = "nodejs";
@@ -10,10 +11,16 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
+    const flagGate = requirePhase2Feature("tax", "Tax summary");
+
+    if (flagGate) {
+      return flagGate;
+    }
+
     const user = await requireUser();
     const { businessId, month, year } = getMonthYear(request);
     const access = await requireBusinessAccess(user.id, "reports:write", businessId);
-    const gated = await requireFeatureAccess(user.id, access.businessId, "advanced_reports");
+    const gated = await requireFeatureAccess(user.id, access.businessId, "tax_management");
 
     if (gated) {
       return gated;
