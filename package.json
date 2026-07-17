@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "i18n:check": "tsx scripts/check-translations.ts",
     "mobile:assets": "capacitor-assets generate --android --assetPath assets --iconBackgroundColor '#0B1F3A' --iconBackgroundColorDark '#0B1F3A' --splashBackgroundColor '#F5F3EF' --splashBackgroundColorDark '#0B1F3A'",
     "mobile:sync": "cap sync android",
     "mobile:android": "cap open android",

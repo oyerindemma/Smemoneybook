@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import { BusinessLocationType, Role } from "@prisma/client";
 import { getPrisma } from "@/lib/prisma";
 
 export type Permission =
@@ -6,7 +6,16 @@ export type Permission =
   | "money:write"
   | "reports:write"
   | "inventory:write"
-  | "backup:read";
+  | "backup:read"
+  | "locations:view"
+  | "locations:create"
+  | "locations:edit"
+  | "locations:archive"
+  | "transfers:view"
+  | "transfers:create"
+  | "transfers:approve"
+  | "transfers:receive"
+  | "transfers:cancel";
 
 export type BusinessAccess = {
   businessId: string;
@@ -15,9 +24,31 @@ export type BusinessAccess = {
 };
 
 const permissions: Record<Role, Permission[]> = {
-  OWNER: ["admin", "money:write", "reports:write", "inventory:write", "backup:read"],
-  ACCOUNTANT: ["reports:write", "backup:read"],
-  STAFF: ["money:write", "inventory:write"],
+  OWNER: [
+    "admin",
+    "money:write",
+    "reports:write",
+    "inventory:write",
+    "backup:read",
+    "locations:view",
+    "locations:create",
+    "locations:edit",
+    "locations:archive",
+    "transfers:view",
+    "transfers:create",
+    "transfers:approve",
+    "transfers:receive",
+    "transfers:cancel",
+  ],
+  ACCOUNTANT: ["reports:write", "backup:read", "locations:view", "transfers:view"],
+  STAFF: [
+    "money:write",
+    "inventory:write",
+    "locations:view",
+    "transfers:view",
+    "transfers:create",
+    "transfers:receive",
+  ],
 };
 
 export function hasPermission(role: Role, permission: Permission) {
@@ -65,6 +96,86 @@ export async function requireBusinessAccess(
   }
 
   return access;
+}
+
+export type LocationAccess = BusinessAccess & {
+  locationId: string;
+  locationName: string;
+  locationType: BusinessLocationType;
+  isDefaultLocation: boolean;
+};
+
+export async function getDefaultBusinessLocation(businessId: string) {
+  return getPrisma().businessLocation.findFirst({
+    where: {
+      businessId,
+      isDefault: true,
+      archivedAt: null,
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      isDefault: true,
+    },
+  });
+}
+
+export async function requireLocationAccess({
+  userId,
+  businessId,
+  locationId,
+  permission = "locations:view",
+}: {
+  userId: string;
+  businessId?: string;
+  locationId?: string;
+  permission?: Permission;
+}): Promise<LocationAccess> {
+  const access = await requireBusinessAccess(userId, permission, businessId);
+  const location = locationId
+    ? await getPrisma().businessLocation.findFirst({
+        where: {
+          id: locationId,
+          businessId: access.businessId,
+          archivedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          isDefault: true,
+        },
+      })
+    : await getDefaultBusinessLocation(access.businessId);
+
+  if (!location) {
+    throw new Error("Choose a valid business location.");
+  }
+
+  if (access.role !== Role.OWNER) {
+    const membership = await getPrisma().businessLocationMember.findFirst({
+      where: {
+        businessId: access.businessId,
+        locationId: location.id,
+        userId,
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      throw new Error("You do not have access to this location.");
+    }
+  }
+
+  return {
+    ...access,
+    locationId: location.id,
+    locationName: location.name,
+    locationType: location.type,
+    isDefaultLocation: location.isDefault,
+  };
 }
 
 export function mapRole(role: Role) {

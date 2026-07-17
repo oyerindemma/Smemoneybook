@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SubscriptionStatus, TransactionType } from "@prisma/client";
+import { OfflineSyncStatus, SubscriptionStatus, TransactionType } from "@prisma/client";
 import {
   Activity,
   AlertTriangle,
@@ -256,9 +256,12 @@ export default async function AdminPage() {
           <Panel title="Queue Monitoring" action="Backlog">
             <div className="grid gap-3">
               <HealthItem icon={<Clock3 size={18} />} label="Offline capture backlog" value={formatCount(data.queue.offlineBacklog)} tone={data.queue.offlineBacklog > 0 ? "warn" : "good"} />
+              <HealthItem icon={<AlertTriangle size={18} />} label="Offline sync failed" value={formatCount(data.queue.offlineSyncFailed)} tone={data.queue.offlineSyncFailed > 0 ? "warn" : "good"} />
+              <HealthItem icon={<AlertTriangle size={18} />} label="Offline sync conflicts" value={formatCount(data.queue.offlineSyncConflicts)} tone={data.queue.offlineSyncConflicts > 0 ? "danger" : "good"} />
               <HealthItem icon={<Bot size={18} />} label="Pending AI actions" value={formatCount(data.queue.pendingAssistantActions)} tone={data.queue.pendingAssistantActions > 20 ? "warn" : "good"} />
               <HealthItem icon={<Activity size={18} />} label="Automation failures, 24h" value={formatCount(data.queue.automationFailures24h)} tone={data.queue.automationFailures24h > 0 ? "warn" : "good"} />
             </div>
+            <OfflineSyncOperationList operations={data.queue.recentOfflineSyncOperations} />
           </Panel>
           <Panel title="Database Monitoring" action="Live tables">
             <div className="grid gap-3">
@@ -323,6 +326,9 @@ async function getAdminDashboardData() {
     apiErrors24,
     errorLogs,
     offlineBacklog,
+    offlineSyncFailed,
+    offlineSyncConflicts,
+    recentOfflineSyncOperations,
     automationFailures24,
     renewalsDue30,
     trialingMrr,
@@ -413,6 +419,26 @@ async function getAdminDashboardData() {
       },
     }),
     prisma.offlineCapture.count({ where: { status: { in: ["received", "failed"] } } }),
+    prisma.offlineSyncOperation.count({ where: { status: OfflineSyncStatus.FAILED } }),
+    prisma.offlineSyncOperation.count({ where: { status: OfflineSyncStatus.CONFLICT } }),
+    prisma.offlineSyncOperation.findMany({
+      where: { status: { in: [OfflineSyncStatus.FAILED, OfflineSyncStatus.CONFLICT] } },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        operationType: true,
+        status: true,
+        retryCount: true,
+        lastError: true,
+        updatedAt: true,
+        business: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
     prisma.automationLog.count({
       where: {
         createdAt: { gte: last24h },
@@ -657,6 +683,17 @@ async function getAdminDashboardData() {
     },
     queue: {
       offlineBacklog,
+      offlineSyncFailed,
+      offlineSyncConflicts,
+      recentOfflineSyncOperations: recentOfflineSyncOperations.map((operation) => ({
+        id: operation.id,
+        businessName: operation.business.name,
+        operationType: operation.operationType,
+        status: toTitleCase(operation.status),
+        retryCount: operation.retryCount,
+        lastError: operation.lastError,
+        updatedAt: operation.updatedAt,
+      })),
       pendingAssistantActions,
       automationFailures24h: automationFailures24,
     },
@@ -924,6 +961,51 @@ function PaymentFailureList({
             <span className="shrink-0 text-xs text-slate-500">{formatRelative(failure.processedAt)}</span>
           </div>
           <p className="mt-2 text-sm font-semibold text-rose-700">{failure.eventType}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OfflineSyncOperationList({
+  operations,
+}: {
+  operations: Array<{
+    id: string;
+    businessName: string;
+    operationType: string;
+    status: string;
+    retryCount: number;
+    lastError: string | null;
+    updatedAt: Date;
+  }>;
+}) {
+  if (operations.length === 0) {
+    return <EmptyState label="No failed offline sync operations." />;
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      {operations.map((operation) => (
+        <div key={operation.id} className="rounded-lg border border-slate-100 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {operation.businessName}
+              </p>
+              <p className="mt-0.5 text-xs font-semibold uppercase text-slate-500">
+                {operation.operationType} · {operation.status} · {operation.retryCount} retries
+              </p>
+            </div>
+            <span className="shrink-0 text-xs text-slate-500">
+              {formatRelative(operation.updatedAt)}
+            </span>
+          </div>
+          {operation.lastError ? (
+            <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">
+              {operation.lastError}
+            </p>
+          ) : null}
         </div>
       ))}
     </div>

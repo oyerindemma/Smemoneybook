@@ -1,0 +1,12 @@
+{
+  "app.name": "SME MoneyBook",
+  "nav.money": "Argent",
+  "nav.stock": "Stock",
+  "nav.reports": "Rapports",
+  "nav.more": "Plus",
+  "phase2.tax": "Taxe",
+  "phase2.branding": "Marque des documents",
+  "phase2.language": "Langue",
+  "phase2.permissions": "Autorisations",
+  "phase2.announcements": "Annonces"
+}

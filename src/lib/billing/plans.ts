@@ -8,7 +8,14 @@ export type BillingFeature =
   | "receipt_extraction"
   | "team_management"
   | "audit_tools"
-  | "advanced_reports";
+  | "advanced_reports"
+  | "multi_location"
+  | "warehouse_transfers"
+  | "professional_pdf_exports"
+  | "invoice_branding"
+  | "tax_management"
+  | "granular_permissions"
+  | "business_switching";
 
 export type BillingFeatureDetail = {
   id: BillingFeature;
@@ -59,6 +66,41 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     name: "Advanced reports",
     summary: "Use deeper summaries for cash flow, tax review, debt aging, and stock decisions.",
   },
+  multi_location: {
+    id: "multi_location",
+    name: "Multiple locations",
+    summary: "Add branches, warehouses, storage, transit, and damaged-goods locations.",
+  },
+  warehouse_transfers: {
+    id: "warehouse_transfers",
+    name: "Warehouse transfers",
+    summary: "Move stock between locations with approval, receiving, and discrepancy history.",
+  },
+  professional_pdf_exports: {
+    id: "professional_pdf_exports",
+    name: "Professional PDF exports",
+    summary: "Generate branded PDF documents and reports for formal sharing.",
+  },
+  invoice_branding: {
+    id: "invoice_branding",
+    name: "Invoice branding",
+    summary: "Configure logo, document footer, payment instructions, and invoice terms.",
+  },
+  tax_management: {
+    id: "tax_management",
+    name: "Tax management",
+    summary: "Configure lightweight tax rates and preserve document tax snapshots.",
+  },
+  granular_permissions: {
+    id: "granular_permissions",
+    name: "Granular permissions",
+    summary: "Control staff access by action, feature, and business location.",
+  },
+  business_switching: {
+    id: "business_switching",
+    name: "Business switching",
+    summary: "Let approved users securely switch between separate businesses.",
+  },
 };
 
 export const billingPlans: BillingPlan[] = [
@@ -100,6 +142,13 @@ export const billingPlans: BillingPlan[] = [
       "team_management",
       "audit_tools",
       "advanced_reports",
+      "multi_location",
+      "warehouse_transfers",
+      "professional_pdf_exports",
+      "invoice_branding",
+      "tax_management",
+      "granular_permissions",
+      "business_switching",
     ],
   },
 ];

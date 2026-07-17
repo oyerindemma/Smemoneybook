@@ -6,6 +6,8 @@ import { ActivityFeed } from "@/components/money/ActivityFeed";
 import { ActivationProgress } from "@/components/onboarding/ActivationProgress";
 import { RetentionEnginePanel } from "@/components/dashboard/RetentionEnginePanel";
 import { ViralGrowthPanel } from "@/components/dashboard/ViralGrowthPanel";
+import { CustomerReturnPanel } from "@/components/returns/CustomerReturnPanel";
+import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
 
 export default function MoneyPage() {
   const {
@@ -14,6 +16,7 @@ export default function MoneyPage() {
     openRecordModal,
     openVoiceDraft,
     reverseActivity,
+    submitCustomerReturn,
   } = useDashboard();
 
   return (
@@ -30,6 +33,13 @@ export default function MoneyPage() {
       />
       <RetentionEnginePanel state={state} />
       <ViralGrowthPanel state={state} />
+      {phase1FeatureFlags.returns ? (
+        <CustomerReturnPanel
+          transactions={state.transactions}
+          accounts={state.accounts}
+          onSubmit={submitCustomerReturn}
+        />
+      ) : null}
       <ActivityFeed
         transactions={state.transactions}
         debts={state.debts}

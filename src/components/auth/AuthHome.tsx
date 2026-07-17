@@ -11,6 +11,7 @@ import type { CaptureFormData } from "@/components/dashboard/types";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/password-policy";
 import type { MoneybookState } from "@/lib/bookkeeping/transaction-engine";
 import { trackProductEvent } from "@/lib/analytics/product-analytics";
+import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
 import { sanitizeString } from "@/lib/utils/sanitize";
 
 type HomeStatus = "checking" | "signed_out" | "setup_needed" | "error";
@@ -159,6 +160,10 @@ function AuthHomeClient({
   async function completeOnboarding(input: {
     businessName: string;
     businessType: string;
+    businessCategory?: string;
+    country?: string;
+    currency?: string;
+    mainGoal?: string;
   }): Promise<MoneybookState> {
     const response = await fetch("/api/onboarding/setup", {
       method: "POST",
@@ -207,6 +212,17 @@ function AuthHomeClient({
   }
 
   if (status === "setup_needed") {
+    if (!phase1FeatureFlags.onboarding) {
+      return (
+        <BasicOnboardingSetup
+          initialBusinessName={state?.businessName}
+          initialBusinessType={state?.businessType}
+          onComplete={completeOnboarding}
+          onDashboard={() => router.replace("/money")}
+        />
+      );
+    }
+
     return (
       <OnboardingSetup
         initialBusinessName={state?.businessName}
@@ -229,11 +245,105 @@ function AuthHomeClient({
   );
 }
 
+function BasicOnboardingSetup({
+  initialBusinessName,
+  initialBusinessType,
+  onComplete,
+  onDashboard,
+}: {
+  initialBusinessName?: string;
+  initialBusinessType?: string | null;
+  onComplete: (input: { businessName: string; businessType: string }) => Promise<MoneybookState>;
+  onDashboard: () => void;
+}) {
+  const [businessName, setBusinessName] = useState(initialBusinessName ?? "");
+  const [businessType, setBusinessType] = useState(initialBusinessType ?? "Retail / Trading");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanBusinessName = sanitizeString(businessName).slice(0, 80);
+    const cleanBusinessType = sanitizeString(businessType).slice(0, 60);
+
+    if (cleanBusinessName.length < 2) {
+      setError("Enter your business name.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+    try {
+      await onComplete({
+        businessName: cleanBusinessName,
+        businessType: cleanBusinessType || "Retail / Trading",
+      });
+      onDashboard();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Couldn’t save. Try again.");
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-screen items-center bg-background p-4 text-textPrimary">
+      <section className="mx-auto w-full max-w-md rounded-2xl border border-gray-100 bg-card p-6 shadow-sm sm:p-7">
+        <LogoMark />
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Set up your business</h1>
+        <p className="mt-2 text-sm leading-6 text-textSecondary">
+          Add the basics so MoneyBook can prepare your dashboard.
+        </p>
+
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+          <label className="block text-sm font-semibold text-textPrimary">
+            Business name
+            <input
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              value={businessName}
+              onChange={(event) => setBusinessName(event.target.value)}
+              autoComplete="organization"
+              required
+            />
+          </label>
+          <label className="block text-sm font-semibold text-textPrimary">
+            Business type
+            <select
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              value={businessType}
+              onChange={(event) => setBusinessType(event.target.value)}
+            >
+              <option>Retail / Trading</option>
+              <option>Food / Restaurant</option>
+              <option>Services</option>
+              <option>Manufacturing</option>
+              <option>Fashion / Beauty</option>
+              <option>Other</option>
+            </select>
+          </label>
+
+          {error ? <ErrorMessage message={error} /> : null}
+
+          <button
+            className="min-h-12 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-all duration-150 hover:bg-primaryHover hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : "Continue"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
 function createSetupState(business?: AuthenticatedBusiness | null): MoneybookState {
   return {
     businessId: business?.id ?? "",
     businessName: business?.name ?? "",
+    businessCategory: undefined,
     businessType: business?.businessType ?? undefined,
+    country: "NG",
+    currency: "NGN",
     onboardingCompleted: false,
     businesses: business?.id
       ? [{ id: business.id, name: business.name, role: "owner" }]

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       return limited;
     }
 
-    const { businessId, month, year, period, date } = getReportPeriod(request);
+    const { businessId, locationId, month, year, period, date } = getReportPeriod(request);
     const now = new Date();
     const isCurrentMonthPreview =
       period === "month" &&
@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     const report = await getMonthlyReportForUser({
       userId: user.id,
       businessId,
+      locationId,
       month,
       year,
       period,
@@ -58,8 +59,8 @@ export async function GET(request: Request) {
 }
 
 export function getMonthYear(request: Request) {
-  const { businessId, month, year } = parseReportPeriod(request);
-  return { businessId, month, year };
+  const { businessId, locationId, month, year } = parseReportPeriod(request);
+  return { businessId, locationId, month, year };
 }
 
 export function getReportPeriod(request: Request) {

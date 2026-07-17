@@ -1,0 +1,12 @@
+import { describe, expect, it } from "vitest";
+
+describe("/api/tax/settings", () => {
+  it("stays hidden while the Phase 2 tax rollout is disabled", async () => {
+    const { GET } = await import("@/app/api/tax/settings/route");
+    const response = await GET(new Request("http://localhost/api/tax/settings?businessId=biz_1"));
+    const payload = (await response.json()) as { error?: string };
+
+    expect(response.status).toBe(404);
+    expect(payload.error).toBe("Tax settings is not available right now.");
+  });
+});

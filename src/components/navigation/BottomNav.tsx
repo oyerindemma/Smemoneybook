@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, CircleEllipsis, HandCoins, Home, Plus } from "lucide-react";
+import { Boxes, CircleEllipsis, HandCoins, Home, Plus, ScanBarcode } from "lucide-react";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
 
 const tabs = [
   { href: "/money", label: "Money", icon: Home },
   { href: "/people", label: "People", icon: HandCoins },
+  ...(phase1FeatureFlags.pos ? [{ href: "/pos", label: "POS", icon: ScanBarcode }] : []),
   { href: "/stock", label: "Stock", icon: Boxes },
   { href: "/more", label: "More", icon: CircleEllipsis },
 ];
@@ -21,7 +23,11 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-card/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 shadow-lg backdrop-blur md:bottom-4 md:mx-auto md:max-w-md md:rounded-2xl md:border md:px-3"
     >
-      <div className="mx-auto grid max-w-md grid-cols-5 items-end gap-1">
+      <div
+        className={`mx-auto grid items-end gap-1 ${
+          phase1FeatureFlags.pos ? "max-w-lg grid-cols-6" : "max-w-md grid-cols-5"
+        }`}
+      >
         {tabs.slice(0, 2).map((tab) => (
           <NavLink
             key={tab.href}

@@ -174,16 +174,15 @@ test.describe("mobile readiness flows", () => {
     await expect(page.getByText("Profit")).toBeVisible();
   });
 
-  test("shows an offline failure state instead of saving silently", async ({ page, context }) => {
+  test("queues money changes visibly while offline", async ({ page, context }) => {
     await signUpAndOnboard(page, "mobile-offline");
     await openRecordSheet(page);
     await page.getByLabel("Amount").fill("900");
 
     await context.setOffline(true);
     try {
-      await page.getByRole("button", { name: "Save money" }).click();
-      await expect(page.getByText(/offline|Reconnect before saving/i).first()).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByRole("dialog", { name: "Record money" })).toBeVisible();
+      await page.getByRole("button", { name: /Save sale|Save money/i }).click();
+      await expect(page.getByText(/Saved offline|saved offline|will sync/i).first()).toBeVisible({ timeout: 10_000 });
     } finally {
       await context.setOffline(false);
     }

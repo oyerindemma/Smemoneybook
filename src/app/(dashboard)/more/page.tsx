@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OperationsPanel } from "@/components/dashboard/OperationsPanel";
 import { PaidTierPanel } from "@/components/dashboard/PaidTierPanel";
+import { Phase2SettingsPanel } from "@/components/dashboard/Phase2SettingsPanel";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import { OfflineSyncReviewPanel } from "@/components/offline/OfflineSyncReviewPanel";
+import { ReceiptSettingsPanel } from "@/components/receipts/ReceiptSettingsPanel";
 
 export default function MorePage() {
-  const { state, setNotice } = useDashboard();
+  const { state, setNotice, saveReceiptConfig } = useDashboard();
   const router = useRouter();
   const [billingLive, setBillingLive] = useState(false);
 
@@ -127,6 +130,9 @@ export default function MorePage() {
           <span className="text-sm text-textMuted">Manage</span>
         </Link>
       ) : null}
+      <ReceiptSettingsPanel config={state.receiptConfig} onSave={saveReceiptConfig} />
+      <Phase2SettingsPanel businessId={state.businessId} onNotice={setNotice} />
+      <OfflineSyncReviewPanel businessId={state.businessId} onNotice={setNotice} />
       <PaidTierPanel businessId={state.businessId} onNotice={setNotice} />
       <OperationsPanel businessId={state.businessId} onNotice={setNotice} />
       <button

@@ -4,18 +4,41 @@ import { forwardRef, FormEvent, useMemo, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import {
   Boxes,
+  Download,
   Minus,
   PackagePlus,
   Plus,
+  Printer,
   Search,
+  Tags,
   TrendingUp,
 } from "lucide-react";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import type { InventoryItem } from "@/components/dashboard/types";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
+import {
+  formatQuantityValue,
+  formatSaleQuantity,
+  formatStockQuantity,
+  getConversionFactor,
+  getSellingUnitLabel,
+  getStockQuantity,
+  getStockUnitLabel,
+  isConvertedSaleUnit,
+  saleQuantityToStockQuantity,
+  stockQuantityToSaleQuantity,
+} from "@/lib/inventory/unit-conversion";
 
 type ProductInput = {
   name: string;
+  sku?: string;
+  barcode?: string;
+  unitName?: string;
+  baseUnitName?: string;
+  sellingUnitName?: string;
+  conversionFactor?: number;
+  categoryName?: string;
+  brandName?: string;
   sellingPrice: number;
   costPrice: number;
   quantityOnHand: number;
@@ -52,6 +75,7 @@ export function ProductList({
   const [selectedItemId, setSelectedItemId] = useState(items[0]?.id ?? "");
   const [stockDirection, setStockDirection] = useState<StockDirection>("in");
   const [stockQuantity, setStockQuantity] = useState("1");
+  const [stockUnitMode, setStockUnitMode] = useState<"stock" | "sale">("stock");
   const [stockReason, setStockReason] = useState("");
   const [stockError, setStockError] = useState("");
   const [isMoving, setIsMoving] = useState(false);
@@ -59,25 +83,38 @@ export function ProductList({
   const [quickMoveId, setQuickMoveId] = useState("");
   const [notifyingItemId, setNotifyingItemId] = useState("");
 
-  const totalQuantity = items.reduce((total, item) => total + item.quantityOnHand, 0);
+  const totalQuantity = items.reduce((total, item) => total + getStockQuantity(item), 0);
   const totalCostValue = items.reduce(
-    (total, item) => total + item.costPrice * item.quantityOnHand,
+    (total, item) =>
+      total + item.costPrice * stockQuantityToSaleQuantity(item, getStockQuantity(item)),
     0,
   );
   const totalSellingValue = items.reduce(
-    (total, item) => total + item.sellingPrice * item.quantityOnHand,
+    (total, item) =>
+      total + item.sellingPrice * stockQuantityToSaleQuantity(item, getStockQuantity(item)),
     0,
   );
   const expectedProfitValue = totalSellingValue - totalCostValue;
-  const lowStockItems = items.filter((item) => item.quantityOnHand > 0 && item.isLowStock);
-  const outOfStockItems = items.filter((item) => item.quantityOnHand === 0);
+  const lowStockItems = items.filter((item) => getStockQuantity(item) > 0 && item.isLowStock);
+  const outOfStockItems = items.filter((item) => getStockQuantity(item) === 0);
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
       return items;
     }
 
-    return items.filter((item) => item.name.toLowerCase().includes(query));
+    return items.filter((item) =>
+      [
+        item.name,
+        item.sku,
+        item.barcode,
+        item.internalCode,
+        item.categoryName,
+        item.brandName,
+      ]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(query)),
+    );
   }, [items, search]);
   const selectedItem =
     items.find((item) => item.id === selectedItemId) ?? items[0] ?? null;
@@ -87,14 +124,24 @@ export function ProductList({
     event.preventDefault();
     const productForm = event.currentTarget;
     const form = new FormData(productForm);
+    const stockUnitName = String(form.get("unitName") || "").trim();
+    const sellingUnitName = String(form.get("sellingUnitName") || "").trim();
     const nextProduct = {
       name: String(form.get("name") || "").trim(),
+      sku: String(form.get("sku") || "").trim() || undefined,
+      barcode: String(form.get("barcode") || "").trim() || undefined,
+      unitName: stockUnitName || undefined,
+      baseUnitName: stockUnitName || undefined,
+      sellingUnitName: sellingUnitName || undefined,
+      conversionFactor: sellingUnitName ? Number(form.get("conversionFactor") || 0) : undefined,
+      categoryName: String(form.get("categoryName") || "").trim() || undefined,
+      brandName: String(form.get("brandName") || "").trim() || undefined,
       costPrice: Number(form.get("costPrice")),
       sellingPrice: Number(form.get("sellingPrice")),
       quantityOnHand: Number(form.get("quantityOnHand") || 1),
       lowStockLevel: Number(form.get("lowStockLevel") || 5),
     };
-    const errors = validateProduct(nextProduct);
+    const errors = validateProduct(nextProduct, items);
 
     if (Object.keys(errors).length > 0) {
       setProductErrors(errors);
@@ -121,7 +168,11 @@ export function ProductList({
       return;
     }
 
-    const quantity = Number(stockQuantity);
+    const inputQuantity = Number(stockQuantity);
+    const quantity =
+      stockUnitMode === "sale"
+        ? saleQuantityToStockQuantity(selectedItem, inputQuantity)
+        : inputQuantity;
     const error = validateStockMove(selectedItem, stockDirection, quantity);
     if (error) {
       setStockError(error);
@@ -131,7 +182,12 @@ export function ProductList({
     setStockError("");
     setIsMoving(true);
     try {
-      await onMove(selectedItem.id, stockDirection, quantity, stockReason.trim() || undefined);
+      await onMove(
+        selectedItem.id,
+        stockDirection,
+        quantity,
+        buildStockMoveNote(selectedItem, stockDirection, inputQuantity, quantity, stockUnitMode, stockReason),
+      );
       setStockQuantity("1");
       setStockReason("");
     } finally {
@@ -140,7 +196,8 @@ export function ProductList({
   }
 
   async function quickMove(item: InventoryItem, direction: StockDirection) {
-    const error = validateStockMove(item, direction, 1);
+    const quantity = 1;
+    const error = validateStockMove(item, direction, quantity);
     if (error) {
       setStockError(error);
       return;
@@ -149,7 +206,12 @@ export function ProductList({
     setQuickMoveId(`${item.id}-${direction}`);
     setStockError("");
     try {
-      await onMove(item.id, direction, 1, direction === "in" ? "Quick add" : "Quick remove");
+      await onMove(
+        item.id,
+        direction,
+        quantity,
+        `${direction === "in" ? "Quick add" : "Quick remove"} ${formatStockQuantity(item, quantity)}`,
+      );
     } finally {
       setQuickMoveId("");
     }
@@ -207,6 +269,8 @@ export function ProductList({
         onCreateInvoice={onCreateInvoice}
       />
 
+      <BarcodeLabelCard items={items} />
+
       <Card id="add-product">
         <SectionHeader
           eyebrow="Quick entry"
@@ -226,6 +290,15 @@ export function ProductList({
             </Field>
 
             <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Barcode" error={productErrors.barcode}>
+                <Input name="barcode" inputMode="numeric" placeholder="Scan or enter code" />
+              </Field>
+              <Field label="SKU optional" error={productErrors.sku}>
+                <Input name="sku" placeholder="Internal SKU" />
+              </Field>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Cost price" error={productErrors.costPrice}>
                 <Input name="costPrice" min="0" inputMode="decimal" placeholder="0" type="number" />
               </Field>
@@ -234,12 +307,54 @@ export function ProductList({
               </Field>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Stock unit">
+                <Input name="unitName" placeholder="bottle, kg, piece" />
+              </Field>
+              <Field label="Selling unit optional">
+                <Input name="sellingUnitName" placeholder="carton, bag" />
+              </Field>
+              <Field label="Stock per sale unit" error={productErrors.conversionFactor}>
+                <Input
+                  name="conversionFactor"
+                  min="0"
+                  inputMode="decimal"
+                  placeholder="12"
+                  step="any"
+                  type="number"
+                />
+              </Field>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Quantity" error={productErrors.quantityOnHand}>
-                <Input name="quantityOnHand" defaultValue="1" min="0" inputMode="numeric" type="number" />
+              <Field label="Category">
+                <Input name="categoryName" placeholder="Beverages" />
+              </Field>
+              <Field label="Brand">
+                <Input name="brandName" placeholder="Coca-Cola" />
+              </Field>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Opening stock" error={productErrors.quantityOnHand}>
+                <Input
+                  name="quantityOnHand"
+                  defaultValue="1"
+                  min="0"
+                  inputMode="decimal"
+                  step="any"
+                  type="number"
+                />
               </Field>
               <Field label="Low alert" error={productErrors.lowStockLevel}>
-                <Input name="lowStockLevel" defaultValue="5" min="0" inputMode="numeric" type="number" />
+                <Input
+                  name="lowStockLevel"
+                  defaultValue="5"
+                  min="0"
+                  inputMode="decimal"
+                  step="any"
+                  type="number"
+                />
               </Field>
             </div>
 
@@ -279,7 +394,7 @@ export function ProductList({
               ) : (
                 items.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} ({item.quantityOnHand} left)
+                    {item.name} ({formatStockQuantity(item)} left)
                   </option>
                 ))
               )}
@@ -303,15 +418,38 @@ export function ProductList({
             </ToggleButton>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+          {selectedItem && isConvertedSaleUnit(selectedItem) ? (
+            <p className="rounded-xl bg-background px-4 py-3 text-xs font-medium text-textSecondary">
+              {formatSaleQuantity(selectedItem, 1)} equals{" "}
+              {formatStockQuantity(selectedItem, getConversionFactor(selectedItem))}.
+            </p>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-[140px_160px_1fr]">
             <Field label="Quantity">
               <Input
                 min="1"
-                inputMode="numeric"
+                inputMode="decimal"
+                step="any"
                 type="number"
                 value={stockQuantity}
                 onChange={(event) => setStockQuantity(event.target.value)}
               />
+            </Field>
+            <Field label="Unit">
+              <select
+                className="min-h-12 rounded-xl border border-gray-200 bg-white px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:bg-background disabled:text-textSecondary"
+                value={stockUnitMode}
+                onChange={(event) => setStockUnitMode(event.target.value as "stock" | "sale")}
+                disabled={!selectedItem || !isConvertedSaleUnit(selectedItem)}
+              >
+                <option value="stock">
+                  {selectedItem ? getStockUnitLabel(selectedItem, 2) : "Stock unit"}
+                </option>
+                {selectedItem && isConvertedSaleUnit(selectedItem) ? (
+                  <option value="sale">{getSellingUnitLabel(selectedItem, 2)}</option>
+                ) : null}
+              </select>
             </Field>
             <Field label="Reason optional">
               <Input
@@ -401,7 +539,8 @@ export function ProductList({
                 <div>
                   <p className="font-semibold text-textPrimary">{item.name}</p>
                   <p className="mt-1 text-sm text-textSecondary">
-                    {item.quantityOnHand} left · alert at {item.lowStockLevel}
+                    {formatStockQuantity(item)} left · alert at{" "}
+                    {formatStockQuantity(item, item.lowStockLevelDecimal ?? item.lowStockLevel)}
                   </p>
                 </div>
                 <button
@@ -505,7 +644,7 @@ function StockSummaryCard({
         />
         <SummaryMetric
           label="Quantity"
-          value={totalQuantity}
+          value={formatQuantityValue(totalQuantity)}
           helper={`Sales ${formatNaira(totalSellingValue)}`}
         />
         <SummaryMetric
@@ -525,6 +664,134 @@ function StockSummaryCard({
   );
 }
 
+function BarcodeLabelCard({ items }: { items: InventoryItem[] }) {
+  const labelItems = useMemo(
+    () =>
+      items
+        .map((item) => ({ item, code: getProductCode(item) }))
+        .filter((entry): entry is { item: InventoryItem; code: string } => Boolean(entry.code)),
+    [items],
+  );
+
+  function printLabels() {
+    if (typeof window === "undefined" || labelItems.length === 0) {
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+    if (!printWindow) {
+      return;
+    }
+
+    const labels = labelItems
+      .map(({ item, code }) => buildBarcodeLabelHtml(item, code))
+      .join("");
+
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Barcode Labels</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 18px; font-family: Arial, sans-serif; color: #111827; }
+            .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+            .label { min-height: 104px; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; break-inside: avoid; }
+            .name { font-size: 12px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .meta { margin-top: 3px; font-size: 10px; color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .bars { display: flex; align-items: flex-end; height: 34px; gap: 1px; margin-top: 8px; overflow: hidden; }
+            .bar { display: block; height: 32px; background: #111827; }
+            .code { margin-top: 5px; font-family: "Courier New", monospace; font-size: 11px; letter-spacing: 1px; text-align: center; }
+            @page { size: A4; margin: 10mm; }
+            @media print { body { padding: 0; } .label { border-color: #111827; } }
+          </style>
+        </head>
+        <body>
+          <main class="sheet">${labels}</main>
+          <script>window.addEventListener("load", () => window.print());</script>
+        </body>
+      </html>`);
+    printWindow.document.close();
+  }
+
+  function exportLabels() {
+    if (typeof window === "undefined" || labelItems.length === 0) {
+      return;
+    }
+
+    const rows = [
+      ["Product", "Code", "Category", "Brand", "Stock", "Selling Price"],
+      ...labelItems.map(({ item, code }) => [
+        item.name,
+        code,
+        item.categoryName ?? "",
+        item.brandName ?? "",
+        formatStockQuantity(item),
+        String(item.sellingPrice),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(toCsvCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `barcode-labels-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <SectionHeader
+          eyebrow="Labels"
+          title="Barcode labels"
+          description="Print shelf labels or export product codes for external printers."
+        />
+        <span className="inline-flex w-fit items-center gap-2 rounded-xl bg-background px-3 py-2 text-xs font-semibold text-textSecondary">
+          <Tags size={16} aria-hidden="true" />
+          {labelItems.length} ready
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <button
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-primaryHover hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          type="button"
+          onClick={printLabels}
+          disabled={labelItems.length === 0}
+        >
+          <Printer size={17} aria-hidden="true" />
+          Print labels
+        </button>
+        <button
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-textPrimary shadow-sm transition-all duration-150 hover:bg-background hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          type="button"
+          onClick={exportLabels}
+          disabled={labelItems.length === 0}
+        >
+          <Download size={17} aria-hidden="true" />
+          Export CSV
+        </button>
+      </div>
+
+      {labelItems.length === 0 ? (
+        <p className="mt-4 rounded-xl bg-background px-4 py-3 text-sm font-medium text-textSecondary">
+          Add a barcode or SKU to a product before printing labels.
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {labelItems.slice(0, 6).map(({ item, code }) => (
+            <div key={item.id} className="rounded-xl border border-gray-100 bg-background px-4 py-3">
+              <p className="truncate text-sm font-semibold text-textPrimary">{item.name}</p>
+              <p className="mt-1 font-mono text-xs text-textSecondary">{code}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ProductCard({
   item,
   busyAction,
@@ -539,6 +806,7 @@ function ProductCard({
   const status = getStockStatus(item);
   const isRemoving = busyAction === `${item.id}-out`;
   const isAdding = busyAction === `${item.id}-in`;
+  const availableSaleQuantity = stockQuantityToSaleQuantity(item, getStockQuantity(item));
 
   return (
     <article
@@ -557,8 +825,21 @@ function ProductCard({
             </span>
           </div>
           <p className="mt-2 text-sm text-textSecondary">
-            <strong className="text-lg text-textPrimary">{item.quantityOnHand}</strong> left
+            <strong className="text-lg text-textPrimary">{formatStockQuantity(item)}</strong> left
           </p>
+          {isConvertedSaleUnit(item) ? (
+            <p className="mt-1 text-xs font-medium text-textSecondary">
+              Sell as {formatSaleQuantity(item, availableSaleQuantity)} · 1{" "}
+              {getSellingUnitLabel(item, 1)} = {formatStockQuantity(item, getConversionFactor(item))}
+            </p>
+          ) : null}
+          {item.categoryName || item.brandName || item.barcode || item.internalCode ? (
+            <p className="mt-1 text-xs text-textSecondary">
+              {[item.categoryName, item.brandName, item.barcode || item.internalCode]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          ) : null}
           <p className="mt-1 flex items-center gap-1 text-sm text-textSecondary">
             <TrendingUp size={14} aria-hidden="true" />
             Profit per item {formatNaira(item.profitPerItem)}
@@ -579,7 +860,7 @@ function ProductCard({
             className="inline-flex min-h-11 min-w-24 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-danger transition-all duration-150 hover:bg-background hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
             onClick={onRemove}
-            disabled={Boolean(busyAction) || item.quantityOnHand <= 0}
+            disabled={Boolean(busyAction) || getStockQuantity(item) <= 0}
           >
             <Minus size={16} aria-hidden="true" />
             {isRemoving ? "Removing" : "Remove"}
@@ -634,7 +915,7 @@ function SummaryMetric({
   warning = false,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   helper?: string;
   warning?: boolean;
 }) {
@@ -737,7 +1018,7 @@ function ToggleButton({
   );
 }
 
-function validateProduct(product: ProductInput) {
+function validateProduct(product: ProductInput, existingItems: InventoryItem[] = []) {
   const errors: FormErrors = {};
 
   if (!product.name) {
@@ -752,19 +1033,240 @@ function validateProduct(product: ProductInput) {
     errors.sellingPrice = "Enter a valid selling price.";
   }
 
-  if (!Number.isInteger(product.quantityOnHand) || product.quantityOnHand < 0) {
+  if (!Number.isFinite(product.quantityOnHand) || product.quantityOnHand < 0) {
     errors.quantityOnHand = "Enter a valid quantity.";
   }
 
-  if (!Number.isInteger(product.lowStockLevel) || product.lowStockLevel < 0) {
+  if (!Number.isFinite(product.lowStockLevel) || product.lowStockLevel < 0) {
     errors.lowStockLevel = "Enter a valid alert level.";
+  }
+
+  if (
+    product.sellingUnitName &&
+    (!Number.isFinite(product.conversionFactor) || !product.conversionFactor || product.conversionFactor <= 0)
+  ) {
+    errors.conversionFactor = "Enter how many stock units make one sale unit.";
+  }
+
+  const barcode = normalizeProductCode(product.barcode);
+  const sku = normalizeProductCode(product.sku);
+
+  if (barcode && findItemByAnyCode(existingItems, barcode)) {
+    errors.barcode = "This code already belongs to another product.";
+  }
+
+  if (sku && findItemByAnyCode(existingItems, sku)) {
+    errors.sku = "This SKU already belongs to another product.";
+  }
+
+  if (barcode && sku && barcode === sku) {
+    errors.sku = "Use a SKU that is different from the barcode.";
   }
 
   return errors;
 }
 
+function getProductCode(item: InventoryItem) {
+  return item.barcode || item.internalCode || item.sku || "";
+}
+
+function normalizeProductCode(value?: string) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function findItemByAnyCode(items: InventoryItem[], code: string) {
+  return items.find((item) =>
+    [item.barcode, item.internalCode, item.sku]
+      .filter(Boolean)
+      .some((value) => normalizeProductCode(value) === code),
+  );
+}
+
+function buildBarcodeLabelHtml(item: InventoryItem, code: string) {
+  return `<article class="label">
+    <div class="name">${escapeHtml(item.name)}</div>
+    <div class="meta">${escapeHtml([item.categoryName, item.brandName, formatNaira(item.sellingPrice)].filter(Boolean).join(" · "))}</div>
+    <div class="bars" aria-hidden="true">${buildCodeBars(code)}</div>
+    <div class="code">${escapeHtml(code)}</div>
+  </article>`;
+}
+
+function buildCodeBars(code: string) {
+  const values = Array.from(code)
+    .map((character) => character.charCodeAt(0))
+    .filter((charCode) => charCode >= 32 && charCode <= 127)
+    .slice(0, 48)
+    .map((charCode) => charCode - 32);
+  const checksum = values.reduce((total, value, index) => total + value * (index + 1), 104) % 103;
+  const patterns = [104, ...values, checksum, 106];
+
+  return patterns.map(renderCode128Pattern).join("");
+}
+
+function renderCode128Pattern(value: number) {
+  const pattern = code128Patterns[value] ?? "";
+  let isBar = true;
+
+  return Array.from(pattern)
+    .map((width) => {
+      const moduleWidth = Number(width);
+      const html = isBar
+        ? `<span class="bar" style="width:${moduleWidth * 2}px"></span>`
+        : `<span style="display:block;width:${moduleWidth * 2}px"></span>`;
+      isBar = !isBar;
+      return html;
+    })
+    .join("");
+}
+
+const code128Patterns = [
+  "212222",
+  "222122",
+  "222221",
+  "121223",
+  "121322",
+  "131222",
+  "122213",
+  "122312",
+  "132212",
+  "221213",
+  "221312",
+  "231212",
+  "112232",
+  "122132",
+  "122231",
+  "113222",
+  "123122",
+  "123221",
+  "223211",
+  "221132",
+  "221231",
+  "213212",
+  "223112",
+  "312131",
+  "311222",
+  "321122",
+  "321221",
+  "312212",
+  "322112",
+  "322211",
+  "212123",
+  "212321",
+  "232121",
+  "111323",
+  "131123",
+  "131321",
+  "112313",
+  "132113",
+  "132311",
+  "211313",
+  "231113",
+  "231311",
+  "112133",
+  "112331",
+  "132131",
+  "113123",
+  "113321",
+  "133121",
+  "313121",
+  "211331",
+  "231131",
+  "213113",
+  "213311",
+  "213131",
+  "311123",
+  "311321",
+  "331121",
+  "312113",
+  "312311",
+  "332111",
+  "314111",
+  "221411",
+  "431111",
+  "111224",
+  "111422",
+  "121124",
+  "121421",
+  "141122",
+  "141221",
+  "112214",
+  "112412",
+  "122114",
+  "122411",
+  "142112",
+  "142211",
+  "241211",
+  "221114",
+  "413111",
+  "241112",
+  "134111",
+  "111242",
+  "121142",
+  "121241",
+  "114212",
+  "124112",
+  "124211",
+  "411212",
+  "421112",
+  "421211",
+  "212141",
+  "214121",
+  "412121",
+  "111143",
+  "111341",
+  "131141",
+  "114113",
+  "114311",
+  "411113",
+  "411311",
+  "113141",
+  "114131",
+  "311141",
+  "411131",
+  "211412",
+  "211214",
+  "211232",
+  "2331112",
+] as const;
+
+function toCsvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildStockMoveNote(
+  item: InventoryItem,
+  direction: StockDirection,
+  inputQuantity: number,
+  stockQuantity: number,
+  unitMode: "stock" | "sale",
+  reason: string,
+) {
+  const trimmedReason = reason.trim();
+
+  if (trimmedReason) {
+    return trimmedReason;
+  }
+
+  const action = direction === "in" ? "Stock in" : "Stock out";
+
+  if (unitMode === "sale" && isConvertedSaleUnit(item)) {
+    return `${action}: ${formatSaleQuantity(item, inputQuantity)} (${formatStockQuantity(item, stockQuantity)})`;
+  }
+
+  return `${action}: ${formatStockQuantity(item, stockQuantity)}`;
+}
+
 function validateStockMove(item: InventoryItem, direction: StockDirection, quantity: number) {
-  if (!Number.isInteger(quantity) || quantity <= 0) {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
     return "Enter a valid quantity.";
   }
 
@@ -772,15 +1274,15 @@ function validateStockMove(item: InventoryItem, direction: StockDirection, quant
     return "Quantity is too large.";
   }
 
-  if (direction === "out" && quantity > item.quantityOnHand) {
-    return `Only ${item.quantityOnHand} left. You cannot remove more than that.`;
+  if (direction === "out" && quantity > getStockQuantity(item)) {
+    return `Only ${formatStockQuantity(item)} left. You cannot remove more than that.`;
   }
 
   return "";
 }
 
 function getStockStatus(item: InventoryItem) {
-  if (item.quantityOnHand <= 0) {
+  if (getStockQuantity(item) <= 0) {
     return {
       label: "Out of stock",
       tone: "danger" as const,

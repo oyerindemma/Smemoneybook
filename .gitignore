@@ -18,6 +18,7 @@ tsconfig.tsbuildinfo
 coverage/
 playwright-report/
 test-results/
+backups/
 
 # logs
 npm-debug.log*

@@ -118,6 +118,7 @@ export function buildDuplicateFingerprint(
     input.inventoryQuantity ?? "",
     JSON.stringify(input.invoiceItems ?? []),
     input.paymentStatus,
+    JSON.stringify(input.paymentAllocations ?? []),
     input.description.trim().toLowerCase(),
     input.category?.trim().toLowerCase() ?? "",
     minute.toISOString(),
@@ -159,6 +160,20 @@ function validateMoneyInput(input: TransactionInput) {
 
   if (input.occurredAt && Number.isNaN(Date.parse(input.occurredAt))) {
     throw new Error("Choose a valid transaction date.");
+  }
+
+  if (input.paymentAllocations?.length) {
+    if (input.type !== "sale") {
+      throw new Error("Split payments are only available for sales.");
+    }
+
+    const paidTotal = input.paymentAllocations
+      .filter((allocation) => allocation.method !== "credit")
+      .reduce((sum, allocation) => sum + allocation.amount, 0);
+
+    if (paidTotal - input.amount > 0.01) {
+      throw new Error("Payment amounts cannot be more than the sale total.");
+    }
   }
 }
 

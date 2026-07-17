@@ -22,6 +22,8 @@ export default function ReportsPage() {
       {showDetails ? (
         <ReportsPanel
           businessId={state.businessId}
+          locationId={state.selectedLocationId}
+          locationName={state.selectedLocationName}
           onNotice={setNotice}
           onUpgradePrompt={showUpgradePrompt}
         />

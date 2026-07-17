@@ -27,8 +27,15 @@ describe("Paystack billing", () => {
       "ai_category_assist",
       "audit_tools",
       "basic_exports",
+      "business_switching",
+      "granular_permissions",
+      "invoice_branding",
+      "multi_location",
+      "professional_pdf_exports",
       "receipt_extraction",
+      "tax_management",
       "team_management",
+      "warehouse_transfers",
     ]);
     expect(getPlanFeatureDetails(billingPlans[1]).map((feature) => feature.name)).toEqual([
       "Accountant exports",

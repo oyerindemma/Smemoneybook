@@ -46,6 +46,80 @@ export default async function CustomersPage() {
                   />
                   <Insight label="Most Bought Product" value={customer.mostBoughtProduct ?? "Not enough sales"} />
                 </div>
+
+                <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                  <section>
+                    <h3 className="text-sm font-semibold text-textPrimary">Recent purchases</h3>
+                    <div className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-background">
+                      {customer.purchaseHistory.length === 0 ? (
+                        <p className="p-4 text-sm text-textSecondary">No purchases yet.</p>
+                      ) : (
+                        customer.purchaseHistory.slice(0, 4).map((purchase) => (
+                          <div key={purchase.id} className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-textPrimary">
+                                  {purchase.description}
+                                </p>
+                                <p className="mt-1 text-xs text-textSecondary">
+                                  {formatDate(purchase.occurredAt)} · {purchase.paymentStatus}
+                                </p>
+                              </div>
+                              <strong className="text-sm text-textPrimary">
+                                {formatNaira(purchase.total)}
+                              </strong>
+                            </div>
+                            {purchase.items.length > 0 ? (
+                              <div className="mt-3 grid gap-1">
+                                {purchase.items.map((item, index) => (
+                                  <p
+                                    key={`${purchase.id}-${item.inventoryItemId}-${index}`}
+                                    className="text-xs text-textSecondary"
+                                  >
+                                    {item.name} · {formatQuantity(item.quantity, item.unitLabel)} ·{" "}
+                                    {formatNaira(item.unitPrice)}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-sm font-semibold text-textPrimary">Pricing history</h3>
+                    <div className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-background">
+                      {customer.pricingHistory.length === 0 ? (
+                        <p className="p-4 text-sm text-textSecondary">No product prices yet.</p>
+                      ) : (
+                        customer.pricingHistory.slice(0, 5).map((price) => (
+                          <div key={price.inventoryItemId || price.productName} className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-textPrimary">
+                                  {price.productName}
+                                </p>
+                                <p className="mt-1 text-xs text-textSecondary">
+                                  {formatQuantity(price.quantity)} across {price.purchases} purchase
+                                  {price.purchases === 1 ? "" : "s"}
+                                </p>
+                              </div>
+                              <strong className="text-sm text-textPrimary">
+                                {formatNaira(price.lastUnitPrice)}
+                              </strong>
+                            </div>
+                            <p className="mt-2 text-xs text-textSecondary">
+                              Range {formatNaira(price.lowestUnitPrice)} -{" "}
+                              {formatNaira(price.highestUnitPrice)} · Last {formatDate(price.lastPurchasedAt)}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                </div>
               </article>
             ))
           )}
@@ -70,4 +144,12 @@ function formatDate(value: string) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function formatQuantity(value: number, unitLabel?: string) {
+  const quantity = new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  return unitLabel ? `${quantity} ${unitLabel}` : quantity;
 }
