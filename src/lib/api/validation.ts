@@ -141,6 +141,16 @@ export const businessLocationArchiveRequestSchema = z.object({
   businessId: selectedBusinessId,
 });
 
+export const businessLocationUpdateRequestSchema = z.object({
+  businessId: selectedBusinessId,
+  name: requiredText("Location name").optional(),
+  type: businessLocationTypeSchema.optional(),
+  address: optionalText,
+  phone: optionalText,
+  email: optionalText,
+  active: z.coerce.boolean().optional(),
+});
+
 export const onboardingSetupRequestSchema = z.object({
   businessName: requiredText("Business name"),
   businessCategory: optionalText,

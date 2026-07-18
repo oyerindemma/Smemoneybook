@@ -1,17 +1,18 @@
-"use client";
-
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
-import { useDashboard } from "@/components/dashboard/DashboardProvider";
-import { LocationManagementPanel } from "@/components/locations/LocationManagementPanel";
-import { canShowPhase2Navigation } from "@/lib/phase2/client-access";
+import { LocationManagementRouteClient } from "@/components/locations/LocationManagementRouteClient";
+import { getPhase2PageAccess } from "@/lib/phase2/page-access";
 
-export default function WarehousesPage() {
-  const { state, setNotice } = useDashboard();
-  const canManageWarehouses = canShowPhase2Navigation({
-    state,
-    flag: "locations",
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export default async function WarehousesPage() {
+  const access = await getPhase2PageAccess({
+    routePath: "/stock/warehouses",
+    feature: "locations",
+    featureLabel: "Warehouses",
     entitlement: "multi_location",
-    permission: "canManageLocations",
+    requiredPlan: "pro",
+    permission: "locations:create",
   });
 
   return (
@@ -20,17 +21,13 @@ export default function WarehousesPage() {
         <p className="text-sm text-textSecondary">Stock</p>
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Warehouses</h1>
       </header>
-      {canManageWarehouses ? (
-        <LocationManagementPanel
-          businessId={state.businessId}
-          initialLocations={state.locations}
-          mode="warehouses"
-          onNotice={setNotice}
-        />
+      {access.allowed ? (
+        <LocationManagementRouteClient mode="warehouses" />
       ) : (
         <FeatureUnavailablePanel
-          title="Warehouses are not available"
-          description="This business needs the Locations flag, owner access, and a plan with multiple locations."
+          title={access.title}
+          description={access.description}
+          billingLink={access.billingLink}
         />
       )}
     </main>

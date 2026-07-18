@@ -1,17 +1,18 @@
-"use client";
-
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
-import { useDashboard } from "@/components/dashboard/DashboardProvider";
-import { LocationManagementPanel } from "@/components/locations/LocationManagementPanel";
-import { canShowPhase2Navigation } from "@/lib/phase2/client-access";
+import { LocationManagementRouteClient } from "@/components/locations/LocationManagementRouteClient";
+import { getPhase2PageAccess } from "@/lib/phase2/page-access";
 
-export default function LocationsPage() {
-  const { state, setNotice } = useDashboard();
-  const canManageLocations = canShowPhase2Navigation({
-    state,
-    flag: "locations",
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export default async function LocationsPage() {
+  const access = await getPhase2PageAccess({
+    routePath: "/more/business-settings/locations",
+    feature: "locations",
+    featureLabel: "Locations",
     entitlement: "multi_location",
-    permission: "canManageLocations",
+    requiredPlan: "pro",
+    permission: "locations:create",
   });
 
   return (
@@ -20,16 +21,13 @@ export default function LocationsPage() {
         <p className="text-sm text-textSecondary">Business settings</p>
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Locations</h1>
       </header>
-      {canManageLocations ? (
-        <LocationManagementPanel
-          businessId={state.businessId}
-          initialLocations={state.locations}
-          onNotice={setNotice}
-        />
+      {access.allowed ? (
+        <LocationManagementRouteClient />
       ) : (
         <FeatureUnavailablePanel
-          title="Locations are not available"
-          description="This business needs the Locations flag, owner access, and a plan with multiple locations."
+          title={access.title}
+          description={access.description}
+          billingLink={access.billingLink}
         />
       )}
     </main>

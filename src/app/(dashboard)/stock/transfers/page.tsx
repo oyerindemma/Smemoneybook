@@ -1,17 +1,18 @@
-"use client";
-
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
-import { useDashboard } from "@/components/dashboard/DashboardProvider";
-import { StockTransferPanel } from "@/components/stock/StockTransferPanel";
-import { canShowPhase2Navigation } from "@/lib/phase2/client-access";
+import { StockTransfersRouteClient } from "@/components/stock/StockTransfersRouteClient";
+import { getPhase2PageAccess } from "@/lib/phase2/page-access";
 
-export default function TransfersPage() {
-  const { state, setNotice } = useDashboard();
-  const canManageTransfers = canShowPhase2Navigation({
-    state,
-    flag: "transfers",
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export default async function TransfersPage() {
+  const access = await getPhase2PageAccess({
+    routePath: "/stock/transfers",
+    feature: "transfers",
+    featureLabel: "Warehouse transfers",
     entitlement: "warehouse_transfers",
-    permission: "canManageTransfers",
+    requiredPlan: "pro",
+    permission: "transfers:create",
   });
 
   return (
@@ -20,17 +21,13 @@ export default function TransfersPage() {
         <p className="text-sm text-textSecondary">Stock</p>
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Transfers</h1>
       </header>
-      {canManageTransfers ? (
-        <StockTransferPanel
-          businessId={state.businessId}
-          locations={state.locations ?? []}
-          items={state.items}
-          onNotice={setNotice}
-        />
+      {access.allowed ? (
+        <StockTransfersRouteClient />
       ) : (
         <FeatureUnavailablePanel
-          title="Warehouse transfers are not available"
-          description="This business needs the Transfers flag, transfer permission, and a plan with warehouse transfers."
+          title={access.title}
+          description={access.description}
+          billingLink={access.billingLink}
         />
       )}
     </main>

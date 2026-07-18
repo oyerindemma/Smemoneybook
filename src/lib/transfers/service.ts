@@ -42,14 +42,46 @@ type ReceiveTransferInput = {
 
 export async function listStockTransfersForUser(userId: string, businessId?: string) {
   const access = await requireBusinessAccess(userId, "transfers:view", businessId);
-  const transfers = await getPrisma().stockTransfer.findMany({
+  const prisma = getPrisma();
+  const transfers = await prisma.stockTransfer.findMany({
     where: { businessId: access.businessId },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: transferInclude,
   });
+  const transferIds = new Set(transfers.map((transfer) => transfer.id));
+  const auditLogs = await prisma.auditLog.findMany({
+    where: {
+      businessId: access.businessId,
+      action: { in: transferAuditActions },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 500,
+    include: {
+      actor: { select: { id: true, name: true, email: true } },
+    },
+  });
+  const auditByTransferId = new Map<string, TransferAuditEvent[]>();
 
-  return transfers.map(mapTransfer);
+  for (const log of auditLogs) {
+    const transferId = getAuditTransferId(log.metadata);
+
+    if (!transferId || !transferIds.has(transferId)) {
+      continue;
+    }
+
+    const events = auditByTransferId.get(transferId) ?? [];
+    events.push({
+      id: log.id,
+      action: log.action,
+      message: log.message,
+      createdAt: log.createdAt.toISOString(),
+      actor: mapTransferUser(log.actor),
+    });
+    auditByTransferId.set(transferId, events);
+  }
+
+  return transfers.map((transfer) => mapTransfer(transfer, auditByTransferId.get(transfer.id) ?? []));
 }
 
 export async function createStockTransferForUser(userId: string, input: CreateTransferInput) {
@@ -191,6 +223,104 @@ export async function cancelStockTransferForUser({
       status: StockTransferStatus.CANCELLED,
       cancelledAt: new Date(),
     },
+  });
+}
+
+export async function rejectStockTransferForUser({
+  userId,
+  businessId,
+  transferId,
+}: {
+  userId: string;
+  businessId: string;
+  transferId: string;
+}) {
+  const access = await requireBusinessAccess(userId, "transfers:receive", businessId);
+
+  return getPrisma().$transaction(async (tx) => {
+    const transfer = await tx.stockTransfer.findFirst({
+      where: {
+        id: transferId,
+        businessId: access.businessId,
+      },
+      include: transferInclude,
+    });
+
+    if (!transfer) {
+      throw new Error("Choose a valid transfer.");
+    }
+
+    if (transfer.status !== StockTransferStatus.IN_TRANSIT) {
+      throw new Error("Reject a transfer only after it has been sent.");
+    }
+
+    const sourceLocation = await resolveInventoryLocation({
+      tx,
+      userId,
+      businessId: access.businessId,
+      role: access.role,
+      locationId: transfer.sourceLocationId,
+    });
+    const destinationLocation = await resolveInventoryLocation({
+      tx,
+      userId,
+      businessId: access.businessId,
+      role: access.role,
+      locationId: transfer.destinationLocationId,
+    });
+
+    for (const item of transfer.items) {
+      if (item.sentQuantity.lte(0)) {
+        continue;
+      }
+
+      const stockChange = await applyInventoryBalanceChange({
+        tx,
+        businessId: access.businessId,
+        location: sourceLocation,
+        itemId: item.inventoryItemId,
+        changeQuantity: item.sentQuantity,
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          businessId: access.businessId,
+          actorId: userId,
+          itemId: item.inventoryItemId,
+          locationId: sourceLocation.id,
+          sourceLocationId: destinationLocation.id,
+          destinationLocationId: sourceLocation.id,
+          type: InventoryMovementType.STOCK_IN,
+          adjustmentType: StockAdjustmentType.OTHER,
+          quantity: Math.trunc(item.sentQuantity.toNumber()),
+          quantityDecimal: item.sentQuantity,
+          beforeQuantityDecimal: stockChange.beforeLocationQuantity,
+          afterQuantityDecimal: stockChange.afterLocationQuantity,
+          note: `Rejected transfer ${transfer.transferNumber}`,
+        },
+      });
+    }
+
+    const updated = await tx.stockTransfer.update({
+      where: { id: transfer.id },
+      data: {
+        status: StockTransferStatus.CANCELLED,
+        cancelledAt: new Date(),
+      },
+      include: transferInclude,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        businessId: access.businessId,
+        actorId: userId,
+        action: "transfer.rejected",
+        message: `Transfer ${transfer.transferNumber} was rejected.`,
+        metadata: { transferId: transfer.id },
+      },
+    });
+
+    return mapTransfer(updated);
   });
 }
 
@@ -542,7 +672,25 @@ type TransferWithInclude = Prisma.StockTransferGetPayload<{
   include: typeof transferInclude;
 }>;
 
-function mapTransfer(transfer: TransferWithInclude) {
+type TransferAuditEvent = {
+  id: string;
+  action: string;
+  message: string;
+  createdAt: string;
+  actor?: ReturnType<typeof mapTransferUser>;
+};
+
+const transferAuditActions = [
+  "transfer.created",
+  "transfer.approved",
+  "transfer.sent",
+  "transfer.received",
+  "transfer.discrepancy",
+  "transfer.cancelled",
+  "transfer.rejected",
+];
+
+function mapTransfer(transfer: TransferWithInclude, auditEvents: TransferAuditEvent[] = []) {
   return {
     id: transfer.id,
     transferNumber: transfer.transferNumber,
@@ -569,6 +717,7 @@ function mapTransfer(transfer: TransferWithInclude) {
     cancelledAt: transfer.cancelledAt?.toISOString(),
     createdAt: transfer.createdAt.toISOString(),
     updatedAt: transfer.updatedAt.toISOString(),
+    auditEvents,
     items: transfer.items.map((item) => ({
       id: item.id,
       inventoryItemId: item.inventoryItemId,
@@ -583,6 +732,16 @@ function mapTransfer(transfer: TransferWithInclude) {
       note: item.note ?? undefined,
     })),
   };
+}
+
+function getAuditTransferId(metadata: Prisma.JsonValue) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const transferId = metadata.transferId;
+
+  return typeof transferId === "string" ? transferId : null;
 }
 
 function mapTransferUser(user: { id: string; name: string; email: string } | null) {

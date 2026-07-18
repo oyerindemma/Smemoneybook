@@ -15,6 +15,16 @@ type LocationInput = {
   email?: string;
 };
 
+type LocationUpdateInput = {
+  businessId?: string;
+  name?: string;
+  type?: LocationInput["type"];
+  address?: string;
+  phone?: string;
+  email?: string;
+  active?: boolean;
+};
+
 export async function listBusinessLocationsForUser(userId: string, businessId?: string) {
   const access = await requireBusinessAccess(userId, undefined, businessId);
 
@@ -35,34 +45,14 @@ export async function listBusinessLocationsForUser(userId: string, businessId?: 
   const locations = await getPrisma().businessLocation.findMany({
     where,
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    include: {
-      _count: {
-        select: {
-          members: true,
-          inventoryBalances: true,
-        },
-      },
-    },
+    include: locationInclude,
   });
 
   return {
     businessId: access.businessId,
     businessName: access.businessName,
     role: mapRole(access.role),
-    locations: locations.map((location) => ({
-      id: location.id,
-      name: location.name,
-      type: location.type.toLowerCase(),
-      address: location.address ?? undefined,
-      phone: location.phone ?? undefined,
-      email: location.email ?? undefined,
-      isDefault: location.isDefault,
-      archivedAt: location.archivedAt?.toISOString(),
-      memberCount: location._count.members,
-      productBalanceCount: location._count.inventoryBalances,
-      createdAt: location.createdAt.toISOString(),
-      updatedAt: location.updatedAt.toISOString(),
-    })),
+    locations: locations.map(mapLocation),
   };
 }
 
@@ -143,21 +133,94 @@ export async function createBusinessLocationForUser(userId: string, input: Locat
       },
     });
 
-    return created;
+    return tx.businessLocation.findUniqueOrThrow({
+      where: { id: created.id },
+      include: locationInclude,
+    });
   });
 
-  return {
-    id: location.id,
-    name: location.name,
-    type: location.type.toLowerCase(),
-    address: location.address ?? undefined,
-    phone: location.phone ?? undefined,
-    email: location.email ?? undefined,
-    isDefault: location.isDefault,
-    archivedAt: location.archivedAt?.toISOString(),
-    createdAt: location.createdAt.toISOString(),
-    updatedAt: location.updatedAt.toISOString(),
-  };
+  return mapLocation(location);
+}
+
+export async function updateBusinessLocationForUser({
+  userId,
+  businessId,
+  locationId,
+  input,
+}: {
+  userId: string;
+  businessId?: string;
+  locationId: string;
+  input: LocationUpdateInput;
+}) {
+  const access = await requireBusinessAccess(userId, "locations:edit", businessId ?? input.businessId);
+  const prisma = getPrisma();
+  const existing = await prisma.businessLocation.findFirst({
+    where: {
+      id: locationId,
+      businessId: access.businessId,
+    },
+  });
+
+  if (!existing) {
+    throw new Error("Choose a valid business location.");
+  }
+
+  if (existing.isDefault && input.active === false) {
+    throw new Error("The default location cannot be made inactive.");
+  }
+
+  const updateData: Prisma.BusinessLocationUncheckedUpdateInput = {};
+
+  if (input.name !== undefined) {
+    updateData.name = input.name;
+  }
+
+  if (input.type !== undefined) {
+    updateData.type = toDbLocationType(input.type);
+  }
+
+  if (input.address !== undefined) {
+    updateData.address = input.address || null;
+  }
+
+  if (input.phone !== undefined) {
+    updateData.phone = input.phone || null;
+  }
+
+  if (input.email !== undefined) {
+    updateData.email = input.email || null;
+  }
+
+  if (input.active !== undefined) {
+    updateData.archivedAt = input.active ? null : new Date();
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const location = await tx.businessLocation.update({
+      where: { id: existing.id },
+      data: updateData,
+      include: locationInclude,
+    });
+
+    await tx.auditLog.create({
+      data: {
+        businessId: access.businessId,
+        actorId: userId,
+        action: "location.updated",
+        message: `${location.name} location was updated.`,
+        metadata: {
+          locationId: location.id,
+          type: location.type,
+          active: !location.archivedAt,
+        },
+      },
+    });
+
+    return location;
+  });
+
+  return mapLocation(updated);
 }
 
 export async function archiveBusinessLocationForUser({
@@ -312,4 +375,71 @@ export async function ensureDefaultLocationForBusiness(businessId: string) {
 
 function toDbLocationType(type: LocationInput["type"]) {
   return type.toUpperCase() as BusinessLocationType;
+}
+
+const locationInclude = {
+  _count: {
+    select: {
+      members: true,
+      inventoryBalances: true,
+    },
+  },
+  inventoryBalances: {
+    select: {
+      quantityOnHandDecimal: true,
+      lowStockLevelDecimal: true,
+      inventoryItem: {
+        select: {
+          archivedAt: true,
+        },
+      },
+    },
+  },
+};
+
+type LocationWithSummary = Prisma.BusinessLocationGetPayload<{
+  include: typeof locationInclude;
+}>;
+
+function mapLocation(location: LocationWithSummary) {
+  const activeBalances = location.inventoryBalances.filter(
+    (balance) => !balance.inventoryItem.archivedAt,
+  );
+  const totalQuantity = activeBalances.reduce(
+    (total, balance) => total + balance.quantityOnHandDecimal.toNumber(),
+    0,
+  );
+  const stockedProductCount = activeBalances.filter((balance) =>
+    balance.quantityOnHandDecimal.gt(0),
+  ).length;
+  const lowStockCount = activeBalances.filter(
+    (balance) =>
+      balance.quantityOnHandDecimal.gt(0) &&
+      balance.quantityOnHandDecimal.lte(balance.lowStockLevelDecimal),
+  ).length;
+  const outOfStockCount = activeBalances.filter((balance) =>
+    balance.quantityOnHandDecimal.lte(0),
+  ).length;
+
+  return {
+    id: location.id,
+    name: location.name,
+    type: location.type.toLowerCase(),
+    address: location.address ?? undefined,
+    phone: location.phone ?? undefined,
+    email: location.email ?? undefined,
+    isDefault: location.isDefault,
+    archivedAt: location.archivedAt?.toISOString(),
+    memberCount: location._count.members,
+    productBalanceCount: location._count.inventoryBalances,
+    stockSummary: {
+      productCount: activeBalances.length,
+      stockedProductCount,
+      totalQuantity,
+      lowStockCount,
+      outOfStockCount,
+    },
+    createdAt: location.createdAt.toISOString(),
+    updatedAt: location.updatedAt.toISOString(),
+  };
 }
