@@ -22,7 +22,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "beta:seed": "tsx scripts/seed-beta-accounts.ts"
+    "beta:seed": "tsx scripts/seed-beta-accounts.ts",
+    "phase2:seed-preview": "tsx scripts/seed-phase2-preview-entitlement.ts"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.2",

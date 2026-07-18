@@ -8,7 +8,10 @@ import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { SupplierReturnPanel } from "@/components/returns/SupplierReturnPanel";
 import { StockTransferPanel } from "@/components/stock/StockTransferPanel";
 import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
-import { canShowPhase2Navigation } from "@/lib/phase2/client-access";
+import {
+  getPhase2NavigationAccess,
+  type Phase2NavigationAccess,
+} from "@/lib/phase2/client-access";
 
 export default function StockPage() {
   const {
@@ -20,18 +23,19 @@ export default function StockPage() {
     submitSupplierReturn,
     setNotice,
   } = useDashboard();
-  const canManageWarehouses = canShowPhase2Navigation({
+  const warehousesAccess = getPhase2NavigationAccess({
     state,
     flag: "locations",
     entitlement: "multi_location",
     permission: "canManageLocations",
   });
-  const canManageTransfers = canShowPhase2Navigation({
+  const transfersAccess = getPhase2NavigationAccess({
     state,
     flag: "transfers",
     entitlement: "warehouse_transfers",
     permission: "canManageTransfers",
   });
+  const canManageTransfers = transfersAccess.enabled;
 
   return (
     <main className="space-y-8 md:space-y-10">
@@ -39,26 +43,24 @@ export default function StockPage() {
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Stock</h1>
         <p className="mt-1 text-sm text-textSecondary md:text-base">Products and stock levels.</p>
       </header>
-      {(canManageWarehouses || canManageTransfers) ? (
-        <section className="grid gap-3 md:grid-cols-2">
-          {canManageWarehouses ? (
-            <StockLink
-              href="/stock/warehouses"
-              icon={<Building2 size={18} aria-hidden="true" />}
-              label="Warehouses"
-              meta={`${state.locations?.filter((location) => location.type === "warehouse").length ?? 0} active`}
-            />
-          ) : null}
-          {canManageTransfers ? (
-            <StockLink
-              href="/stock/transfers"
-              icon={<Repeat2 size={18} aria-hidden="true" />}
-              label="Transfers"
-              meta="Move stock"
-            />
-          ) : null}
-        </section>
-      ) : null}
+      <section className="grid gap-3 md:grid-cols-2">
+        <StockLink
+          href="/stock/warehouses"
+          icon={<Building2 size={18} aria-hidden="true" />}
+          label="Warehouses"
+          meta={
+            warehousesAccess.enabled
+              ? `${state.locations?.filter((location) => location.type === "warehouse").length ?? 0} active`
+              : phase2Meta(warehousesAccess)
+          }
+        />
+        <StockLink
+          href="/stock/transfers"
+          icon={<Repeat2 size={18} aria-hidden="true" />}
+          label="Transfers"
+          meta={transfersAccess.enabled ? "Move stock" : phase2Meta(transfersAccess)}
+        />
+      </section>
       <ProductList
         items={state.items}
         onCreate={createInventoryItem}
@@ -110,4 +112,13 @@ function StockLink({
       <span className="text-xs text-textMuted">{meta}</span>
     </Link>
   );
+}
+
+function phase2Meta(access: Phase2NavigationAccess) {
+  return {
+    available: "Available",
+    "flag-disabled": "Unavailable",
+    upgrade: "Upgrade",
+    permission: "No access",
+  }[access.reason];
 }

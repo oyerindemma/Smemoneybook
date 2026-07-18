@@ -11,35 +11,42 @@ import { Phase2SettingsPanel } from "@/components/dashboard/Phase2SettingsPanel"
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { OfflineSyncReviewPanel } from "@/components/offline/OfflineSyncReviewPanel";
 import { ReceiptSettingsPanel } from "@/components/receipts/ReceiptSettingsPanel";
-import { canShowPhase2Navigation, hasEntitlement } from "@/lib/phase2/client-access";
+import type { MoneybookState } from "@/lib/bookkeeping/transaction-engine";
+import {
+  canShowBillingNavigation,
+  getPhase2NavigationAccess,
+  hasClientPermission,
+  hasEntitlement,
+  type Phase2NavigationAccess,
+} from "@/lib/phase2/client-access";
 
 export default function MorePage() {
   const { state, setNotice, saveReceiptConfig } = useDashboard();
   const router = useRouter();
   const [billingLive, setBillingLive] = useState(false);
-  const canManageBusinessSettings =
-    canShowPhase2Navigation({
-      state,
-      flag: "locations",
-      entitlement: "multi_location",
-      permission: "canManageLocations",
-    }) ||
-    canShowPhase2Navigation({
-      state,
-      flag: "tax",
-      entitlement: "tax_management",
-      permission: "canManageTax",
-    });
-  const canManageStaff = Boolean(
-    state.permissions?.canManageStaff && hasEntitlement(state, "team_management"),
-  );
-  const canUseAdvancedReports = canShowPhase2Navigation({
+  const locationsAccess = getPhase2NavigationAccess({
+    state,
+    flag: "locations",
+    entitlement: "multi_location",
+    permission: "canManageLocations",
+  });
+  const taxAccess = getPhase2NavigationAccess({
+    state,
+    flag: "tax",
+    entitlement: "tax_management",
+    permission: "canManageTax",
+  });
+  const reportsAccess = getPhase2NavigationAccess({
     state,
     flag: "reportingCentre",
     entitlement: "advanced_reports",
     permission: "canSaveReports",
   });
-  const canManageBilling = Boolean(state.permissions?.canManageAccounts);
+  const canManageBusinessSettings = locationsAccess.enabled || taxAccess.enabled;
+  const canManageStaff = Boolean(
+    hasClientPermission(state, "canManageStaff") && hasEntitlement(state, "team_management"),
+  );
+  const canManageBilling = canShowBillingNavigation(state);
 
   useEffect(() => {
     let mounted = true;
@@ -95,37 +102,24 @@ export default function MorePage() {
         <p className="mt-2 text-sm text-textSecondary">{roleDescription(state.businessRole)}</p>
       </section>
       <section className="grid gap-3 md:grid-cols-2">
-        {canManageBusinessSettings ? (
-          <MoreLink
-            href="/more/business-settings"
-            icon={<Settings size={18} aria-hidden="true" />}
-            label="Business Settings"
-            meta="Locations · Tax"
-          />
-        ) : null}
-        {canUseAdvancedReports ? (
-          <MoreLink
-            href="/reports"
-            icon={<FileChartColumn size={18} aria-hidden="true" />}
-            label="Reports"
-            meta="Advanced"
-          />
-        ) : (
-          <MoreLink
-            href="/reports"
-            icon={<FileChartColumn size={18} aria-hidden="true" />}
-            label="Reports"
-            meta="Basic"
-          />
-        )}
-        {canManageStaff ? (
-          <MoreLink
-            href="/more/staff"
-            icon={<UserPlus size={18} aria-hidden="true" />}
-            label="Staff"
-            meta="Invite Staff"
-          />
-        ) : null}
+        <MoreLink
+          href="/more/business-settings"
+          icon={<Settings size={18} aria-hidden="true" />}
+          label="Business Settings"
+          meta={canManageBusinessSettings ? "Locations · Tax" : combinedPhase2Meta([locationsAccess, taxAccess])}
+        />
+        <MoreLink
+          href="/reports"
+          icon={<FileChartColumn size={18} aria-hidden="true" />}
+          label="Reports"
+          meta={reportsAccess.enabled ? "Advanced" : reportsAccess.reason === "flag-disabled" ? "Basic" : phase2Meta(reportsAccess)}
+        />
+        <MoreLink
+          href="/more/staff"
+          icon={<UserPlus size={18} aria-hidden="true" />}
+          label="Staff"
+          meta={canManageStaff ? "Invite Staff" : staffMeta(state)}
+        />
         {canManageBilling ? (
           <MoreLink
             href="/more/billing"
@@ -134,14 +128,12 @@ export default function MorePage() {
             meta={billingLive ? "Upgrade Plan" : "Setup"}
           />
         ) : null}
-        {canManageBusinessSettings ? (
-          <MoreLink
-            href="/stock/warehouses"
-            icon={<Building2 size={18} aria-hidden="true" />}
-            label="Warehouses"
-            meta="Stock"
-          />
-        ) : null}
+        <MoreLink
+          href="/stock/warehouses"
+          icon={<Building2 size={18} aria-hidden="true" />}
+          label="Warehouses"
+          meta={locationsAccess.enabled ? "Stock" : phase2Meta(locationsAccess)}
+        />
       </section>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
@@ -230,6 +222,35 @@ function MoreLink({
       <span className="text-xs text-textMuted">{meta}</span>
     </Link>
   );
+}
+
+function phase2Meta(access: Phase2NavigationAccess) {
+  return {
+    available: "Available",
+    "flag-disabled": "Unavailable",
+    upgrade: "Upgrade",
+    permission: "No access",
+  }[access.reason];
+}
+
+function combinedPhase2Meta(accesses: Phase2NavigationAccess[]) {
+  if (accesses.some((access) => access.reason === "upgrade")) {
+    return "Upgrade";
+  }
+
+  if (accesses.some((access) => access.reason === "permission")) {
+    return "No access";
+  }
+
+  return "Unavailable";
+}
+
+function staffMeta(state: MoneybookState) {
+  if (!hasEntitlement(state, "team_management")) {
+    return "Upgrade";
+  }
+
+  return hasClientPermission(state, "canManageStaff") ? "Available" : "No access";
 }
 
 function roleLabel(role?: "owner" | "accountant" | "staff") {

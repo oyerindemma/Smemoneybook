@@ -5,36 +5,26 @@ import type { ReactNode } from "react";
 import { Building2, MapPin, Percent } from "lucide-react";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
-import { canShowPhase2Navigation } from "@/lib/phase2/client-access";
+import {
+  getPhase2NavigationAccess,
+  type Phase2NavigationAccess,
+} from "@/lib/phase2/client-access";
 
 export default function BusinessSettingsPage() {
   const { state } = useDashboard();
-  const canManageLocations = canShowPhase2Navigation({
+  const locationsAccess = getPhase2NavigationAccess({
     state,
     flag: "locations",
     entitlement: "multi_location",
     permission: "canManageLocations",
   });
-  const canManageTax = canShowPhase2Navigation({
+  const taxAccess = getPhase2NavigationAccess({
     state,
     flag: "tax",
     entitlement: "tax_management",
     permission: "canManageTax",
   });
-
-  if (!canManageLocations && !canManageTax) {
-    return (
-      <main className="space-y-8">
-        <header>
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Business settings</h1>
-        </header>
-        <FeatureUnavailablePanel
-          title="Business OS settings are not available"
-          description="This business needs the Preview flags, owner access, and a plan with Phase 2 settings enabled."
-        />
-      </main>
-    );
-  }
+  const canManageAnySettings = locationsAccess.enabled || taxAccess.enabled;
 
   return (
     <main className="space-y-8">
@@ -43,31 +33,32 @@ export default function BusinessSettingsPage() {
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Business settings</h1>
       </header>
 
+      {!canManageAnySettings ? (
+        <FeatureUnavailablePanel
+          title="Business OS settings are not available"
+          description="This business needs the Preview flags, owner access, and a plan with Phase 2 settings enabled."
+        />
+      ) : null}
+
       <section className="grid gap-3 md:grid-cols-2">
-        {canManageLocations ? (
-          <SettingsLink
-            href="/more/business-settings/locations"
-            icon={<MapPin size={18} aria-hidden="true" />}
-            title="Locations"
-            meta={`${state.locations?.length ?? 0} active`}
-          />
-        ) : null}
-        {canManageLocations ? (
-          <SettingsLink
-            href="/stock/warehouses"
-            icon={<Building2 size={18} aria-hidden="true" />}
-            title="Warehouses"
-            meta="Stock"
-          />
-        ) : null}
-        {canManageTax ? (
-          <SettingsLink
-            href="/more/business-settings/tax"
-            icon={<Percent size={18} aria-hidden="true" />}
-            title="Tax"
-            meta="Optional"
-          />
-        ) : null}
+        <SettingsLink
+          href="/more/business-settings/locations"
+          icon={<MapPin size={18} aria-hidden="true" />}
+          title="Locations"
+          meta={locationsAccess.enabled ? `${state.locations?.length ?? 0} active` : phase2Meta(locationsAccess)}
+        />
+        <SettingsLink
+          href="/stock/warehouses"
+          icon={<Building2 size={18} aria-hidden="true" />}
+          title="Warehouses"
+          meta={locationsAccess.enabled ? "Stock" : phase2Meta(locationsAccess)}
+        />
+        <SettingsLink
+          href="/more/business-settings/tax"
+          icon={<Percent size={18} aria-hidden="true" />}
+          title="Tax"
+          meta={taxAccess.enabled ? "Optional" : phase2Meta(taxAccess)}
+        />
       </section>
     </main>
   );
@@ -98,4 +89,13 @@ function SettingsLink({
       <span className="text-xs text-textMuted">{meta}</span>
     </Link>
   );
+}
+
+function phase2Meta(access: Phase2NavigationAccess) {
+  return {
+    available: "Available",
+    "flag-disabled": "Unavailable",
+    upgrade: "Upgrade",
+    permission: "No access",
+  }[access.reason];
 }

@@ -3,12 +3,12 @@
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { StaffManagementPanel } from "@/components/staff/StaffManagementPanel";
-import { hasEntitlement } from "@/lib/phase2/client-access";
+import { hasClientPermission, hasEntitlement } from "@/lib/phase2/client-access";
 
 export default function StaffPage() {
   const { state, setNotice } = useDashboard();
   const canManageStaff = Boolean(
-    state.permissions?.canManageStaff && hasEntitlement(state, "team_management"),
+    hasClientPermission(state, "canManageStaff") && hasEntitlement(state, "team_management"),
   );
 
   return (
