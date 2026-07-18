@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ token: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   let userId: string | undefined;
 
@@ -15,7 +15,7 @@ export async function POST(
     assertSameOriginRequest(request);
     const user = await requireUser();
     userId = user.id;
-    const { token } = await params;
+    const { id: token } = await params;
     const result = await acceptInvitation({ token, userId: user.id });
 
     return Response.json(result);
