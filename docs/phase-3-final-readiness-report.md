@@ -31,7 +31,7 @@ Status: code complete for gated local readiness on `phase-3-staging`; Preview da
 - Production database has not been modified by this work.
 - Phase 3 features remain behind disabled-by-default flags.
 - Migrations are additive and must be applied only to an approved Preview database before Preview smoke testing.
-- Commit pushed to `origin/phase-3-staging`: `d0c595905efb0eea41d312dd220398355dd62ada`.
+- Branch pushed to `origin/phase-3-staging`.
 
 ## Local Verification
 
@@ -61,7 +61,7 @@ Pending migrations reported:
 
 ## Preview Readiness
 
-- Latest Vercel branch Preview inspected as `Ready`.
+- Vercel branch Preview inspected as `Ready`.
 - Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
 - HTTP smoke checks returned `200`:
   - `/more/business-settings/locations`
