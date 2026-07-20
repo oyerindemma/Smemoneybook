@@ -31,6 +31,7 @@ Status: code complete for gated local readiness on `phase-3-staging`; Preview da
 - Production database has not been modified by this work.
 - Phase 3 features remain behind disabled-by-default flags.
 - Migrations are additive and must be applied only to an approved Preview database before Preview smoke testing.
+- Commit pushed to `origin/phase-3-staging`: `d0c595905efb0eea41d312dd220398355dd62ada`.
 
 ## Local Verification
 
@@ -60,7 +61,20 @@ Pending migrations reported:
 
 ## Preview Readiness
 
-Pending explicit Preview environment verification, Preview-only `prisma migrate deploy`, Preview deployment, and Preview smoke testing.
+- Latest Vercel branch Preview inspected as `Ready`.
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
+- HTTP smoke checks returned `200`:
+  - `/more/business-settings/locations`
+  - `/stock/warehouses`
+  - `/stock/transfers`
+  - `/more/predictive-alerts`
+  - `/more/ai-evaluation`
+  - `/admin`
+- Preview environment listing shows Phase 2 branch-scoped variables for `phase-2-staging`, but does not show Phase 3 branch-scoped feature flags for `phase-3-staging`.
+- Preview environment listing shows `DATABASE_URL` and `DIRECT_URL` scoped to `phase-2-staging`; a Phase 3 Preview database target was not verified.
+- Preview-only `prisma migrate deploy` was not run because the database target was not verified as Phase 3 Preview.
+
+Preview remains blocked for authenticated Phase 3 smoke testing until `phase-3-staging` Preview env/database identity is confirmed and migrations are applied to that Preview database only.
 
 ## Production Readiness
 
