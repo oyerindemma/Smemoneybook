@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Building2, Repeat2 } from "lucide-react";
 import { ProductList } from "@/components/stock/ProductList";
+import { InventoryForecastCard } from "@/components/stock/InventoryForecastCard";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { SupplierReturnPanel } from "@/components/returns/SupplierReturnPanel";
 import { StockTransferPanel } from "@/components/stock/StockTransferPanel";
@@ -12,6 +13,7 @@ import {
   getPhase2NavigationAccess,
   type Phase2NavigationAccess,
 } from "@/lib/phase2/client-access";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 export default function StockPage() {
   const {
@@ -61,6 +63,13 @@ export default function StockPage() {
           meta={transfersAccess.enabled ? "Move stock" : phase2Meta(transfersAccess)}
         />
       </section>
+      {phase3FeatureFlags.inventoryForecasting && state.businessId ? (
+        <InventoryForecastCard
+          businessId={state.businessId}
+          locationId={state.selectedLocationId}
+          onNotice={setNotice}
+        />
+      ) : null}
       <ProductList
         items={state.items}
         onCreate={createInventoryItem}

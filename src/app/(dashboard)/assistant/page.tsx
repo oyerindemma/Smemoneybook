@@ -1,4 +1,6 @@
 import { AssistantChat } from "@/components/assistant/AssistantChat";
+import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 export default function AssistantPage() {
   return (
@@ -10,7 +12,15 @@ export default function AssistantPage() {
           Simple answers about sales, debt, stock, reports, and reminders.
         </p>
       </header>
-      <AssistantChat />
+      {phase3FeatureFlags.aiAdvisor ? (
+        <AssistantChat />
+      ) : (
+        <FeatureUnavailablePanel
+          title="AI Business Advisor is not available"
+          description="Phase 3B is still behind a rollout flag while source-metric grounding, authorization, and monitoring are validated."
+          billingLink={false}
+        />
+      )}
     </main>
   );
 }

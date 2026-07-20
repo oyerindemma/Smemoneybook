@@ -10,7 +10,9 @@ import {
   Clock3,
   CreditCard,
   Database,
+  HandCoins,
   HeartPulse,
+  Landmark,
   MessageSquareText,
   MousePointerClick,
   RefreshCw,
@@ -24,6 +26,8 @@ import {
   Webhook,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getAdminAiOperationsOverview } from "@/lib/phase3/admin-ai-operations";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 import { getPrisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +47,10 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  const data = await getAdminDashboardData();
+  const [data, adminAiOperations] = await Promise.all([
+    getAdminDashboardData(),
+    phase3FeatureFlags.adminAiOperations ? getAdminAiOperationsOverview() : Promise.resolve(null),
+  ]);
 
   return (
     <main className="min-h-screen bg-[#f7f8fb] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
@@ -198,6 +205,96 @@ export default async function AdminPage() {
             </Panel>
           </AdminRow>
         </section>
+
+        {adminAiOperations ? (
+          <section className="space-y-4 rounded-xl border border-slate-200 bg-white/60 p-4 shadow-sm">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                  <Bot size={17} aria-hidden="true" />
+                  AI Operations
+                </div>
+                <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+                  Quality, cost, and intervention signals
+                </h2>
+              </div>
+              <span className="text-xs font-semibold uppercase text-slate-500">
+                {adminAiOperations.operationalStatus}
+              </span>
+            </div>
+
+            <AdminRow columns={4}>
+              <MetricCard
+                icon={<Bot size={20} />}
+                label="AI Requests"
+                value={formatCount(adminAiOperations.aiRequestVolume)}
+                detail={`${formatNaira(adminAiOperations.aiCostKobo / 100)} estimated cost`}
+              />
+              <MetricCard
+                icon={<Clock3 size={20} />}
+                label="Latency"
+                value={adminAiOperations.averageLatencyMs === null ? "N/A" : `${adminAiOperations.averageLatencyMs} ms`}
+                detail={`p95 ${adminAiOperations.p95LatencyMs === null ? "N/A" : `${adminAiOperations.p95LatencyMs} ms`}`}
+                tone={adminAiOperations.averageLatencyMs && adminAiOperations.averageLatencyMs > 5_000 ? "warn" : "neutral"}
+              />
+              <MetricCard
+                icon={<AlertTriangle size={20} />}
+                label="Tool Failure Rate"
+                value={formatRate(adminAiOperations.toolFailureRate)}
+                detail="Server-side assistant tools"
+                tone={rateTone(adminAiOperations.toolFailureRate, 5, 15)}
+              />
+              <MetricCard
+                icon={<BarChart3 size={20} />}
+                label="Anomaly Precision"
+                value={formatRate(adminAiOperations.anomalyPrecision)}
+                detail={`${formatCount(adminAiOperations.anomalyIncorrect)} marked incorrect`}
+                tone={inverseRateTone(adminAiOperations.anomalyPrecision, 70, 50)}
+              />
+            </AdminRow>
+
+            <AdminRow columns={3}>
+              <Panel title="AI Quality" action="Last 30 days">
+                <div className="grid gap-3">
+                  <HealthItem icon={<MousePointerClick size={18} />} label="Recommendation acceptance" value={formatRate(adminAiOperations.recommendationAcceptanceRate)} tone={inverseRateTone(adminAiOperations.recommendationAcceptanceRate, 60, 40)} />
+                  <HealthItem icon={<ShieldCheck size={18} />} label="Categorization accuracy" value={formatRate(adminAiOperations.categorizationAccuracy)} tone={inverseRateTone(adminAiOperations.categorizationAccuracy, 80, 60)} />
+                  <HealthItem icon={<Activity size={18} />} label="Forecast accuracy" value={formatRate(adminAiOperations.forecastAccuracyPercent)} tone={inverseRateTone(adminAiOperations.forecastAccuracyPercent, 70, 50)} />
+                </div>
+              </Panel>
+              <Panel title="Operations Backlog" action="No content exposed">
+                <div className="grid gap-3">
+                  <HealthItem icon={<Landmark size={18} />} label="Bank import failures" value={formatCount(adminAiOperations.bankImportFailures)} tone={adminAiOperations.bankImportFailures > 0 ? "warn" : "good"} />
+                  <HealthItem icon={<Database size={18} />} label="Reconciliation backlog" value={formatCount(adminAiOperations.reconciliationBacklog)} tone={adminAiOperations.reconciliationBacklog > 25 ? "warn" : "good"} />
+                  <HealthItem icon={<AlertTriangle size={18} />} label="Payroll failures" value={formatCount(adminAiOperations.payrollFailures)} tone={adminAiOperations.payrollFailures > 0 ? "danger" : "good"} />
+                </div>
+              </Panel>
+              <Panel title="Customer Success" action="Interventions">
+                <div className="grid gap-3">
+                  <HealthItem icon={<HeartPulse size={18} />} label="At-risk businesses" value={formatCount(adminAiOperations.atRiskBusinesses)} tone={adminAiOperations.atRiskBusinesses > 0 ? "warn" : "good"} />
+                  <HealthItem icon={<HandCoins size={18} />} label="Cooperative arrears" value={formatCount(adminAiOperations.cooperativeArrears)} tone={adminAiOperations.cooperativeArrears > 0 ? "warn" : "good"} />
+                  <HealthItem icon={<UserPlus size={18} />} label="CS interventions" value={formatCount(adminAiOperations.customerSuccessInterventions)} tone="neutral" />
+                </div>
+              </Panel>
+            </AdminRow>
+
+            <AdminRow columns={2}>
+              <Panel title="WhatsApp Message Health" action="Automation jobs">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <MiniStat label="Sent" value={formatCount(adminAiOperations.whatsappMessageHealth.sent)} />
+                  <MiniStat label="Queued" value={formatCount(adminAiOperations.whatsappMessageHealth.queued)} />
+                  <MiniStat label="Failed" value={formatCount(adminAiOperations.whatsappMessageHealth.failed)} />
+                  <MiniStat label="Failure rate" value={formatRate(adminAiOperations.whatsappMessageHealth.failureRate)} />
+                </div>
+              </Panel>
+              <Panel title="Tax Assistant Usage" action="Snapshots">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <MiniStat label="Tax summaries" value={formatCount(adminAiOperations.taxAssistantUsage)} />
+                  <MiniStat label="Risk signals" value={formatCount(adminAiOperations.operationalRiskSignals)} />
+                </div>
+              </Panel>
+            </AdminRow>
+          </section>
+        ) : null}
 
         <AdminRow columns={2}>
           <Panel title="Feature Usage" action="Last 30 days unless noted">
@@ -1191,6 +1288,34 @@ function formatNaira(value: number) {
     currency: "NGN",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatRate(value: number | null) {
+  return value === null ? "N/A" : `${value.toFixed(1)}%`;
+}
+
+function rateTone(value: number | null, warnThreshold: number, dangerThreshold: number): Tone {
+  if (value === null) {
+    return "neutral";
+  }
+
+  if (value >= dangerThreshold) {
+    return "danger";
+  }
+
+  return value >= warnThreshold ? "warn" : "good";
+}
+
+function inverseRateTone(value: number | null, goodThreshold: number, warnThreshold: number): Tone {
+  if (value === null) {
+    return "neutral";
+  }
+
+  if (value >= goodThreshold) {
+    return "good";
+  }
+
+  return value >= warnThreshold ? "warn" : "danger";
 }
 
 function formatDateTime(value: Date) {

@@ -10,6 +10,19 @@ export type AssistantContext = {
   businessId: string;
   businessName: string;
   currency: "NGN";
+  generatedAt: string;
+  periods: {
+    today: {
+      start: string;
+      end: string;
+      label: string;
+    };
+    month: {
+      start: string;
+      end: string;
+      label: string;
+    };
+  };
   today: {
     income: number;
     expenses: number;
@@ -57,6 +70,7 @@ export type AssistantToolResult = {
   ok: boolean;
   tool: AssistantToolName;
   data?: unknown;
+  citations?: import("@/lib/assistant/source-metrics").AssistantSourceCitation[];
   pendingActionRequired?: boolean;
   message?: string;
 };

@@ -1,7 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { WhatsAppAutomationPanel } from "@/components/automation/WhatsAppAutomationPanel";
+import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 type AutomationPreferencePayload = {
   dailyReminderEnabled: boolean;
@@ -117,6 +120,16 @@ export default function AutomationSettingsPage() {
           </>
         )}
       </form>
+
+      {phase3FeatureFlags.whatsappAutomation ? (
+        <WhatsAppAutomationPanel />
+      ) : (
+        <FeatureUnavailablePanel
+          title="Smart WhatsApp automation is not available"
+          description="Phase 3L is behind a rollout flag while consent, opt-out, template status, quiet hours, retries, and cost controls are validated."
+          billingLink={false}
+        />
+      )}
     </main>
   );
 }

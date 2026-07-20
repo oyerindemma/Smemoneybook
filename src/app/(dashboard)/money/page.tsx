@@ -2,12 +2,15 @@
 
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
 import { CoreMoneyDashboard } from "@/components/dashboard/CoreMoneyDashboard";
+import { BusinessHealthCard } from "@/components/dashboard/BusinessHealthCard";
+import { CashflowForecastCard } from "@/components/dashboard/CashflowForecastCard";
 import { ActivityFeed } from "@/components/money/ActivityFeed";
 import { ActivationProgress } from "@/components/onboarding/ActivationProgress";
 import { RetentionEnginePanel } from "@/components/dashboard/RetentionEnginePanel";
 import { ViralGrowthPanel } from "@/components/dashboard/ViralGrowthPanel";
 import { CustomerReturnPanel } from "@/components/returns/CustomerReturnPanel";
 import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 export default function MoneyPage() {
   const {
@@ -17,6 +20,7 @@ export default function MoneyPage() {
     openVoiceDraft,
     reverseActivity,
     submitCustomerReturn,
+    setNotice,
   } = useDashboard();
 
   return (
@@ -31,6 +35,20 @@ export default function MoneyPage() {
         activityCount={state.transactions.filter((transaction) => !transaction.reversedByTransactionId).length}
         onRecord={() => openRecordModal("sale")}
       />
+      {phase3FeatureFlags.healthScore && state.businessId ? (
+        <BusinessHealthCard
+          businessId={state.businessId}
+          locationId={state.selectedLocationId}
+          onNotice={setNotice}
+        />
+      ) : null}
+      {phase3FeatureFlags.cashflowForecasts && state.businessId ? (
+        <CashflowForecastCard
+          businessId={state.businessId}
+          locationId={state.selectedLocationId}
+          onNotice={setNotice}
+        />
+      ) : null}
       <RetentionEnginePanel state={state} />
       <ViralGrowthPanel state={state} />
       {phase1FeatureFlags.returns ? (

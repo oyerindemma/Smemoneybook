@@ -9,6 +9,8 @@ export async function getBusinessAssistantContext(businessId: string): Promise<A
   todayStart.setHours(0, 0, 0, 0);
   const tomorrow = new Date(todayStart);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const [business, todayTransactions, debts, lowStockItems, report] = await Promise.all([
     getPrisma().business.findUniqueOrThrow({
@@ -73,6 +75,19 @@ export async function getBusinessAssistantContext(businessId: string): Promise<A
     businessId: business.id,
     businessName: business.name,
     currency: "NGN",
+    generatedAt: now.toISOString(),
+    periods: {
+      today: {
+        start: todayStart.toISOString(),
+        end: tomorrow.toISOString(),
+        label: "today",
+      },
+      month: {
+        start: monthStart.toISOString(),
+        end: nextMonth.toISOString(),
+        label: "this month",
+      },
+    },
     today: {
       income,
       expenses,

@@ -1,9 +1,10 @@
 import { getOpenAIEnv } from "@/lib/env";
 import { assistantSystemPrompt } from "@/lib/assistant/assistant-system-prompt";
 import { sanitizeAssistantText } from "@/lib/assistant/assistant-guardrails";
-import { getLocalAssistantReply } from "@/lib/assistant/assistant-router";
+import { getLocalAssistantResponse } from "@/lib/assistant/assistant-router";
 import { assistantToolDefinitions, executeAssistantTool } from "@/lib/assistant/assistant-tools";
-import type { AssistantToolName } from "@/lib/assistant/assistant-types";
+import { formatAssistantGrounding } from "@/lib/assistant/source-metrics";
+import type { AssistantToolName, AssistantToolResult } from "@/lib/assistant/assistant-types";
 
 type ResponseOutput = {
   type?: string;
@@ -32,9 +33,10 @@ export async function createAssistantReply({
   try {
     env = getOpenAIEnv();
   } catch {
+    const local = await getLocalAssistantResponse({ businessId, userId, message });
     return {
-      reply: await getLocalAssistantReply(businessId, message),
-      toolResults: [],
+      reply: local.reply,
+      toolResults: local.toolResults,
       provider: "local",
     };
   }
@@ -48,28 +50,41 @@ export async function createAssistantReply({
   );
 
   if (calls.length === 0) {
+    const local = await getLocalAssistantResponse({ businessId, userId, message });
     return {
-      reply: extractOutputText(first) || (await getLocalAssistantReply(businessId, message)),
-      toolResults: [],
-      provider: "openai",
+      reply: local.reply,
+      toolResults: local.toolResults,
+      provider: "local-grounded",
     };
   }
 
-  const toolOutputs = await Promise.all(
+  const executedTools = await Promise.all(
     calls.map(async (call) => {
-      const result = await executeAssistantTool({
+      return executeAssistantTool({
         toolName: call.name as AssistantToolName,
         businessId,
         userId,
         args: safeJson(call.arguments),
       });
-      return {
-        type: "function_call_output",
-        call_id: call.call_id,
-        output: JSON.stringify(result),
-      };
     }),
   );
+  const toolOutputs = calls.map((call, index) => {
+    const result = executedTools[index];
+    return {
+      type: "function_call_output",
+      call_id: call.call_id,
+      output: JSON.stringify(result),
+    };
+  });
+
+  if (!executedTools.some((result) => result.ok)) {
+    const local = await getLocalAssistantResponse({ businessId, userId, message });
+    return {
+      reply: local.reply,
+      toolResults: executedTools,
+      provider: "local-grounded",
+    };
+  }
 
   const final = await callResponsesApi(env, [
     { role: "system", content: assistantSystemPrompt },
@@ -78,9 +93,14 @@ export async function createAssistantReply({
     ...toolOutputs,
   ]);
 
+  const reply = appendGrounding(
+    extractOutputText(final) || fallbackFromToolResults(executedTools),
+    executedTools,
+  );
+
   return {
-    reply: extractOutputText(final) || (await getLocalAssistantReply(businessId, message)),
-    toolResults: toolOutputs,
+    reply,
+    toolResults: executedTools,
     provider: "openai",
   };
 }
@@ -108,6 +128,27 @@ async function callResponsesApi(
   }
 
   return (await response.json()) as OpenAIResponse;
+}
+
+function appendGrounding(reply: string, toolResults: AssistantToolResult[]) {
+  const citations = toolResults.flatMap((result) => result.citations ?? []);
+  const grounding = formatAssistantGrounding(citations);
+
+  if (!grounding || reply.includes("Grounding:")) {
+    return reply;
+  }
+
+  return `${reply}${grounding}`;
+}
+
+function fallbackFromToolResults(toolResults: AssistantToolResult[]) {
+  const first = toolResults.find((result) => result.ok);
+
+  if (!first) {
+    return "I could not find enough authorized business records to answer that.";
+  }
+
+  return `I found recorded business data for ${first.tool}. Please review the source details below.`;
 }
 
 function extractOutputText(response: OpenAIResponse) {

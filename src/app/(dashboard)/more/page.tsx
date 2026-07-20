@@ -4,7 +4,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Building2, CreditCard, FileChartColumn, Settings, UserPlus } from "lucide-react";
+import {
+  BadgeDollarSign,
+  BarChart3,
+  BellRing,
+  Building2,
+  CreditCard,
+  FileChartColumn,
+  HandCoins,
+  Landmark,
+  Megaphone,
+  Microscope,
+  ReceiptText,
+  Settings,
+  ShieldCheck,
+  Target,
+  UserPlus,
+} from "lucide-react";
 import { OperationsPanel } from "@/components/dashboard/OperationsPanel";
 import { PaidTierPanel } from "@/components/dashboard/PaidTierPanel";
 import { Phase2SettingsPanel } from "@/components/dashboard/Phase2SettingsPanel";
@@ -19,6 +35,7 @@ import {
   hasEntitlement,
   type Phase2NavigationAccess,
 } from "@/lib/phase2/client-access";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 export default function MorePage() {
   const { state, setNotice, saveReceiptConfig } = useDashboard();
@@ -134,20 +151,82 @@ export default function MorePage() {
           label="Warehouses"
           meta={locationsAccess.enabled ? "Stock" : phase2Meta(locationsAccess)}
         />
+        <MoreLink
+          href="/more/bank-reconciliation"
+          icon={<Landmark size={18} aria-hidden="true" />}
+          label="Bank Reconciliation"
+          meta={phase3FeatureFlags.bankReconciliation ? "Review" : "Preview"}
+        />
+        <MoreLink
+          href="/more/loan-readiness"
+          icon={<BadgeDollarSign size={18} aria-hidden="true" />}
+          label="Loan Readiness"
+          meta={phase3FeatureFlags.loanReadiness ? "Assess" : "Preview"}
+        />
+        <MoreLink
+          href="/more/tax-assistant"
+          icon={<ReceiptText size={18} aria-hidden="true" />}
+          label="Tax Assistant"
+          meta={phase3FeatureFlags.taxAssistant ? "Review" : "Preview"}
+        />
+        <MoreLink
+          href="/more/cooperatives"
+          icon={<HandCoins size={18} aria-hidden="true" />}
+          label="Cooperatives"
+          meta={phase3FeatureFlags.cooperativeGroups ? "Ledgers" : "Preview"}
+        />
+        <MoreLink
+          href="/more/payroll"
+          icon={<ShieldCheck size={18} aria-hidden="true" />}
+          label="Payroll"
+          meta={phase3FeatureFlags.payroll ? "Runs" : "Preview"}
+        />
+        <MoreLink
+          href="/more/staff-performance"
+          icon={<Target size={18} aria-hidden="true" />}
+          label="Staff Performance"
+          meta={phase3FeatureFlags.staffPerformance ? "Goals" : "Preview"}
+        />
+        <MoreLink
+          href="/more/ai-marketing"
+          icon={<Megaphone size={18} aria-hidden="true" />}
+          label="AI Marketing"
+          meta={phase3FeatureFlags.aiMarketing ? "Drafts" : "Preview"}
+        />
+        <MoreLink
+          href="/more/executive-dashboard"
+          icon={<BarChart3 size={18} aria-hidden="true" />}
+          label="Executive Dashboard"
+          meta={phase3FeatureFlags.executiveDashboard ? "Owner" : "Preview"}
+        />
+        <MoreLink
+          href="/more/predictive-alerts"
+          icon={<BellRing size={18} aria-hidden="true" />}
+          label="Predictive Alerts"
+          meta={phase3FeatureFlags.predictiveAlerts ? "Signals" : "Preview"}
+        />
+        <MoreLink
+          href="/more/ai-evaluation"
+          icon={<Microscope size={18} aria-hidden="true" />}
+          label="AI Evaluation"
+          meta={phase3FeatureFlags.aiEvaluation ? "Quality" : "Preview"}
+        />
       </section>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
         href="/assistant"
       >
         AI Assistant
-        <span className="text-sm text-success">Enabled</span>
+        <span className={`text-sm ${phase3FeatureFlags.aiAdvisor ? "text-success" : "text-textMuted"}`}>
+          {phase3FeatureFlags.aiAdvisor ? "Advisor" : "Preview"}
+        </span>
       </Link>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
         href="/more/automation"
       >
         Automations
-        <span className="text-sm text-textMuted">Disabled</span>
+        <span className="text-sm text-textMuted">{phase3FeatureFlags.whatsappAutomation ? "WhatsApp" : "Disabled"}</span>
       </Link>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
