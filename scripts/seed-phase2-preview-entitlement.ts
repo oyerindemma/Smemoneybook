@@ -7,10 +7,10 @@ import {
   SubscriptionStatus,
   type Subscription,
 } from "@prisma/client";
+import { assertPreviewStagingSeedAllowed } from "../src/lib/preview-staging-seed-guard";
 import { billingPlans } from "../src/lib/billing/plans";
 import { permissionRegistry } from "../src/lib/permissions/registry";
 
-const stagingBranch = "phase-2-staging";
 const previewProvider = "manual-phase2-preview-staging";
 
 type ScriptArgs = {
@@ -69,48 +69,8 @@ function parseArgs(argv: string[]): ScriptArgs {
 }
 
 function assertStagingOnly() {
-  const databaseUrl = process.env.DATABASE_URL ?? "";
-
-  if (!databaseUrl.startsWith("postgresql://") && !databaseUrl.startsWith("postgres://")) {
-    throw new Error("DATABASE_URL must be set to the staging PostgreSQL database.");
-  }
-
-  if (process.env.VERCEL_ENV === "production" || process.env.VERCEL_TARGET_ENV === "production") {
-    throw new Error("Refusing to run Phase 2 Preview seed in a production environment.");
-  }
-
-  const previewEnv =
-    process.env.VERCEL_ENV === "preview" ||
-    process.env.VERCEL_TARGET_ENV === "preview" ||
-    process.env.PHASE2_STAGING_DATABASE === "1";
-
-  if (process.env.NODE_ENV === "production" && !previewEnv) {
-    throw new Error("Refusing NODE_ENV=production without an explicit preview/staging marker.");
-  }
-
-  const publicUrl = normalizeUrl(process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL);
-
-  if (publicUrl === "https://smemoneybook.com" || publicUrl === "https://www.smemoneybook.com") {
-    throw new Error("Refusing to run Phase 2 Preview seed against the production app URL.");
-  }
-
-  const branch = process.env.VERCEL_GIT_COMMIT_REF ?? getCurrentGitBranch();
-
-  if (branch && branch !== stagingBranch) {
-    throw new Error(`Refusing to run from ${branch}. Check out ${stagingBranch} first.`);
-  }
-
-  if (!previewEnv) {
-    throw new Error("Set VERCEL_ENV=preview or PHASE2_STAGING_DATABASE=1 for the staging database.");
-  }
-
-  if (process.env.PHASE2_STAGING_SEED_CONFIRM !== stagingBranch) {
-    throw new Error(`Set PHASE2_STAGING_SEED_CONFIRM=${stagingBranch} to confirm the staging-only seed.`);
-  }
-}
-
-function normalizeUrl(value?: string) {
-  return value?.trim().replace(/\/+$/, "").toLowerCase();
+  const branch = process.env.VERCEL_GIT_COMMIT_REF?.trim() || getCurrentGitBranch();
+  assertPreviewStagingSeedAllowed({ branch });
 }
 
 function getCurrentGitBranch() {

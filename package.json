@@ -23,6 +23,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "beta:seed": "tsx scripts/seed-beta-accounts.ts",
+    "preview:seed-entitlements": "tsx scripts/seed-phase2-preview-entitlement.ts",
     "phase2:seed-preview": "tsx scripts/seed-phase2-preview-entitlement.ts"
   },
   "dependencies": {
