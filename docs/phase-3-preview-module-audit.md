@@ -172,7 +172,8 @@ All Phase 3 modules remain disabled unless their individual `NEXT_PUBLIC_PHASE3_
 - `npx prisma migrate status`: passed after Preview-only additive migration deploy
 - `git diff --check`: passed
 - Phase 2 Playwright visibility: passed across desktop and mobile projects
-- Commit hash: pending
-- Preview deployment URL: pending
-- Preview deployment commit: pending
+- Commit hash: `081441a9f66477719517efa2450f90bd0514f35e`
+- Preview deployment URL: `https://smemoneybook-8aow11ibb-emmanuel-oyerindes-projects.vercel.app`
+- Preview deployment commit: `081441a9f66477719517efa2450f90bd0514f35e`
+- Preview smoke: exact deployment returned 200 for all Phase 2 and audited Phase 3 routes; mocked Pro navigation smoke confirmed Business Settings, Warehouses, Transfers, Reports, Staff, and honest Phase 3 labels.
 - Production unchanged confirmation: Vercel Production env was listed by name only; no Production env writes or Production DB migration commands were run.
