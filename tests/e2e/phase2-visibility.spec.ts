@@ -93,7 +93,7 @@ test.describe("Phase 2 Preview visibility", () => {
 
     await expect(page.getByRole("link", { name: /Business Settings/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Reports/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Staff/i })).toBeVisible();
+    await expect(page.locator('a[href="/more/staff"]')).toBeVisible();
     await expect(page.getByRole("link", { name: /Billing/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Warehouses/i })).toBeVisible();
 

@@ -36,6 +36,7 @@ import {
   type Phase2NavigationAccess,
 } from "@/lib/phase2/client-access";
 import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
+import { getPhase3NavigationStatus } from "@/lib/phase3/navigation-status";
 
 export default function MorePage() {
   const { state, setNotice, saveReceiptConfig } = useDashboard();
@@ -155,61 +156,61 @@ export default function MorePage() {
           href="/more/bank-reconciliation"
           icon={<Landmark size={18} aria-hidden="true" />}
           label="Bank Reconciliation"
-          meta={phase3FeatureFlags.bankReconciliation ? "Review" : "Preview"}
+          meta={getPhase3NavigationStatus("bankReconciliation", phase3FeatureFlags.bankReconciliation)}
         />
         <MoreLink
           href="/more/loan-readiness"
           icon={<BadgeDollarSign size={18} aria-hidden="true" />}
           label="Loan Readiness"
-          meta={phase3FeatureFlags.loanReadiness ? "Assess" : "Preview"}
+          meta={getPhase3NavigationStatus("loanReadiness", phase3FeatureFlags.loanReadiness)}
         />
         <MoreLink
           href="/more/tax-assistant"
           icon={<ReceiptText size={18} aria-hidden="true" />}
           label="Tax Assistant"
-          meta={phase3FeatureFlags.taxAssistant ? "Review" : "Preview"}
+          meta={getPhase3NavigationStatus("taxAssistant", phase3FeatureFlags.taxAssistant)}
         />
         <MoreLink
           href="/more/cooperatives"
           icon={<HandCoins size={18} aria-hidden="true" />}
           label="Cooperatives"
-          meta={phase3FeatureFlags.cooperativeGroups ? "Ledgers" : "Preview"}
+          meta={getPhase3NavigationStatus("cooperativeGroups", phase3FeatureFlags.cooperativeGroups)}
         />
         <MoreLink
           href="/more/payroll"
           icon={<ShieldCheck size={18} aria-hidden="true" />}
           label="Payroll"
-          meta={phase3FeatureFlags.payroll ? "Runs" : "Preview"}
+          meta={getPhase3NavigationStatus("payroll", phase3FeatureFlags.payroll)}
         />
         <MoreLink
           href="/more/staff-performance"
           icon={<Target size={18} aria-hidden="true" />}
           label="Staff Performance"
-          meta={phase3FeatureFlags.staffPerformance ? "Goals" : "Preview"}
+          meta={getPhase3NavigationStatus("staffPerformance", phase3FeatureFlags.staffPerformance)}
         />
         <MoreLink
           href="/more/ai-marketing"
           icon={<Megaphone size={18} aria-hidden="true" />}
           label="AI Marketing"
-          meta={phase3FeatureFlags.aiMarketing ? "Drafts" : "Preview"}
+          meta={getPhase3NavigationStatus("aiMarketing", phase3FeatureFlags.aiMarketing)}
         />
         <MoreLink
           href="/more/executive-dashboard"
           icon={<BarChart3 size={18} aria-hidden="true" />}
           label="Executive Dashboard"
-          meta={phase3FeatureFlags.executiveDashboard ? "Owner" : "Preview"}
+          meta={getPhase3NavigationStatus("executiveDashboard", phase3FeatureFlags.executiveDashboard)}
         />
         <MoreLink
           href="/more/predictive-alerts"
           icon={<BellRing size={18} aria-hidden="true" />}
           label="Predictive Alerts"
-          meta={phase3FeatureFlags.predictiveAlerts ? "Signals" : "Preview"}
+          meta={getPhase3NavigationStatus("predictiveAlerts", phase3FeatureFlags.predictiveAlerts)}
         />
         <MoreLink
           href="/more/ai-evaluation"
           icon={<Microscope size={18} aria-hidden="true" />}
           label="AI Evaluation"
-          meta={phase3FeatureFlags.aiEvaluation ? "Quality" : "Preview"}
+          meta={getPhase3NavigationStatus("aiEvaluation", phase3FeatureFlags.aiEvaluation)}
         />
       </section>
       <Link
@@ -218,7 +219,7 @@ export default function MorePage() {
       >
         AI Assistant
         <span className={`text-sm ${phase3FeatureFlags.aiAdvisor ? "text-success" : "text-textMuted"}`}>
-          {phase3FeatureFlags.aiAdvisor ? "Advisor" : "Preview"}
+          {getPhase3NavigationStatus("aiAdvisor", phase3FeatureFlags.aiAdvisor)}
         </span>
       </Link>
       <Link
@@ -226,7 +227,9 @@ export default function MorePage() {
         href="/more/automation"
       >
         Automations
-        <span className="text-sm text-textMuted">{phase3FeatureFlags.whatsappAutomation ? "WhatsApp" : "Disabled"}</span>
+        <span className="text-sm text-textMuted">
+          {getPhase3NavigationStatus("whatsappAutomation", phase3FeatureFlags.whatsappAutomation)}
+        </span>
       </Link>
       <Link
         className="flex min-h-14 items-center justify-between rounded-2xl bg-card px-6 py-5 text-base font-semibold shadow-sm border border-gray-100 transition-all duration-150 hover:shadow-md active:scale-[0.99]"
