@@ -154,7 +154,40 @@ Focused evidence covers:
 
 ## Preview QA
 
-Pending deployment and end-to-end Preview QA against the newest Vercel Preview deployment.
+Completed on 2026-07-23 against Vercel Preview for Git branch `phase-3-staging`.
+
+Deployment evidence:
+
+- Environment: `Preview`.
+- Branch: `phase-3-staging`.
+- Deployment status: `READY`.
+- Deployment commit: `b3a2df10f41bb00f655b94127a3a466bdf02ec24`.
+- Immutable Preview URL tested: `https://smemoneybook-ntimo6537-emmanuel-oyerindes-projects.vercel.app`.
+- Branch Preview URL: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
+
+Live Preview QA used synthetic Preview-only data under a generated QA business and session; no Production data was queried or modified.
+
+Passed live Preview checks:
+
+- `/more` shows Bank Reconciliation as `Preview — operational`.
+- `/more/bank-reconciliation` loads the implemented module.
+- Summary/progress metrics load after CSV import.
+- CSV upload preview and import work with the mapped statement format.
+- Date filters work.
+- Empty filtered queues render the empty state.
+- Statement entry detail works.
+- Suggested match confirmation works.
+- Unmatch works.
+- Ignore and reopen work.
+- Duplicate statement rows are classified and visible in the duplicate queue.
+- CSV export endpoint returns reconciliation CSV content for the imported rows, and the UI export button calls the Preview export endpoint successfully.
+- Owner access succeeds.
+- Unauthorized API access is rejected with `401`.
+- Cross-business `businessId` access is rejected with `403`.
+- Native 404 was not shown.
+- No unexpected `500` responses were observed.
+- Read-only statement entry detail route rejects `POST`, `PUT`, `PATCH`, and `DELETE` with `405`.
+- No payment, ledger mutation, transaction creation, balance mutation, or destructive delete operation is exposed by Bank Reconciliation.
 
 ## Known Limitations
 
@@ -168,9 +201,9 @@ Pending deployment and end-to-end Preview QA against the newest Vercel Preview d
 
 ## Commit And Production Status
 
-- Implementation commit hash: pending commit.
-- Preview deployment commit hash: pending deployment.
-- Preview URL: pending deployment.
+- Implementation commit hash: `b3a2df10f41bb00f655b94127a3a466bdf02ec24`.
+- Preview deployment commit hash: `b3a2df10f41bb00f655b94127a3a466bdf02ec24`.
+- Preview URL: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
 - Production deployment: unchanged by this Preview-only implementation.
 - Production database: unchanged by this Preview-only implementation.
 - Production Bank Reconciliation flags: not enabled by this implementation.
