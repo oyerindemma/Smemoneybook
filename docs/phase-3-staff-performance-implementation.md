@@ -53,11 +53,20 @@ No composite score was added.
 
 ## Feature Flags
 
-- Public flag remains default-off:
-  - `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=false`
-- Added documented server-side equivalent:
-  - `PHASE3_STAFF_PERFORMANCE_ENABLED=false`
-- API/page access requires both flags and respects the Phase 3 global kill switch.
+- Exact Staff Performance flags:
+  - `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED`
+  - `PHASE3_STAFF_PERFORMANCE_ENABLED`
+- No additional Staff Performance-specific flags are used.
+- Source consumption:
+  - Server-side API/route authorization: `src/lib/staff-performance/authorization.ts` requires both Staff Performance flags and keeps respecting `PHASE3_AI_GLOBAL_KILL_SWITCH`; Staff Performance summary, detail, and export API routes call `requireStaffPerformanceAccess`.
+  - Client-side navigation/UI visibility: `src/lib/phase3/feature-flags.ts` reads `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED`; `/more` uses that public flag for the Staff Performance navigation status; `/more/staff-performance` renders the panel only when the public flag and server helper are enabled.
+  - Tests: `src/lib/staff-performance/authorization.test.ts`, `src/lib/phase3/navigation-status.test.ts`, `src/app/api/staff-performance/route.test.ts`, and `tests/e2e/staff-performance.spec.ts`.
+- Vercel Preview configuration completed on 2026-07-23:
+  - `PHASE3_STAFF_PERFORMANCE_ENABLED=true` for Environment `Preview`, Git branch `phase-3-staging`.
+  - `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true` for Environment `Preview`, Git branch `phase-3-staging`.
+  - `DATABASE_URL`, `DIRECT_URL`, and `NEXT_PUBLIC_APP_URL` confirmed present for Environment `Preview`, Git branch `phase-3-staging`.
+  - `DATABASE_URL` and `DIRECT_URL` were kept sensitive; values were not printed. The branch Preview database variables were aligned to the locally validated non-production Neon Preview target before redeploy.
+  - Production variables were not modified. `phase-2-staging` variables were not modified.
 
 ## Schema Changes
 
@@ -93,30 +102,65 @@ Recommended future additive schema work remains:
 
 ## Validation
 
-Completed locally:
+Completed locally on 2026-07-23:
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test`
-- `npm run build`
-- `npx prisma validate`
-- `git diff --check`
-- `npx playwright test tests/e2e/staff-performance.spec.ts` ran and skipped because Staff Performance flags are off locally.
+- `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true PHASE3_STAFF_PERFORMANCE_ENABLED=true npm run test -- src/app/api/staff-performance/route.test.ts src/lib/staff-performance/definitions.test.ts src/lib/staff-performance/authorization.test.ts src/lib/phase3/navigation-status.test.ts`: passed, 4 files and 21 tests.
+- `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true PHASE3_STAFF_PERFORMANCE_ENABLED=true npx playwright test tests/e2e/staff-performance.spec.ts`: passed, 6 tests across desktop Chrome, mobile Chrome, and mobile Safari. The spec executed and did not skip.
+- `npm run lint`: passed.
+- `npm run typecheck`: passed.
+- `npm run test`: passed, 77 files and 267 tests.
+- `npm run build`: passed.
+- `npx prisma validate`: passed.
+- `npx prisma migrate status`: passed against the checked Preview Neon PostgreSQL target; 34 migrations found; database schema is up to date.
+- `git diff --check`: passed.
 
-Not run:
+The focused test evidence covers:
 
-- `npx prisma migrate status` was not run because the local `DATABASE_URL` was not clearly labeled as the dedicated `phase-3-staging` Neon database. This avoids accidentally touching Production.
+- Owner access.
+- Unauthorized-user rejection.
+- Business isolation.
+- Date filtering.
+- Staff detail.
+- Empty/no-activity handling.
+- CSV export.
+- Feature flag off state.
+- Feature flag on state.
+- Read-only write-method rejection.
+
+Preview QA found and fixed one issue before final classification:
+
+- During UI custom-date edits, an over-366-day intermediate range could return `500`. `src/lib/staff-performance/api.ts` now maps Staff Performance date-parse failures to a controlled `400`, covered by `src/app/api/staff-performance/route.test.ts`.
 
 ## Preview QA
 
-Preview deployment and end-to-end Preview QA are not completed from this workspace.
+Completed on 2026-07-23 against the newest code-fix deployment:
 
-- Preview deployment URL: not available.
-- Preview branch confirmation: not available.
-- Preview Ready status: not available.
-- End-to-end Preview evidence: not available.
+- Vercel environment: `Preview`.
+- Vercel branch: `phase-3-staging`.
+- Deployment commit: `996085109020d642613565ae14bf5326cd5cce68`.
+- Deployment URL: `https://smemoneybook-61hd83qup-emmanuel-oyerindes-projects.vercel.app`.
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
+- Vercel status: Ready.
 
-The implementation should not be marked complete until `phase-3-staging` is deployed to Vercel Preview with both Staff Performance flags enabled only for that branch/environment and the Playwright/manual QA path passes against the Preview URL.
+Preview QA result:
+
+- `/more` shows Staff Performance with `Preview`.
+- `/more/staff-performance` loads.
+- Summary metrics load.
+- Date and location filters work.
+- Staff detail works.
+- CSV export starts from the UI and API CSV content contains expected Staff Performance content.
+- Empty/no-activity period is handled without a native 404 or unexpected 500.
+- Unauthenticated API access is rejected with `401`.
+- Authenticated staff without Staff Performance grant is rejected with `403`.
+- Cross-business `businessId` access is rejected with `403`.
+- Invalid overlong custom date range returns `400`, not `500`.
+- No native 404 was observed on the Staff Performance path.
+- No unexpected 500 was observed on the Staff Performance path.
+- No write operation is exposed in the UI.
+- `POST`, `PUT`, `PATCH`, and `DELETE` on `/api/staff-performance` return `405`.
+
+Preview QA used dedicated seeded Preview QA data in the phase-3-staging database only.
 
 ## Known Limitations
 
@@ -124,9 +168,16 @@ The implementation should not be marked complete until `phase-3-staging` is depl
 - No PDF export was added; CSV only.
 - No individual staff self-view was added.
 - No employment-decision labels, rankings, or composite scoring were added.
+- Empty UI state means no staff rows returned; a business with members and no activity displays zero metrics and `No activity` in the staff row.
+- Preview QA data is synthetic and should not be treated as customer/business production evidence.
 
 ## Commit And Production Status
 
 - Implementation commit hash: `eb73db9652ea3aff3a1a8c7bc9f810937bf62d7a`.
-- Production deployment: unchanged by this local implementation.
-- Production database: unchanged by this local implementation.
+- Initial report commit hash: `1921b29d863142efa52de37a4180d5f605e72a79`.
+- Preview trigger commit hash: `912e2ca00177642ae1756d3ab4752f18c8e9688a`.
+- Preview env-alignment trigger commit hash: `903dc93741a487bd9badd9030b3e5032fa15984a`.
+- Preview QA fix commit hash: `996085109020d642613565ae14bf5326cd5cce68`.
+- Production deployment: unchanged by this Preview-only validation.
+- Production database: unchanged by this Preview-only validation.
+- Production Staff Performance flags: not enabled by this validation.
