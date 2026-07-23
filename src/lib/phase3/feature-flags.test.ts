@@ -23,6 +23,7 @@ describe("Phase 3 feature flags", () => {
     const { phase3FeatureFlags, phase3OperationalControls } = await loadFlags();
 
     expect(Object.values(phase3FeatureFlags).every((enabled) => enabled === false)).toBe(true);
+    expect(phase3OperationalControls.aiEnabled).toBe(false);
     expect(phase3OperationalControls.globalKillSwitch).toBe(false);
     expect(phase3OperationalControls.monthlyCostBudgetKobo).toBe(0);
     expect(phase3OperationalControls.dailyRequestLimitPerBusiness).toBe(0);
@@ -53,11 +54,13 @@ describe("Phase 3 feature flags", () => {
   });
 
   it("parses optional cost and request controls", async () => {
+    process.env.PHASE3_AI_ENABLED = "true";
     process.env.PHASE3_AI_MONTHLY_COST_BUDGET_KOBO = "250000";
     process.env.PHASE3_AI_DAILY_REQUEST_LIMIT_PER_BUSINESS = "75";
 
     const { phase3OperationalControls } = await loadFlags();
 
+    expect(phase3OperationalControls.aiEnabled).toBe(true);
     expect(phase3OperationalControls.monthlyCostBudgetKobo).toBe(250000);
     expect(phase3OperationalControls.dailyRequestLimitPerBusiness).toBe(75);
   });

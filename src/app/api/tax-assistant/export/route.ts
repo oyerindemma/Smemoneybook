@@ -1,11 +1,13 @@
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { requireUser } from "@/lib/auth/session";
 import {
+  logTaxAssistantEvent,
   parseTaxAssistantRequest,
   taxAssistantErrorResponse,
   taxAssistantMethodNotAllowed,
 } from "@/lib/tax-assistant/api";
 import { requireTaxAssistantAccess } from "@/lib/tax-assistant/authorization";
+import { exportTaxWorkingPaper } from "@/lib/tax-assistant/export";
 import { calculateTaxAssistantForBusiness } from "@/lib/tax-assistant/service";
 
 export const runtime = "nodejs";
@@ -13,7 +15,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "tax_assistant.summary", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "tax_assistant.export", 20, 60 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -24,7 +26,7 @@ export async function GET(request: Request) {
       userId: user.id,
       businessId: filters.businessId,
       locationId: filters.locationId,
-      permission: "tax_assistant:read",
+      permission: "tax_assistant:export",
     });
     const summary = await calculateTaxAssistantForBusiness({
       businessId: access.businessId,
@@ -32,10 +34,28 @@ export async function GET(request: Request) {
       periodStart: filters.periodStart,
       periodEnd: filters.periodEnd,
     });
+    const exportResult = exportTaxWorkingPaper(summary);
 
-    return Response.json({ summary });
+    await logTaxAssistantEvent({
+      access,
+      action: "tax_assistant.report_exported",
+      message: "Tax Assistant working paper exported.",
+      periodStart: filters.periodStart,
+      periodEnd: filters.periodEnd,
+      metadata: {
+        rowCount: exportResult.rowCount,
+        ruleSetVersion: summary.ruleSetVersion,
+      },
+    });
+
+    return new Response(exportResult.csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${exportResult.filename}"`,
+      },
+    });
   } catch (error) {
-    return taxAssistantErrorResponse(error, "Could not load Tax Assistant summary.");
+    return taxAssistantErrorResponse(error, "Could not export Tax Assistant working paper.");
   }
 }
 

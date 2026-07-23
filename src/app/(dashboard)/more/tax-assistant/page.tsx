@@ -1,8 +1,11 @@
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { TaxAssistantPanel } from "@/components/tax/TaxAssistantPanel";
 import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
+import { isTaxAssistantFeatureEnabledForServer } from "@/lib/tax-assistant/authorization";
 
 export default function TaxAssistantPage() {
+  const enabled = phase3FeatureFlags.taxAssistant && isTaxAssistantFeatureEnabledForServer();
+
   return (
     <main className="space-y-6 md:space-y-8">
       <header>
@@ -12,12 +15,12 @@ export default function TaxAssistantPage() {
           Check settings, estimates, and accountant-ready summaries.
         </p>
       </header>
-      {phase3FeatureFlags.taxAssistant ? (
+      {enabled ? (
         <TaxAssistantPanel />
       ) : (
         <FeatureUnavailablePanel
           title="Tax Assistant is not available"
-          description="Phase 3H is behind a rollout flag while country rules, snapshots, and disclaimers are validated."
+          description="Phase 3C is behind Preview flags while AI controls, tax rules, and QA evidence are validated."
           billingLink={false}
         />
       )}

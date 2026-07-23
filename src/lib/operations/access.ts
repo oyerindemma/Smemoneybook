@@ -22,6 +22,11 @@ export type Permission =
   | "bank_reconciliation:review"
   | "bank_reconciliation:export"
   | "bank_reconciliation:ignore"
+  | "tax_assistant:read"
+  | "tax_assistant:ask"
+  | "tax_assistant:review"
+  | "tax_assistant:export"
+  | "tax_assistant:manage_settings"
   | "staff_performance:read"
   | "staff_performance:export";
 
@@ -53,6 +58,11 @@ const permissions: Record<Role, Permission[]> = {
     "bank_reconciliation:review",
     "bank_reconciliation:export",
     "bank_reconciliation:ignore",
+    "tax_assistant:read",
+    "tax_assistant:ask",
+    "tax_assistant:review",
+    "tax_assistant:export",
+    "tax_assistant:manage_settings",
     "staff_performance:read",
     "staff_performance:export",
   ],
@@ -67,6 +77,10 @@ const permissions: Record<Role, Permission[]> = {
     "bank_reconciliation:review",
     "bank_reconciliation:export",
     "bank_reconciliation:ignore",
+    "tax_assistant:read",
+    "tax_assistant:ask",
+    "tax_assistant:review",
+    "tax_assistant:export",
   ],
   STAFF: [
     "money:write",

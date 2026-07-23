@@ -6,14 +6,14 @@ import {
   taxAssistantMethodNotAllowed,
 } from "@/lib/tax-assistant/api";
 import { requireTaxAssistantAccess } from "@/lib/tax-assistant/authorization";
-import { calculateTaxAssistantForBusiness } from "@/lib/tax-assistant/service";
+import { getTaxAssistantRulesForBusiness } from "@/lib/tax-assistant/service";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "tax_assistant.summary", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "tax_assistant.rules", 80, 15 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -26,16 +26,11 @@ export async function GET(request: Request) {
       locationId: filters.locationId,
       permission: "tax_assistant:read",
     });
-    const summary = await calculateTaxAssistantForBusiness({
-      businessId: access.businessId,
-      locationId: access.locationId,
-      periodStart: filters.periodStart,
-      periodEnd: filters.periodEnd,
-    });
+    const rules = await getTaxAssistantRulesForBusiness({ businessId: access.businessId });
 
-    return Response.json({ summary });
+    return Response.json(rules);
   } catch (error) {
-    return taxAssistantErrorResponse(error, "Could not load Tax Assistant summary.");
+    return taxAssistantErrorResponse(error, "Could not load Tax Assistant rule source.");
   }
 }
 

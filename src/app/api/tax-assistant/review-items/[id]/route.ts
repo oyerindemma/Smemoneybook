@@ -6,14 +6,17 @@ import {
   taxAssistantMethodNotAllowed,
 } from "@/lib/tax-assistant/api";
 import { requireTaxAssistantAccess } from "@/lib/tax-assistant/authorization";
-import { calculateTaxAssistantForBusiness } from "@/lib/tax-assistant/service";
+import { getTaxAssistantReviewItem } from "@/lib/tax-assistant/service";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "tax_assistant.summary", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "tax_assistant.review_item", 80, 15 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -24,18 +27,24 @@ export async function GET(request: Request) {
       userId: user.id,
       businessId: filters.businessId,
       locationId: filters.locationId,
-      permission: "tax_assistant:read",
+      permission: "tax_assistant:review",
     });
-    const summary = await calculateTaxAssistantForBusiness({
+    const { id } = await params;
+    const result = await getTaxAssistantReviewItem({
       businessId: access.businessId,
       locationId: access.locationId,
       periodStart: filters.periodStart,
       periodEnd: filters.periodEnd,
+      itemId: id,
     });
 
-    return Response.json({ summary });
+    if (!result) {
+      return Response.json({ error: "Tax review item was not found." }, { status: 404 });
+    }
+
+    return Response.json(result);
   } catch (error) {
-    return taxAssistantErrorResponse(error, "Could not load Tax Assistant summary.");
+    return taxAssistantErrorResponse(error, "Could not load Tax Assistant review item.");
   }
 }
 

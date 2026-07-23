@@ -8,43 +8,47 @@ datasource db {
 }
 
 model User {
-  id                      String                    @id @default(cuid())
-  name                    String
-  email                   String                    @unique
-  password                String
-  pinHash                 String?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
-  members                 BusinessMember[]
-  auditLogs               AuditLog[]
-  sessions                Session[]
-  passwordResets          PasswordResetToken[]
-  sentInvitations         BusinessInvitation[]      @relation("InvitationSender")
-  DebtEvent               DebtEvent[]
-  ReportSnapshot          ReportSnapshot[]
-  subscriptions           Subscription[]
-  assistantThreads        AssistantThread[]
-  assistantMessages       AssistantMessage[]
-  predictiveAlertFeedback PredictiveAlertFeedback[]
-  aiEvaluationEvents      AiEvaluationEvent[]
-  pendingAssistantActions PendingAssistantAction[]
-  referralAttributions    ReferralAttribution[]     @relation("ReferredUser")
-  referralRewards         ReferralReward[]          @relation("ReferralRewardUser")
-  onboardingProgress      OnboardingProgress?
-  onboardingEvents        OnboardingEvent[]
-  inventoryMovements      InventoryMovement[]
-  offlineSyncOperations   OfflineSyncOperation[]
-  locationMemberships     BusinessLocationMember[]
-  stockTransfersCreated   StockTransfer[]           @relation("StockTransferCreatedBy")
-  stockTransfersApproved  StockTransfer[]           @relation("StockTransferApprovedBy")
-  stockTransfersSent      StockTransfer[]           @relation("StockTransferSentBy")
-  stockTransfersReceived  StockTransfer[]           @relation("StockTransferReceivedBy")
-  language                String                    @default("en")
-  exportJobs              ExportJob[]               @relation("ExportJobActor")
-  issuedDocuments         IssuedDocument[]          @relation("IssuedDocumentActor")
-  announcementReads       AnnouncementRead[]
-  announcementsCreated    Announcement[]            @relation("AnnouncementCreator")
-  permissionOverrides     PermissionOverride[]
+  id                        String                     @id @default(cuid())
+  name                      String
+  email                     String                     @unique
+  password                  String
+  pinHash                   String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  members                   BusinessMember[]
+  auditLogs                 AuditLog[]
+  sessions                  Session[]
+  passwordResets            PasswordResetToken[]
+  sentInvitations           BusinessInvitation[]       @relation("InvitationSender")
+  DebtEvent                 DebtEvent[]
+  ReportSnapshot            ReportSnapshot[]
+  subscriptions             Subscription[]
+  assistantThreads          AssistantThread[]
+  assistantMessages         AssistantMessage[]
+  predictiveAlertFeedback   PredictiveAlertFeedback[]
+  aiEvaluationEvents        AiEvaluationEvent[]
+  pendingAssistantActions   PendingAssistantAction[]
+  referralAttributions      ReferralAttribution[]      @relation("ReferredUser")
+  referralRewards           ReferralReward[]           @relation("ReferralRewardUser")
+  onboardingProgress        OnboardingProgress?
+  onboardingEvents          OnboardingEvent[]
+  inventoryMovements        InventoryMovement[]
+  offlineSyncOperations     OfflineSyncOperation[]
+  locationMemberships       BusinessLocationMember[]
+  stockTransfersCreated     StockTransfer[]            @relation("StockTransferCreatedBy")
+  stockTransfersApproved    StockTransfer[]            @relation("StockTransferApprovedBy")
+  stockTransfersSent        StockTransfer[]            @relation("StockTransferSentBy")
+  stockTransfersReceived    StockTransfer[]            @relation("StockTransferReceivedBy")
+  language                  String                     @default("en")
+  exportJobs                ExportJob[]                @relation("ExportJobActor")
+  issuedDocuments           IssuedDocument[]           @relation("IssuedDocumentActor")
+  announcementReads         AnnouncementRead[]
+  announcementsCreated      Announcement[]             @relation("AnnouncementCreator")
+  permissionOverrides       PermissionOverride[]
+  taxPeriodSnapshots        TaxPeriodSnapshot[]        @relation("TaxPeriodSnapshotGenerator")
+  taxReviewItemsReviewed    TaxReviewItem[]            @relation("TaxReviewItemReviewer")
+  taxAssistantConversations TaxAssistantConversation[]
+  taxAssistantMessages      TaxAssistantMessage[]
 }
 
 model PasswordResetToken {
@@ -141,6 +145,11 @@ model Business {
   taxConfig                   TaxConfig?
   taxRates                    TaxRate[]
   taxAssistantSnapshots       TaxAssistantSnapshot[]
+  taxProfiles                 BusinessTaxProfile[]
+  taxPeriodSnapshots          TaxPeriodSnapshot[]
+  taxReviewItems              TaxReviewItem[]
+  taxAssistantConversations   TaxAssistantConversation[]
+  taxAssistantMessages        TaxAssistantMessage[]
   documentBranding            DocumentBrandingConfig?
   issuedDocuments             IssuedDocument[]
   documentTaxSnapshots        DocumentTaxSnapshot[]
@@ -330,6 +339,12 @@ model Transaction {
   profit                      Decimal                   @default(0)
   description                 String
   category                    String?
+  taxTreatment                String?
+  taxMetadata                 Json?
+  vatInclusive                Boolean?
+  withholdingTaxRate          Decimal?
+  withholdingTaxAmount        Decimal?
+  receiptId                   String?
   paymentStatus               PaymentStatus             @default(PAID)
   occurredAt                  DateTime                  @default(now())
   businessId                  String
@@ -359,12 +374,14 @@ model Transaction {
   supplierReturnsAsOriginal   SupplierReturn[]          @relation("SupplierReturnOriginal")
   supplierReturnsAsSettlement SupplierReturn[]          @relation("SupplierReturnSettlement")
   taxSnapshots                DocumentTaxSnapshot[]
+  taxReviewItems              TaxReviewItem[]
   reconciliationMatches       BankReconciliationMatch[]
 
   @@unique([businessId, idempotencyKey])
   @@unique([businessId, duplicateFingerprint])
   @@index([businessId, occurredAt])
   @@index([businessId, locationId, occurredAt])
+  @@index([businessId, taxTreatment, occurredAt])
 }
 
 model Customer {
@@ -992,6 +1009,168 @@ model TaxAssistantSnapshot {
   @@index([businessId, generatedAt])
   @@index([businessId, ruleVersion, generatedAt])
   @@index([businessId, locationId, generatedAt])
+}
+
+model TaxRuleSet {
+  id                    String               @id @default(cuid())
+  jurisdiction          String
+  version               String
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  status                String               @default("draft")
+  sourceTitle           String
+  sourceAuthority       String
+  sourcePublicationDate DateTime?
+  sourceReference       String
+  lastVerifiedAt        DateTime?
+  verificationOwner     String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  rules                 TaxRule[]
+  profiles              BusinessTaxProfile[]
+  periodSnapshots       TaxPeriodSnapshot[]
+
+  @@unique([jurisdiction, version])
+  @@index([jurisdiction, status, effectiveFrom])
+}
+
+model TaxRule {
+  id                    String     @id @default(cuid())
+  ruleSetId             String
+  jurisdiction          String
+  taxType               String
+  transactionType       String
+  rate                  Decimal    @default(0)
+  threshold             Decimal?
+  formulaConfig         Json
+  applicabilityConfig   Json
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  status                String     @default("draft")
+  sourceTitle           String
+  sourceAuthority       String
+  sourcePublicationDate DateTime?
+  sourceReference       String
+  lastVerifiedAt        DateTime?
+  verificationOwner     String
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  ruleSet               TaxRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+
+  @@index([ruleSetId, taxType, transactionType])
+  @@index([jurisdiction, taxType, status, effectiveFrom])
+}
+
+model BusinessTaxProfile {
+  id                      String     @id @default(cuid())
+  businessId              String     @unique
+  jurisdiction            String     @default("NG-FED")
+  taxIdentificationNumber String?
+  vatRegistered           Boolean    @default(false)
+  vatRegistrationDate     DateTime?
+  filingFrequency         String     @default("MONTHLY")
+  fiscalYearStartMonth    Int        @default(1)
+  defaultCurrency         String     @default("NGN")
+  pricingMode             String     @default("tax_exclusive")
+  whtApplicable           Boolean    @default(false)
+  businessType            String?
+  industryCategory        String?
+  taxRuleSetId            String
+  accountantName          String?
+  accountantEmail         String?
+  accountantPhone         String?
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  business                Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  taxRuleSet              TaxRuleSet @relation(fields: [taxRuleSetId], references: [id])
+
+  @@index([businessId, jurisdiction])
+  @@index([taxRuleSetId])
+}
+
+model TaxPeriodSnapshot {
+  id                String      @id @default(cuid())
+  businessId        String
+  taxType           String
+  periodStart       DateTime
+  periodEnd         DateTime
+  ruleSetId         String?
+  ruleSetVersion    String
+  taxableBase       Decimal     @default(0)
+  estimatedTax      Decimal     @default(0)
+  adjustments       Json
+  status            String      @default("generated")
+  generatedByUserId String?
+  generatedAt       DateTime    @default(now())
+  metadata          Json
+  business          Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ruleSet           TaxRuleSet? @relation(fields: [ruleSetId], references: [id], onDelete: SetNull)
+  generatedBy       User?       @relation("TaxPeriodSnapshotGenerator", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, taxType, periodStart, periodEnd])
+  @@index([businessId, generatedAt])
+  @@index([ruleSetId])
+}
+
+model TaxReviewItem {
+  id                String       @id @default(cuid())
+  businessId        String
+  transactionId     String?
+  taxType           String
+  issueType         String
+  severity          String
+  explanation       String
+  recommendedAction String
+  status            String       @default("open")
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  business          Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transaction       Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  reviewedBy        User?        @relation("TaxReviewItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status, severity])
+  @@index([businessId, issueType, createdAt])
+  @@index([transactionId])
+}
+
+model TaxAssistantConversation {
+  id         String                @id @default(cuid())
+  businessId String
+  userId     String
+  title      String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   TaxAssistantMessage[]
+
+  @@index([businessId, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+model TaxAssistantMessage {
+  id             String                   @id @default(cuid())
+  conversationId String
+  businessId     String
+  userId         String?
+  role           String
+  content        String
+  model          String?
+  promptVersion  String?
+  toolCalls      Json?
+  citations      Json?
+  tokenUsage     Json?
+  estimatedCost  Decimal?
+  createdAt      DateTime                 @default(now())
+  conversation   TaxAssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  business       Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model DocumentBrandingConfig {

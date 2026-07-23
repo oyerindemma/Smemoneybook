@@ -373,6 +373,11 @@ export async function getDashboardState(
             hasPermission(role, "bank_reconciliation:review") ||
             hasPermission(role, "bank_reconciliation:match"),
           canExportBankReconciliation: hasPermission(role, "bank_reconciliation:export"),
+          canViewTaxAssistant: hasPermission(role, "tax_assistant:read"),
+          canAskTaxAssistant: hasPermission(role, "tax_assistant:ask"),
+          canReviewTaxAssistant: hasPermission(role, "tax_assistant:review"),
+          canExportTaxAssistant: hasPermission(role, "tax_assistant:export"),
+          canManageTaxAssistantSettings: hasPermission(role, "tax_assistant:manage_settings"),
         }
       : undefined,
     billing: {

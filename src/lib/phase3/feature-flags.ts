@@ -38,6 +38,7 @@ const rawPhase3FeatureFlags: Phase3FeatureFlagState = {
 };
 
 export const phase3OperationalControls = {
+  aiEnabled: readFlag(process.env.PHASE3_AI_ENABLED, false),
   globalKillSwitch: readFlag(process.env.PHASE3_AI_GLOBAL_KILL_SWITCH, false),
   monthlyCostBudgetKobo: readPositiveInteger(process.env.PHASE3_AI_MONTHLY_COST_BUDGET_KOBO, 0),
   dailyRequestLimitPerBusiness: readPositiveInteger(

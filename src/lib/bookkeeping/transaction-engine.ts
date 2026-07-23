@@ -275,6 +275,11 @@ export type MoneybookState = {
     canImportBankReconciliation?: boolean;
     canReviewBankReconciliation?: boolean;
     canExportBankReconciliation?: boolean;
+    canViewTaxAssistant?: boolean;
+    canAskTaxAssistant?: boolean;
+    canReviewTaxAssistant?: boolean;
+    canExportTaxAssistant?: boolean;
+    canManageTaxAssistantSettings?: boolean;
   };
   billing?: {
     planId: BillingPlanId | "free";
@@ -318,6 +323,11 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canImportBankReconciliation: true,
       canReviewBankReconciliation: true,
       canExportBankReconciliation: true,
+      canViewTaxAssistant: true,
+      canAskTaxAssistant: true,
+      canReviewTaxAssistant: true,
+      canExportTaxAssistant: true,
+      canManageTaxAssistantSettings: true,
     },
     billing: {
       planId: "pro",
@@ -330,6 +340,7 @@ export function createDefaultBusiness(name: string): MoneybookState {
         "professional_pdf_exports",
         "invoice_branding",
         "tax_management",
+        "tax_assistant",
         "granular_permissions",
         "team_management",
         "audit_tools",

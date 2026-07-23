@@ -6,14 +6,14 @@ import {
   taxAssistantMethodNotAllowed,
 } from "@/lib/tax-assistant/api";
 import { requireTaxAssistantAccess } from "@/lib/tax-assistant/authorization";
-import { calculateTaxAssistantForBusiness } from "@/lib/tax-assistant/service";
+import { listTaxAssistantConversations } from "@/lib/tax-assistant/service";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "tax_assistant.summary", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "tax_assistant.conversations", 80, 15 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -24,18 +24,16 @@ export async function GET(request: Request) {
       userId: user.id,
       businessId: filters.businessId,
       locationId: filters.locationId,
-      permission: "tax_assistant:read",
+      permission: "tax_assistant:ask",
     });
-    const summary = await calculateTaxAssistantForBusiness({
+    const conversations = await listTaxAssistantConversations({
       businessId: access.businessId,
-      locationId: access.locationId,
-      periodStart: filters.periodStart,
-      periodEnd: filters.periodEnd,
+      userId: user.id,
     });
 
-    return Response.json({ summary });
+    return Response.json({ conversations });
   } catch (error) {
-    return taxAssistantErrorResponse(error, "Could not load Tax Assistant summary.");
+    return taxAssistantErrorResponse(error, "Could not load Tax Assistant conversations.");
   }
 }
 

@@ -34,6 +34,7 @@ describe("Paystack billing", () => {
       "multi_location",
       "professional_pdf_exports",
       "receipt_extraction",
+      "tax_assistant",
       "tax_management",
       "team_management",
       "warehouse_transfers",
@@ -43,6 +44,7 @@ describe("Paystack billing", () => {
       "AI category assist",
       "Receipt extraction",
       "Bank reconciliation",
+      "Tax assistant",
     ]);
   });
 

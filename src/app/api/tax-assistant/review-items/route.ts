@@ -1,41 +1,44 @@
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { requireUser } from "@/lib/auth/session";
 import {
-  parseTaxAssistantRequest,
+  parseTaxAssistantListRequest,
   taxAssistantErrorResponse,
   taxAssistantMethodNotAllowed,
 } from "@/lib/tax-assistant/api";
 import { requireTaxAssistantAccess } from "@/lib/tax-assistant/authorization";
-import { calculateTaxAssistantForBusiness } from "@/lib/tax-assistant/service";
+import { listTaxAssistantReviewItems } from "@/lib/tax-assistant/service";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "tax_assistant.summary", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "tax_assistant.review_items", 80, 15 * 60 * 1000);
 
     if (limited) {
       return limited;
     }
 
-    const filters = parseTaxAssistantRequest(request.url);
+    const filters = parseTaxAssistantListRequest(request.url);
     const access = await requireTaxAssistantAccess({
       userId: user.id,
       businessId: filters.businessId,
       locationId: filters.locationId,
-      permission: "tax_assistant:read",
+      permission: "tax_assistant:review",
     });
-    const summary = await calculateTaxAssistantForBusiness({
+    const result = await listTaxAssistantReviewItems({
       businessId: access.businessId,
       locationId: access.locationId,
       periodStart: filters.periodStart,
       periodEnd: filters.periodEnd,
+      severity: filters.severity,
+      issueType: filters.issueType,
+      limit: filters.limit,
     });
 
-    return Response.json({ summary });
+    return Response.json(result);
   } catch (error) {
-    return taxAssistantErrorResponse(error, "Could not load Tax Assistant summary.");
+    return taxAssistantErrorResponse(error, "Could not load Tax Assistant review items.");
   }
 }
 

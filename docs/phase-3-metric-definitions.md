@@ -265,14 +265,20 @@ Never phrase an alert as an accusation. Use review-oriented language.
 
 Tax outputs are recordkeeping estimates, not filing advice.
 
-- Source: `TaxConfig`, `TaxRate`, `TaxRun`, `DocumentTaxSnapshot`, `Transaction`
-- Current assistant rule version: `tax-assistant-ng-v1`
-- Use country and effective-date tax rules.
-- Show missing setup when country/rate/effective date is incomplete.
-- Include disclaimer: "This is a recordkeeping estimate, not tax advice or filing confirmation."
-- Snapshot table: `TaxAssistantSnapshot`
-- Initial foundation supports Nigeria (`NG`) settings only and flags other countries as unsupported until reviewed.
-- Output includes taxable sales, estimated tax, configured rates, missing settings, inconsistencies, reminders, accountant export summary, data warnings, and source metrics.
+- Sources: `Business`, `BusinessTaxProfile`, `TaxRuleSet`, `TaxRule`, `Transaction`, `DocumentTaxSnapshot`, `BankStatementImportRow`, `BankReconciliationMatch`
+- Current rule-set version: `ng-federal-2026-preview-v1`
+- Tool/prompt versions: `tax-assistant-tools-v1`, `tax-assistant-preview-v1`
+- Flags: `PHASE3_AI_ENABLED`, `PHASE3_TAX_ASSISTANT_ENABLED`, `NEXT_PUBLIC_PHASE3_TAX_ASSISTANT_ENABLED`
+- Use versioned, verified Nigeria federal rules only; if a rule set is missing or unverified, estimates must show `taxRuleRequiresVerification`.
+- Output VAT: taxable sale base x verified VAT rate; tax-inclusive records use `gross - gross / (1 + rate)`.
+- Eligible input VAT: eligible expense base x verified VAT rate; expenses missing receipt, invoice, or tax snapshot evidence are excluded from eligible input VAT and surfaced as review items.
+- Net VAT estimate: output VAT estimate - eligible input VAT estimate.
+- WHT position: total only explicit recorded WHT amount, WHT rate, or transaction metadata; never infer WHT category/rate from description.
+- Estimated tax due: max(net VAT estimate - recorded WHT deducted by customers, 0).
+- Data-quality outputs include missing category, missing supplier/customer, missing receipt/invoice, missing tax treatment, duplicate, reversed, unreconciled transaction, unreconciled bank entry, missing VAT status, and unverified rule-set review items.
+- Readiness score: 20 rule verification + 20 profile completion + 25 data completeness + 15 reconciliation coverage + 20 critical-issue clearance.
+- Exports: CSV working paper from `GET /api/tax-assistant/export`; no filing, payment, ledger mutation, tax-setting write, or automatic classification action.
+- Disclaimer: "This report is an estimate based on records available in SME MoneyBook. It is not a filed tax return and does not replace advice from a qualified tax professional or confirmation from the relevant tax authority."
 
 ## Loan Readiness Metrics
 
