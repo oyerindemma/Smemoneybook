@@ -269,6 +269,8 @@ export type MoneybookState = {
     canApproveTransfers?: boolean;
     canReceiveTransfers?: boolean;
     canManageTax?: boolean;
+    canViewStaffPerformance?: boolean;
+    canExportStaffPerformance?: boolean;
   };
   billing?: {
     planId: BillingPlanId | "free";
@@ -306,6 +308,8 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canApproveTransfers: true,
       canReceiveTransfers: true,
       canManageTax: true,
+      canViewStaffPerformance: true,
+      canExportStaffPerformance: true,
     },
     billing: {
       planId: "pro",

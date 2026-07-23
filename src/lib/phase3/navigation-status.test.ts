@@ -18,8 +18,11 @@ describe("Phase 3 navigation status labels", () => {
     expect(getPhase3NavigationStatus("bankReconciliation", true)).toBe("Preview — limited");
   });
 
+  it("marks implemented staff performance as unavailable while disabled", () => {
+    expect(getPhase3NavigationStatus("staffPerformance", false)).toBe("Unavailable");
+  });
+
   it("marks externally dependent modules as setup required while disabled", () => {
     expect(getPhase3NavigationStatus("whatsappAutomation", false)).toBe("Setup required");
   });
 });
-

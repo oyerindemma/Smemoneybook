@@ -365,6 +365,8 @@ export async function getDashboardState(
           canApproveTransfers: hasPermission(role, "transfers:approve"),
           canReceiveTransfers: hasPermission(role, "transfers:receive"),
           canManageTax: hasPermission(role, "admin"),
+          canViewStaffPerformance: hasPermission(role, "staff_performance:read"),
+          canExportStaffPerformance: hasPermission(role, "staff_performance:export"),
         }
       : undefined,
     billing: {

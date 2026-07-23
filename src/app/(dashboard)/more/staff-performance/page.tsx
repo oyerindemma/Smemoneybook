@@ -1,23 +1,26 @@
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { StaffPerformancePanel } from "@/components/staff/StaffPerformancePanel";
 import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
+import { isStaffPerformanceFeatureEnabledForServer } from "@/lib/staff-performance/authorization";
 
 export default function StaffPerformancePage() {
+  const enabled = phase3FeatureFlags.staffPerformance && isStaffPerformanceFeatureEnabledForServer();
+
   return (
     <main className="space-y-6 md:space-y-8">
       <header>
         <p className="text-sm font-semibold text-primary">Staff performance</p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">Team activity and goals</h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">Team operational activity</h1>
         <p className="mt-1 text-sm text-textSecondary md:text-base">
-          Review transparent business activity without hidden surveillance or sensitive profiling.
+          Review attributed business records with clear data-quality notes.
         </p>
       </header>
-      {phase3FeatureFlags.staffPerformance ? (
+      {enabled ? (
         <StaffPerformancePanel />
       ) : (
         <FeatureUnavailablePanel
-          title="Staff Performance is not available"
-          description="Phase 3K is behind a rollout flag while metric definitions, role visibility, and coaching language are validated."
+          title="Staff Performance is unavailable"
+          description="This Preview module needs both public and server-side Staff Performance flags before authorized users can open it."
           billingLink={false}
         />
       )}

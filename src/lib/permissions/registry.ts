@@ -17,6 +17,8 @@ export const permissionRegistry = [
   "transfers:approve",
   "transfers:receive",
   "transfers:cancel",
+  "staff_performance:read",
+  "staff_performance:export",
 ] as const;
 
 export async function listPermissionPoliciesForUser(userId: string, businessId: string) {

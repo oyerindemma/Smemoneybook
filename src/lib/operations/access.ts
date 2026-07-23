@@ -15,7 +15,9 @@ export type Permission =
   | "transfers:create"
   | "transfers:approve"
   | "transfers:receive"
-  | "transfers:cancel";
+  | "transfers:cancel"
+  | "staff_performance:read"
+  | "staff_performance:export";
 
 export type BusinessAccess = {
   businessId: string;
@@ -39,6 +41,8 @@ const permissions: Record<Role, Permission[]> = {
     "transfers:approve",
     "transfers:receive",
     "transfers:cancel",
+    "staff_performance:read",
+    "staff_performance:export",
   ],
   ACCOUNTANT: ["reports:write", "backup:read", "locations:view", "transfers:view"],
   STAFF: [

@@ -20,7 +20,7 @@ const moduleReadiness: Record<Phase3NavigationModule, Phase3Readiness> = {
   taxAssistant: "gated-implemented",
   cooperativeGroups: "partial",
   payroll: "partial",
-  staffPerformance: "partial",
+  staffPerformance: "gated-implemented",
   aiMarketing: "partial",
   executiveDashboard: "gated-implemented",
   predictiveAlerts: "gated-implemented",
@@ -53,4 +53,3 @@ export function getPhase3NavigationStatus(
 
   return "Preview — limited";
 }
-

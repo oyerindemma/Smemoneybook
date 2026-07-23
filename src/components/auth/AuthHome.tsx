@@ -354,6 +354,8 @@ function createSetupState(business?: AuthenticatedBusiness | null): MoneybookSta
       canManageAccounts: true,
       canSaveReports: true,
       canExportBackup: true,
+      canViewStaffPerformance: true,
+      canExportStaffPerformance: true,
     },
     accounts: [],
     transactions: [],
