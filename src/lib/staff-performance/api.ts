@@ -28,12 +28,24 @@ export function parseStaffPerformanceRequest(url: string): StaffPerformanceReque
   return {
     businessId,
     locationId: optionalParam(searchParams.get("locationId")),
-    period: resolveStaffPerformancePeriod({
+    period: parseStaffPerformancePeriod(searchParams),
+  };
+}
+
+function parseStaffPerformancePeriod(searchParams: URLSearchParams) {
+  try {
+    return resolveStaffPerformancePeriod({
       preset: searchParams.get("range") as StaffPerformanceDatePreset | null,
       from: searchParams.get("from"),
       to: searchParams.get("to"),
-    }),
-  };
+    });
+  } catch (error) {
+    throw new StaffPerformanceAccessError(
+      error instanceof Error ? error.message : "Choose a valid Staff Performance date range.",
+      400,
+      "invalid_period",
+    );
+  }
 }
 
 export function staffPerformanceErrorResponse(error: unknown, fallback: string) {

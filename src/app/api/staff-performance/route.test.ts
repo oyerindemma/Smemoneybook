@@ -163,6 +163,20 @@ describe("/api/staff-performance", () => {
     );
   });
 
+  it("returns a validation error for overlong custom date ranges", async () => {
+    const { GET } = await import("@/app/api/staff-performance/summary/route");
+    const response = await GET(
+      new Request(
+        "http://localhost/api/staff-performance/summary?businessId=biz_1&range=custom&from=2025-01-01&to=2026-07-31",
+      ),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toContain("366 days");
+    expect(mocks.requireStaffPerformanceAccess).not.toHaveBeenCalled();
+  });
+
   it("returns a truthful disabled state when access gate rejects the feature", async () => {
     mocks.requireStaffPerformanceAccess.mockRejectedValue(
       new StaffPerformanceAccessError("Staff Performance is unavailable in this environment.", 503, "feature_disabled"),
