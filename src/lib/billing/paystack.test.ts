@@ -26,6 +26,7 @@ describe("Paystack billing", () => {
       "advanced_reports",
       "ai_category_assist",
       "audit_tools",
+      "bank_reconciliation",
       "basic_exports",
       "business_switching",
       "granular_permissions",
@@ -41,6 +42,7 @@ describe("Paystack billing", () => {
       "Accountant exports",
       "AI category assist",
       "Receipt extraction",
+      "Bank reconciliation",
     ]);
   });
 

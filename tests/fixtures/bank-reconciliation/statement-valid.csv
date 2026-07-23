@@ -1,0 +1,4 @@
+Date,Description,Debit,Credit,Reference,Balance
+2026-07-19,Ada payment,,15000,REF-1,15000
+2026-07-20,Supplier payment,5000,,REF-2,10000
+2026-07-20,Duplicate POS settlement,,15000,REF-1,25000

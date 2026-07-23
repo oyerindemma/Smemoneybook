@@ -6,6 +6,7 @@ export type BillingFeature =
   | "basic_exports"
   | "ai_category_assist"
   | "receipt_extraction"
+  | "bank_reconciliation"
   | "team_management"
   | "audit_tools"
   | "advanced_reports"
@@ -50,6 +51,11 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     id: "receipt_extraction",
     name: "Receipt extraction",
     summary: "Turn pasted receipt text into vendor, amount, and category suggestions.",
+  },
+  bank_reconciliation: {
+    id: "bank_reconciliation",
+    name: "Bank reconciliation",
+    summary: "Import CSV bank statements, review matches, and export an audit-friendly reconciliation report.",
   },
   team_management: {
     id: "team_management",
@@ -124,7 +130,7 @@ export const billingPlans: BillingPlan[] = [
     amount: 7000,
     amountKobo: 700000,
     recommendedFor: "Retailers, service businesses, and stock-based SMEs recording daily activity.",
-    features: ["basic_exports", "ai_category_assist", "receipt_extraction"],
+    features: ["basic_exports", "ai_category_assist", "receipt_extraction", "bank_reconciliation"],
   },
   {
     id: "pro",
@@ -139,6 +145,7 @@ export const billingPlans: BillingPlan[] = [
       "basic_exports",
       "ai_category_assist",
       "receipt_extraction",
+      "bank_reconciliation",
       "team_management",
       "audit_tools",
       "advanced_reports",

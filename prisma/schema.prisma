@@ -144,8 +144,10 @@ model Business {
   documentBranding            DocumentBrandingConfig?
   issuedDocuments             IssuedDocument[]
   documentTaxSnapshots        DocumentTaxSnapshot[]
+  bankAccountProfiles         BankAccountProfile[]
   bankStatementImports        BankStatementImport[]
   bankReconciliationMatches   BankReconciliationMatch[]
+  bankReconciliationActions   BankReconciliationAction[]
   loanReadinessSnapshots      LoanReadinessSnapshot[]
   loanReadinessSharingLogs    LoanReadinessSharingLog[]
   cooperativeGroups           CooperativeGroup[]
@@ -1709,10 +1711,17 @@ model BankStatementImport {
   businessId        String
   accountId         String?
   locationId        String?
+  bankProfileId     String?
   uploadedById      String?
   sourceType        String                    @default("csv")
   fileName          String?
+  accountLabel      String?
+  bankName          String?
   fileHash          String
+  fileSize          Int?
+  currency          String                    @default("NGN")
+  openingBalance    Decimal?
+  closingBalance    Decimal?
   status            String                    @default("IMPORTED")
   statementStart    DateTime?
   statementEnd      DateTime?
@@ -1729,6 +1738,7 @@ model BankStatementImport {
   business          Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   account           Account?                  @relation(fields: [accountId], references: [id], onDelete: SetNull)
   location          BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  bankProfile       BankAccountProfile?       @relation(fields: [bankProfileId], references: [id], onDelete: SetNull)
   rows              BankStatementImportRow[]
   matches           BankReconciliationMatch[]
 
@@ -1737,64 +1747,117 @@ model BankStatementImport {
   @@index([businessId, status, importedAt])
   @@index([businessId, accountId, importedAt])
   @@index([businessId, locationId, importedAt])
+  @@index([businessId, bankProfileId, importedAt])
 }
 
 model BankStatementImportRow {
-  id                String                    @id @default(cuid())
-  importId          String
-  businessId        String
-  rowNumber         Int
-  postedAt          DateTime
-  amount            Decimal
-  direction         String
-  description       String
-  reference         String?
-  balance           Decimal?
-  fingerprint       String
-  duplicateOfRowId  String?
-  status            String                    @default("UNMATCHED")
-  suggestedCategory String?
-  raw               Json
-  createdAt         DateTime                  @default(now())
-  statementImport   BankStatementImport       @relation(fields: [importId], references: [id], onDelete: Cascade)
-  matches           BankReconciliationMatch[]
+  id                    String                     @id @default(cuid())
+  importId              String
+  businessId            String
+  rowNumber             Int
+  postedAt              DateTime
+  valueDate             DateTime?
+  amount                Decimal
+  direction             String
+  description           String
+  normalizedDescription String?
+  reference             String?
+  externalReference     String?
+  debitAmount           Decimal                    @default(0)
+  creditAmount          Decimal                    @default(0)
+  signedAmount          Decimal?
+  balance               Decimal?
+  fingerprint           String
+  duplicateStatus       String                     @default("UNIQUE")
+  duplicateOfRowId      String?
+  status                String                     @default("UNMATCHED")
+  suggestedCategory     String?
+  raw                   Json
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  statementImport       BankStatementImport        @relation(fields: [importId], references: [id], onDelete: Cascade)
+  matches               BankReconciliationMatch[]
+  actions               BankReconciliationAction[]
 
   @@unique([importId, rowNumber])
   @@index([businessId, postedAt])
   @@index([businessId, fingerprint])
+  @@index([businessId, duplicateStatus, postedAt])
   @@index([businessId, status, postedAt])
   @@index([importId, status])
 }
 
 model BankReconciliationMatch {
-  id              String                 @id @default(cuid())
-  businessId      String
-  importId        String
-  rowId           String
-  transactionId   String?
-  accountId       String?
-  status          String                 @default("SUGGESTED")
-  matchType       String
-  confidence      Int
-  signals         Json
-  notes           String?
-  createdById     String?
-  confirmedById   String?
-  rejectedById    String?
-  confirmedAt     DateTime?
-  rejectedAt      DateTime?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  business        Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  statementImport BankStatementImport    @relation(fields: [importId], references: [id], onDelete: Cascade)
-  row             BankStatementImportRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
-  transaction     Transaction?           @relation(fields: [transactionId], references: [id], onDelete: SetNull)
-  account         Account?               @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  id                String                     @id @default(cuid())
+  businessId        String
+  importId          String
+  rowId             String
+  transactionId     String?
+  accountId         String?
+  status            String                     @default("SUGGESTED")
+  matchType         String
+  confidence        Int
+  signals           Json
+  confidenceReasons Json?
+  notes             String?
+  suggestedBy       String?
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  createdById       String?
+  confirmedById     String?
+  rejectedById      String?
+  confirmedAt       DateTime?
+  rejectedAt        DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  statementImport   BankStatementImport        @relation(fields: [importId], references: [id], onDelete: Cascade)
+  row               BankStatementImportRow     @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  transaction       Transaction?               @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  account           Account?                   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  actions           BankReconciliationAction[]
 
   @@index([businessId, status, createdAt])
   @@index([businessId, transactionId])
   @@index([importId, status])
   @@index([rowId, confidence])
+}
+
+model BankAccountProfile {
+  id                  String                @id @default(cuid())
+  businessId          String
+  label               String
+  bankName            String?
+  maskedAccountNumber String?
+  currency            String                @default("NGN")
+  isActive            Boolean               @default(true)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  business            Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  imports             BankStatementImport[]
+
+  @@unique([businessId, label])
+  @@index([businessId, isActive])
+}
+
+model BankReconciliationAction {
+  id                String                   @id @default(cuid())
+  businessId        String
+  statementEntryId  String?
+  matchId           String?
+  action            String
+  reason            String?
+  performedByUserId String
+  metadata          Json?
+  createdAt         DateTime                 @default(now())
+  business          Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  statementEntry    BankStatementImportRow?  @relation(fields: [statementEntryId], references: [id], onDelete: SetNull)
+  match             BankReconciliationMatch? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, action, createdAt])
+  @@index([statementEntryId])
+  @@index([matchId])
 }
 
 model LoanReadinessSnapshot {

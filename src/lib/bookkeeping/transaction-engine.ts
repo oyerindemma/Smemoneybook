@@ -271,6 +271,10 @@ export type MoneybookState = {
     canManageTax?: boolean;
     canViewStaffPerformance?: boolean;
     canExportStaffPerformance?: boolean;
+    canViewBankReconciliation?: boolean;
+    canImportBankReconciliation?: boolean;
+    canReviewBankReconciliation?: boolean;
+    canExportBankReconciliation?: boolean;
   };
   billing?: {
     planId: BillingPlanId | "free";
@@ -310,6 +314,10 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canManageTax: true,
       canViewStaffPerformance: true,
       canExportStaffPerformance: true,
+      canViewBankReconciliation: true,
+      canImportBankReconciliation: true,
+      canReviewBankReconciliation: true,
+      canExportBankReconciliation: true,
     },
     billing: {
       planId: "pro",

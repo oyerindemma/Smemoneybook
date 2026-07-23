@@ -15,7 +15,7 @@ export type Phase3NavigationModule =
 type Phase3Readiness = "gated-implemented" | "partial" | "external-setup";
 
 const moduleReadiness: Record<Phase3NavigationModule, Phase3Readiness> = {
-  bankReconciliation: "partial",
+  bankReconciliation: "gated-implemented",
   loanReadiness: "gated-implemented",
   taxAssistant: "gated-implemented",
   cooperativeGroups: "partial",

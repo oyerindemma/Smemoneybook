@@ -15,7 +15,7 @@ describe("Phase 3 navigation status labels", () => {
   });
 
   it("marks enabled partial modules as limited Preview", () => {
-    expect(getPhase3NavigationStatus("bankReconciliation", true)).toBe("Preview — limited");
+    expect(getPhase3NavigationStatus("payroll", true)).toBe("Preview — limited");
   });
 
   it("marks implemented staff performance as unavailable while disabled", () => {

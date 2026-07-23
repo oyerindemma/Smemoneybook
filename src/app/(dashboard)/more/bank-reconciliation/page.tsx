@@ -1,8 +1,11 @@
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { BankReconciliationPanel } from "@/components/reconciliation/BankReconciliationPanel";
+import { isBankReconciliationFeatureEnabledForServer } from "@/lib/bank-reconciliation/authorization";
 import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 export default function BankReconciliationPage() {
+  const enabled = phase3FeatureFlags.bankReconciliation && isBankReconciliationFeatureEnabledForServer();
+
   return (
     <main className="space-y-6 md:space-y-8">
       <header>
@@ -12,12 +15,12 @@ export default function BankReconciliationPage() {
           Import CSV statements and confirm suggested matches before locking.
         </p>
       </header>
-      {phase3FeatureFlags.bankReconciliation ? (
+      {enabled ? (
         <BankReconciliationPanel />
       ) : (
         <FeatureUnavailablePanel
-          title="Bank Reconciliation is not available"
-          description="Phase 3F is behind a rollout flag while import parsing, matching accuracy, locking, and audit controls are validated."
+          title="Bank Reconciliation is unavailable"
+          description="This Preview module needs both public and server-side Bank Reconciliation flags before authorized users can open it."
           billingLink={false}
         />
       )}

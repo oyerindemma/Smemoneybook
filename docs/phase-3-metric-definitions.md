@@ -209,31 +209,42 @@ Forecast accuracy compares prior forecasted value with actual recorded value for
 
 Statement import row is a normalized bank-statement line awaiting reconciliation.
 
-- Current version: `bank-reconciliation-v1`
+- Current version: `bank-reconciliation-v2`
 - Source: user-imported CSV
 - Required fields: posted date, amount or debit/credit, description
-- Normalized fields: postedAt, amount, direction, description, reference, balance, fingerprint, status
-- Duplicate detection: date, amount, direction, normalized description, and reference fingerprint
+- Normalized fields: postedAt, valueDate, amount, debitAmount, creditAmount, signedAmount, direction, description, normalizedDescription, reference, externalReference, balance, fingerprint, duplicateStatus, status
+- Duplicate detection: date, amount, direction, normalized description, reference, and external reference fingerprint
 - Status values: `UNMATCHED`, `SUGGESTED`, `MATCHED`, `DUPLICATE`, `IGNORED`
+- Duplicate status values: `UNIQUE`, `PROBABLE_DUPLICATE`, `CONFIRMED_DUPLICATE`
 
 ### Reconciliation Match Confidence
 
 Reconciliation match confidence is a deterministic score from 0 to 100.
 
 - Source: `BankStatementImportRow`, `Transaction`, `Account`
-- Signals: amount equality, date proximity, direction, account match, description/customer/supplier overlap, payment status, transfer direction
+- Signals: amount equality, date proximity, direction, account match, description/customer/supplier overlap, reference match, payment status, transfer direction
 - Exclude: reversed transactions, reversal records, and adjustment-only transactions unless a dedicated review flow is introduced
-- Match types: `exact`, `likely`, `possible_transfer`, `missing_record`, `duplicate`
+- Match types: `exact`, `date_tolerant`, `reference_based`, `description_based`, `amount_only`, `manual`, `missing_record`, `duplicate`
 - Human review is required before a suggested match becomes confirmed
+- Split and grouped match types remain reserved for a later workflow and are not auto-produced in this release
 
 ### Reconciliation Lock
 
 Reconciliation lock records that imported rows were reviewed for a statement version.
 
 - Source: `BankStatementImport`, `BankStatementImportRow`, `BankReconciliationMatch`
-- Lock condition: no unresolved `UNMATCHED` or `SUGGESTED` rows
+- Lock condition: no unresolved `UNMATCHED`, `SUGGESTED`, or `DUPLICATE` rows
 - Reopen behavior: preserve rows and matches, clear lockedAt, set reopenedAt, increment version
 - Locked reconciliation must not be modified without explicit reopen
+
+### Reconciliation Action Ledger
+
+Reconciliation actions preserve reviewer intent separately from accounting data.
+
+- Source: `BankReconciliationAction` plus `AuditLog`
+- Actions: import preview, import created, match suggested, match confirmed, match rejected, manual match created, match unmatched, entry ignored, entry reopened, import locked, import reopened, exported
+- Required audit facts: businessId, performedByUserId, optional statementEntryId, optional matchId, action, reason, timestamp, and safe metadata
+- These records must not create transactions, alter account balances, delete statement rows, or connect to bank accounts
 
 ## Alert Metrics
 

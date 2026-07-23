@@ -367,6 +367,12 @@ export async function getDashboardState(
           canManageTax: hasPermission(role, "admin"),
           canViewStaffPerformance: hasPermission(role, "staff_performance:read"),
           canExportStaffPerformance: hasPermission(role, "staff_performance:export"),
+          canViewBankReconciliation: hasPermission(role, "bank_reconciliation:read"),
+          canImportBankReconciliation: hasPermission(role, "bank_reconciliation:import"),
+          canReviewBankReconciliation:
+            hasPermission(role, "bank_reconciliation:review") ||
+            hasPermission(role, "bank_reconciliation:match"),
+          canExportBankReconciliation: hasPermission(role, "bank_reconciliation:export"),
         }
       : undefined,
     billing: {

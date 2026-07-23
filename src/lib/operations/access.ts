@@ -16,6 +16,12 @@ export type Permission =
   | "transfers:approve"
   | "transfers:receive"
   | "transfers:cancel"
+  | "bank_reconciliation:read"
+  | "bank_reconciliation:import"
+  | "bank_reconciliation:match"
+  | "bank_reconciliation:review"
+  | "bank_reconciliation:export"
+  | "bank_reconciliation:ignore"
   | "staff_performance:read"
   | "staff_performance:export";
 
@@ -41,10 +47,27 @@ const permissions: Record<Role, Permission[]> = {
     "transfers:approve",
     "transfers:receive",
     "transfers:cancel",
+    "bank_reconciliation:read",
+    "bank_reconciliation:import",
+    "bank_reconciliation:match",
+    "bank_reconciliation:review",
+    "bank_reconciliation:export",
+    "bank_reconciliation:ignore",
     "staff_performance:read",
     "staff_performance:export",
   ],
-  ACCOUNTANT: ["reports:write", "backup:read", "locations:view", "transfers:view"],
+  ACCOUNTANT: [
+    "reports:write",
+    "backup:read",
+    "locations:view",
+    "transfers:view",
+    "bank_reconciliation:read",
+    "bank_reconciliation:import",
+    "bank_reconciliation:match",
+    "bank_reconciliation:review",
+    "bank_reconciliation:export",
+    "bank_reconciliation:ignore",
+  ],
   STAFF: [
     "money:write",
     "inventory:write",
