@@ -1,6 +1,6 @@
 # SME MoneyBook Phase 3F AI Evaluation Readiness
 
-Status: implemented on `phase-3-staging`, disabled by default, pending Preview-only database migration and deployment evidence.
+Status: implemented on `phase-3-staging`, disabled by default, validated on the phase-3-staging Preview environment.
 
 ## Exact Flags
 
@@ -133,6 +133,13 @@ Critical failures override aggregate score and block baseline acceptance:
 - `npm run test`: passed, 85 files and 326 tests.
 - Focused Phase 3F tests: passed, 5 files and 23 tests.
 - Playwright with `NEXT_PUBLIC_PHASE3_AI_EVALUATION_ENABLED=true` and `PHASE3_AI_EVALUATION_ENABLED=true`: passed, 6 tests across desktop Chrome, mobile Chrome, and mobile Safari; executed and did not skip.
+
+## Preview Evidence
+
+- Preview migration status: schema up to date on the dedicated `phase-3-staging` Neon branch after applying `20260724213000_phase_3_ai_evaluation_completion` with `npx prisma migrate deploy`.
+- Preview flags: `PHASE3_AI_EVALUATION_ENABLED=true` and `NEXT_PUBLIC_PHASE3_AI_EVALUATION_ENABLED=true`, scoped only to Vercel Preview branch `phase-3-staging`.
+- Preview deployment: `phase-3-staging`, target `preview`, status Ready, implementation commit `5b66292`.
+- Preview QA: suite execution passed with 16 synthetic cases, 100 percent pass rate, 0 critical failures, baseline acceptance, regression comparison, CSV export, method guards, authorization rejection, business isolation, empty state, and no native 404 or unexpected 500.
 
 ## Known Limitations
 
