@@ -6,14 +6,17 @@ import {
   predictiveAlertsMethodNotAllowed,
 } from "@/lib/predictive-alerts/api";
 import { requirePredictiveAlertsAccess } from "@/lib/predictive-alerts/authorization";
-import { listPredictiveAlerts } from "@/lib/predictive-alerts/service";
+import { getPredictiveAlert } from "@/lib/predictive-alerts/service";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "predictive_alerts.read", 120, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "predictive_alerts.detail", 120, 15 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -26,30 +29,19 @@ export async function GET(request: Request) {
       locationId: filters.locationId,
       permission: "predictive_alerts:read",
     });
-    const alerts = await listPredictiveAlerts({
+    const { id } = await params;
+    const alert = await getPredictiveAlert({
       businessId: access.businessId,
-      locationId: access.locationId,
-      statuses: filters.statuses,
-      severity: filters.severity,
-      category: filters.category,
-      periodDays: filters.periodDays,
+      alertId: id,
     });
 
-    return Response.json({
-      alerts,
-      capabilities: {
-        canManage: access.canManage,
-        canAcknowledge: access.canAcknowledge,
-        canExport: access.canExport,
-        delivery: {
-          inApp: true,
-          email: false,
-          whatsapp: false,
-        },
-      },
-    });
+    if (!alert) {
+      return Response.json({ error: "Predictive Alert was not found." }, { status: 404 });
+    }
+
+    return Response.json({ alert });
   } catch (error) {
-    return predictiveAlertsErrorResponse(error, "Could not load Predictive Alerts.");
+    return predictiveAlertsErrorResponse(error, "Could not load Predictive Alert.");
   }
 }
 

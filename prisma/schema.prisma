@@ -116,6 +116,8 @@ model Business {
   executiveDashboardSnapshots ExecutiveDashboardSnapshot[]
   predictiveAlerts            PredictiveAlert[]
   predictiveAlertFeedback     PredictiveAlertFeedback[]
+  alertPreferences            BusinessAlertPreference[]
+  predictiveAlertDeliveries   PredictiveAlertDelivery[]
   aiEvaluationEvents          AiEvaluationEvent[]
   aiEvaluationDatasets        AiEvaluationDataset[]
   aiEvaluationRuns            AiEvaluationRun[]
@@ -1557,38 +1559,111 @@ model ExecutiveDashboardSnapshot {
 }
 
 model PredictiveAlert {
-  id                String                    @id @default(cuid())
-  businessId        String
-  locationId        String?
-  alertKey          String
-  type              String
-  severity          String
-  status            String                    @default("active")
-  confidence        Decimal                   @default(0)
-  impactAmount      Decimal                   @default(0)
-  title             String
-  explanation       String
-  recommendedAction String?
-  sourcePeriodStart DateTime
-  sourcePeriodEnd   DateTime
-  detectedAt        DateTime                  @default(now())
-  sourceMetrics     Json
-  dismissedAt       DateTime?
-  confirmedAt       DateTime?
-  markedIncorrectAt DateTime?
-  resolvedAt        DateTime?
-  lastFeedbackAt    DateTime?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  business          Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  location          BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  feedback          PredictiveAlertFeedback[]
+  id                   String                    @id @default(cuid())
+  businessId           String
+  locationId           String?
+  alertKey             String
+  ruleKey              String?
+  category             String?
+  severityLevel        String?
+  type                 String
+  severity             String
+  status               String                    @default("active")
+  lifecycleStatus      String                    @default("active")
+  confidence           Decimal                   @default(0)
+  impactAmount         Decimal                   @default(0)
+  title                String
+  explanation          String
+  recommendedAction    String?
+  evidence             Json?
+  formulaReference     String?
+  dedupeKey            String?
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  sourcePeriodStart    DateTime
+  sourcePeriodEnd      DateTime
+  detectedAt           DateTime                  @default(now())
+  firstDetectedAt      DateTime?
+  lastDetectedAt       DateTime?
+  sourceMetrics        Json
+  dismissedAt          DateTime?
+  dismissedReason      String?
+  confirmedAt          DateTime?
+  markedIncorrectAt    DateTime?
+  resolvedAt           DateTime?
+  resolutionNote       String?
+  acknowledgedAt       DateTime?
+  acknowledgedByUserId String?
+  lastFeedbackAt       DateTime?
+  deliveryCount        Int                       @default(0)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  business             Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location             BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  feedback             PredictiveAlertFeedback[]
+  deliveries           PredictiveAlertDelivery[]
 
   @@unique([businessId, alertKey])
   @@index([businessId, status, detectedAt])
+  @@index([businessId, lifecycleStatus, lastDetectedAt])
+  @@index([businessId, ruleKey, lifecycleStatus])
+  @@index([businessId, category, lifecycleStatus])
   @@index([businessId, type, detectedAt])
   @@index([businessId, severity, detectedAt])
   @@index([businessId, locationId, detectedAt])
+}
+
+model PredictiveAlertRule {
+  id                  String   @id @default(cuid())
+  key                 String   @unique
+  category            String
+  version             String
+  severity            String
+  thresholdConfig     Json
+  requiredHistoryDays Int
+  enabled             Boolean  @default(true)
+  description         String
+  formulaReference    String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([category, enabled])
+}
+
+model BusinessAlertPreference {
+  id                String   @id @default(cuid())
+  businessId        String
+  ruleKey           String
+  enabled           Boolean  @default(true)
+  severityOverride  String?
+  thresholdOverride Json?
+  inAppEnabled      Boolean  @default(true)
+  emailEnabled      Boolean  @default(false)
+  whatsappEnabled   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  business          Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, ruleKey])
+  @@index([businessId, enabled])
+}
+
+model PredictiveAlertDelivery {
+  id                String          @id @default(cuid())
+  businessId        String
+  alertId           String
+  channel           String
+  status            String          @default("disabled")
+  destinationMasked String?
+  attemptedAt       DateTime        @default(now())
+  deliveredAt       DateTime?
+  failureReason     String?
+  createdAt         DateTime        @default(now())
+  business          Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  alert             PredictiveAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, channel, attemptedAt])
+  @@index([alertId, attemptedAt])
 }
 
 model PredictiveAlertFeedback {

@@ -9,6 +9,7 @@ export type BillingFeature =
   | "bank_reconciliation"
   | "tax_assistant"
   | "executive_dashboard"
+  | "predictive_alerts"
   | "team_management"
   | "audit_tools"
   | "advanced_reports"
@@ -68,6 +69,11 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     id: "executive_dashboard",
     name: "Executive dashboard",
     summary: "Unify financial, stock, debt, tax, reconciliation, and staff summaries for owner decisions.",
+  },
+  predictive_alerts: {
+    id: "predictive_alerts",
+    name: "Predictive alerts",
+    summary: "Detect deterministic risk and opportunity signals from recorded sales, debt, stock, bank, tax, and staff data.",
   },
   team_management: {
     id: "team_management",
@@ -160,6 +166,7 @@ export const billingPlans: BillingPlan[] = [
       "bank_reconciliation",
       "tax_assistant",
       "executive_dashboard",
+      "predictive_alerts",
       "team_management",
       "audit_tools",
       "advanced_reports",

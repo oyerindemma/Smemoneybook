@@ -31,6 +31,10 @@ export type Permission =
   | "executive_dashboard:export"
   | "executive_dashboard:view_sensitive"
   | "executive_dashboard:view_staff_summary"
+  | "predictive_alerts:read"
+  | "predictive_alerts:manage"
+  | "predictive_alerts:acknowledge"
+  | "predictive_alerts:export"
   | "staff_performance:read"
   | "staff_performance:export";
 
@@ -71,6 +75,10 @@ const permissions: Record<Role, Permission[]> = {
     "executive_dashboard:export",
     "executive_dashboard:view_sensitive",
     "executive_dashboard:view_staff_summary",
+    "predictive_alerts:read",
+    "predictive_alerts:manage",
+    "predictive_alerts:acknowledge",
+    "predictive_alerts:export",
     "staff_performance:read",
     "staff_performance:export",
   ],
@@ -92,6 +100,9 @@ const permissions: Record<Role, Permission[]> = {
     "executive_dashboard:read",
     "executive_dashboard:export",
     "executive_dashboard:view_sensitive",
+    "predictive_alerts:read",
+    "predictive_alerts:acknowledge",
+    "predictive_alerts:export",
   ],
   STAFF: [
     "money:write",

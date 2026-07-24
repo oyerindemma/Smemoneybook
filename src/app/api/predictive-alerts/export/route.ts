@@ -1,11 +1,16 @@
 import { requireUser } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import {
+  logPredictiveAlertsAudit,
   parsePredictiveAlertsRequest,
   predictiveAlertsErrorResponse,
   predictiveAlertsMethodNotAllowed,
 } from "@/lib/predictive-alerts/api";
 import { requirePredictiveAlertsAccess } from "@/lib/predictive-alerts/authorization";
+import {
+  predictiveAlertsCsvFilename,
+  predictiveAlertsToCsv,
+} from "@/lib/predictive-alerts/export";
 import { listPredictiveAlerts } from "@/lib/predictive-alerts/service";
 
 export const runtime = "nodejs";
@@ -13,7 +18,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "predictive_alerts.read", 120, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "predictive_alerts.export", 30, 60 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -24,7 +29,7 @@ export async function GET(request: Request) {
       userId: user.id,
       businessId: filters.businessId,
       locationId: filters.locationId,
-      permission: "predictive_alerts:read",
+      permission: "predictive_alerts:export",
     });
     const alerts = await listPredictiveAlerts({
       businessId: access.businessId,
@@ -33,23 +38,28 @@ export async function GET(request: Request) {
       severity: filters.severity,
       category: filters.category,
       periodDays: filters.periodDays,
+      take: 500,
+    });
+    const csv = predictiveAlertsToCsv({
+      alerts,
+      generatedBy: user.email,
     });
 
-    return Response.json({
-      alerts,
-      capabilities: {
-        canManage: access.canManage,
-        canAcknowledge: access.canAcknowledge,
-        canExport: access.canExport,
-        delivery: {
-          inApp: true,
-          email: false,
-          whatsapp: false,
-        },
+    await logPredictiveAlertsAudit({
+      access,
+      action: "predictive_alerts.export_generated",
+      metadata: { alertCount: alerts.length },
+    });
+
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${predictiveAlertsCsvFilename()}"`,
       },
     });
   } catch (error) {
-    return predictiveAlertsErrorResponse(error, "Could not load Predictive Alerts.");
+    return predictiveAlertsErrorResponse(error, "Could not export Predictive Alerts.");
   }
 }
 

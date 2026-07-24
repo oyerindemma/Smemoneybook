@@ -382,6 +382,10 @@ export async function getDashboardState(
           canExportExecutiveDashboard: hasPermission(role, "executive_dashboard:export"),
           canViewExecutiveDashboardSensitive: hasPermission(role, "executive_dashboard:view_sensitive"),
           canViewExecutiveDashboardStaffSummary: hasPermission(role, "executive_dashboard:view_staff_summary"),
+          canViewPredictiveAlerts: hasPermission(role, "predictive_alerts:read"),
+          canManagePredictiveAlerts: hasPermission(role, "predictive_alerts:manage"),
+          canAcknowledgePredictiveAlerts: hasPermission(role, "predictive_alerts:acknowledge"),
+          canExportPredictiveAlerts: hasPermission(role, "predictive_alerts:export"),
         }
       : undefined,
     billing: {

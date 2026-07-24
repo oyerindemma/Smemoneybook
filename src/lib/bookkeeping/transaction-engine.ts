@@ -284,6 +284,10 @@ export type MoneybookState = {
     canExportExecutiveDashboard?: boolean;
     canViewExecutiveDashboardSensitive?: boolean;
     canViewExecutiveDashboardStaffSummary?: boolean;
+    canViewPredictiveAlerts?: boolean;
+    canManagePredictiveAlerts?: boolean;
+    canAcknowledgePredictiveAlerts?: boolean;
+    canExportPredictiveAlerts?: boolean;
   };
   billing?: {
     planId: BillingPlanId | "free";
@@ -336,6 +340,10 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canExportExecutiveDashboard: true,
       canViewExecutiveDashboardSensitive: true,
       canViewExecutiveDashboardStaffSummary: true,
+      canViewPredictiveAlerts: true,
+      canManagePredictiveAlerts: true,
+      canAcknowledgePredictiveAlerts: true,
+      canExportPredictiveAlerts: true,
     },
     billing: {
       planId: "pro",
@@ -350,6 +358,7 @@ export function createDefaultBusiness(name: string): MoneybookState {
         "tax_management",
         "tax_assistant",
         "executive_dashboard",
+        "predictive_alerts",
         "granular_permissions",
         "team_management",
         "audit_tools",
