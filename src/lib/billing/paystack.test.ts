@@ -25,6 +25,7 @@ describe("Paystack billing", () => {
     expect(featureIds).toEqual([
       "advanced_reports",
       "ai_category_assist",
+      "ai_evaluation",
       "audit_tools",
       "bank_reconciliation",
       "basic_exports",

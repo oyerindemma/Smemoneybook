@@ -4,10 +4,11 @@ import { requireUser } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
 import { parseJsonBody } from "@/lib/api/validation";
-import { requireMinimumPlan } from "@/lib/billing/subscriptions";
-import { requireBusinessAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
-import { requirePhase3Feature } from "@/lib/phase3/feature-flags";
+import {
+  AiEvaluationAccessError,
+  requireAiEvaluationAccess,
+} from "@/lib/ai-evaluation/authorization";
 import {
   createAiEvaluationDataset,
   getAiEvaluationOverview,
@@ -74,12 +75,6 @@ const aiEvaluationActionSchema = z.discriminatedUnion("action", [
 
 export async function GET(request: Request) {
   try {
-    const featureGate = requirePhase3Feature("aiEvaluation", "AI evaluation");
-
-    if (featureGate) {
-      return featureGate;
-    }
-
     const user = await requireUser();
     const limited = await enforceRateLimit(request, "ai_evaluation.read", 80, 15 * 60 * 1000);
 
@@ -89,17 +84,11 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const requestedBusinessId = searchParams.get("businessId") ?? undefined;
-    const access = await requireBusinessAccess(user.id, "reports:write", requestedBusinessId);
-    const planGate = await requireMinimumPlan(
-      user.id,
-      access.businessId,
-      "pro",
-      "Upgrade to Pro to use AI Evaluation.",
-    );
-
-    if (planGate) {
-      return planGate;
-    }
+    const access = await requireAiEvaluationAccess({
+      user,
+      businessId: requestedBusinessId ?? "",
+      permission: "ai_evaluation:read",
+    });
 
     const overview = await getAiEvaluationOverview({
       businessId: access.businessId,
@@ -108,6 +97,10 @@ export async function GET(request: Request) {
 
     return Response.json({ overview });
   } catch (error) {
+    if (error instanceof AiEvaluationAccessError) {
+      return jsonError(error.message, error.status);
+    }
+
     if (error instanceof Response) {
       return jsonError("Sign in to continue.", error.status);
     }
@@ -120,12 +113,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
-    const featureGate = requirePhase3Feature("aiEvaluation", "AI evaluation");
-
-    if (featureGate) {
-      return featureGate;
-    }
-
     const user = await requireUser();
     const body = await parseJsonBody(request, aiEvaluationActionSchema);
     const limited = await enforceRateLimit(request, "ai_evaluation.write", 60, 60 * 60 * 1000);
@@ -134,17 +121,11 @@ export async function POST(request: Request) {
       return limited;
     }
 
-    const access = await requireBusinessAccess(user.id, "reports:write", body.businessId);
-    const planGate = await requireMinimumPlan(
-      user.id,
-      access.businessId,
-      "pro",
-      "Upgrade to Pro to use AI Evaluation.",
-    );
-
-    if (planGate) {
-      return planGate;
-    }
+    const access = await requireAiEvaluationAccess({
+      user,
+      businessId: body.businessId,
+      permission: body.action === "run" ? "ai_evaluation:run" : "ai_evaluation:manage_cases",
+    });
 
     const result = await runAction({
       body,
@@ -168,6 +149,10 @@ export async function POST(request: Request) {
 
     return Response.json({ result, message: "AI evaluation record saved." });
   } catch (error) {
+    if (error instanceof AiEvaluationAccessError) {
+      return jsonError(error.message, error.status);
+    }
+
     if (error instanceof Response) {
       return jsonError("Sign in to continue.", error.status);
     }

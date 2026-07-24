@@ -386,6 +386,11 @@ export async function getDashboardState(
           canManagePredictiveAlerts: hasPermission(role, "predictive_alerts:manage"),
           canAcknowledgePredictiveAlerts: hasPermission(role, "predictive_alerts:acknowledge"),
           canExportPredictiveAlerts: hasPermission(role, "predictive_alerts:export"),
+          canViewAiEvaluation: hasPermission(role, "ai_evaluation:read"),
+          canRunAiEvaluation: hasPermission(role, "ai_evaluation:run"),
+          canManageAiEvaluationCases: hasPermission(role, "ai_evaluation:manage_cases"),
+          canExportAiEvaluation: hasPermission(role, "ai_evaluation:export"),
+          canCompareAiEvaluationModels: hasPermission(role, "ai_evaluation:compare_models"),
         }
       : undefined,
     billing: {
