@@ -280,6 +280,10 @@ export type MoneybookState = {
     canReviewTaxAssistant?: boolean;
     canExportTaxAssistant?: boolean;
     canManageTaxAssistantSettings?: boolean;
+    canViewExecutiveDashboard?: boolean;
+    canExportExecutiveDashboard?: boolean;
+    canViewExecutiveDashboardSensitive?: boolean;
+    canViewExecutiveDashboardStaffSummary?: boolean;
   };
   billing?: {
     planId: BillingPlanId | "free";
@@ -328,6 +332,10 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canReviewTaxAssistant: true,
       canExportTaxAssistant: true,
       canManageTaxAssistantSettings: true,
+      canViewExecutiveDashboard: true,
+      canExportExecutiveDashboard: true,
+      canViewExecutiveDashboardSensitive: true,
+      canViewExecutiveDashboardStaffSummary: true,
     },
     billing: {
       planId: "pro",
@@ -341,6 +349,7 @@ export function createDefaultBusiness(name: string): MoneybookState {
         "invoice_branding",
         "tax_management",
         "tax_assistant",
+        "executive_dashboard",
         "granular_permissions",
         "team_management",
         "audit_tools",

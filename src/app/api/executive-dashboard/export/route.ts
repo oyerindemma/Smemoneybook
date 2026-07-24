@@ -7,6 +7,10 @@ import {
   parseExecutiveDashboardRequest,
 } from "@/lib/executive-dashboard/api";
 import { requireExecutiveDashboardAccess } from "@/lib/executive-dashboard/authorization";
+import {
+  executiveDashboardCsvFilename,
+  executiveDashboardToCsv,
+} from "@/lib/executive-dashboard/export";
 import { getExecutiveDashboardSummary } from "@/lib/executive-dashboard/service";
 
 export const runtime = "nodejs";
@@ -14,7 +18,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "executive_dashboard.read", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "executive_dashboard.export", 30, 60 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -25,7 +29,7 @@ export async function GET(request: Request) {
       userId: user.id,
       businessId: filters.businessId,
       locationId: filters.locationId,
-      permission: "executive_dashboard:read",
+      permission: "executive_dashboard:export",
     });
     const dashboard = await getExecutiveDashboardSummary({
       businessId: access.businessId,
@@ -33,17 +37,28 @@ export async function GET(request: Request) {
       period: filters.period,
       includeStaffSummary: access.canViewStaffSummary,
     });
+    const csv = executiveDashboardToCsv({
+      summary: dashboard,
+      generatedBy: user.email,
+    });
 
     await logExecutiveDashboardAudit({
       access,
-      action: "executive_dashboard.viewed",
+      action: "executive_dashboard.export_generated",
       periodStart: dashboard.period.start,
       periodEnd: dashboard.period.end,
+      metadata: { metricVersion: dashboard.metricVersion },
     });
 
-    return Response.json({ dashboard });
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${executiveDashboardCsvFilename(dashboard)}"`,
+      },
+    });
   } catch (error) {
-    return executiveDashboardErrorResponse(error, "Could not load Executive Dashboard.");
+    return executiveDashboardErrorResponse(error, "Could not export Executive Dashboard.");
   }
 }
 

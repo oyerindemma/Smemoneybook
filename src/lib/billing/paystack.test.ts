@@ -29,6 +29,7 @@ describe("Paystack billing", () => {
       "bank_reconciliation",
       "basic_exports",
       "business_switching",
+      "executive_dashboard",
       "granular_permissions",
       "invoice_branding",
       "multi_location",

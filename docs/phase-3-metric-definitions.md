@@ -363,20 +363,44 @@ AI Marketing outputs are drafts until a user reviews them.
 
 ## Executive Dashboard Metrics
 
-Executive Dashboard is a decision view over recorded business data.
+Executive Dashboard is a read-only owner decision view over recorded business data.
 
-- Current formula: `executive-dashboard-v1`
-- Source: `Transaction`, `Account`, `Debt`, `InventoryItem`, `BusinessLocation`, `ExecutiveDashboardSnapshot`
-- Revenue: sum of non-reversed sales in the period
-- Expenses: sum of non-reversed expenses in the period
-- Profit: sales gross profit minus expenses
-- Gross margin percent: sales gross profit divided by revenue
-- Cash available: sum of account balances
-- Customer debt: open customer debt minus paid amount
-- Supplier bills: open supplier debt minus paid amount
-- Stock cost value: quantity on hand times cost price
-- Potential stock revenue: quantity on hand times selling price
-- Freshness: latest transaction timestamp and dashboard generation timestamp
+- Current formula: `executive-dashboard-v2`
+- Source: `Transaction`, `Debt`, `InventoryItem`, `InventoryBalance`, `BusinessLocation`, `StockTransfer`, `BankStatementImportRow`, Staff Performance deterministic summary, Tax Assistant deterministic summary, `AuditLog`
+- Total sales: sum of non-reversed `SALE` transactions in the selected period
+- Paid sales: sum of non-reversed `SALE` transactions where `paymentStatus = PAID`
+- Credit sales: selected-period sales minus paid sales
+- Average sale value: total sales divided by selected-period sale count; insufficient data when sale count is zero
+- Total expenses: sum of non-reversed `EXPENSE` transactions in the selected period
+- Expense categories: selected-period expenses grouped by transaction category, using `Uncategorized` where missing
+- Recorded gross profit: sum of recorded `Transaction.profit` for non-reversed selected-period sales
+- Estimated net operating result: recorded gross profit minus selected-period expenses
+- Margin percentage: recorded gross profit divided by total sales
+- Recorded cash inflows: paid sales recorded in SME MoneyBook; this excludes unrecorded bank deposits
+- Recorded cash outflows: recorded expenses in SME MoneyBook
+- Recorded net cash movement: recorded cash inflows minus recorded cash outflows
+- Bank-reconciled amount: absolute imported bank-row amount where row status is `MATCHED`
+- Bank-unreconciled amount: absolute imported bank-row amount where row status is `UNMATCHED` or `SUGGESTED`
+- Customer debt: current open customer debts minus paid amount
+- Overdue customer debt: current open customer debts with `dueAt` before calculation time
+- Supplier obligations: current open supplier debts minus paid amount
+- Overdue supplier obligations: current open supplier debts with `dueAt` before calculation time
+- Stock cost value: location-scoped quantity on hand, where available, times recorded cost price
+- Potential stock revenue: location-scoped quantity on hand, where available, times recorded selling price
+- Potential stock profit: potential stock revenue minus stock cost value
+- Low-stock items: stock items with quantity on hand less than or equal to the low-stock level
+- Slow-moving stock: in-stock items without selected-period sales, ordered by stock cost value
+- Warehouse count: active business locations
+- Pending transfers: transfers in `DRAFT`, `APPROVED`, `IN_TRANSIT`, or `PARTIALLY_RECEIVED`
+- Staff active count, attributed sales and unattributed activity: reused from Staff Performance; not an employment ranking
+- Reconciliation rate: matched imported bank-row amount divided by total imported bank-row amount
+- Duplicate amount: imported bank-row amount where row status is `DUPLICATE` or duplicate status is not `UNIQUE`
+- Tax VAT/WHT/readiness: reused from deterministic Tax Assistant summary; not a filed return
+- Stock concentration: largest stock item cost value divided by total stock cost value
+- Data-quality trend: `100 - (material disclosure note count * 10)`, capped at zero
+- Comparison: each period compares against the immediately preceding equal-duration UTC window
+- Freshness: latest selected-period transaction timestamp, latest imported bank timestamp and dashboard generation timestamp
+- Disclosure rule: every metric output must include formula id, source service, period, comparison period, data-quality status, last-calculated timestamp and business scope
 
 ## Predictive Alert Metrics
 

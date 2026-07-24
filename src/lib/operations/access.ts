@@ -27,6 +27,10 @@ export type Permission =
   | "tax_assistant:review"
   | "tax_assistant:export"
   | "tax_assistant:manage_settings"
+  | "executive_dashboard:read"
+  | "executive_dashboard:export"
+  | "executive_dashboard:view_sensitive"
+  | "executive_dashboard:view_staff_summary"
   | "staff_performance:read"
   | "staff_performance:export";
 
@@ -63,6 +67,10 @@ const permissions: Record<Role, Permission[]> = {
     "tax_assistant:review",
     "tax_assistant:export",
     "tax_assistant:manage_settings",
+    "executive_dashboard:read",
+    "executive_dashboard:export",
+    "executive_dashboard:view_sensitive",
+    "executive_dashboard:view_staff_summary",
     "staff_performance:read",
     "staff_performance:export",
   ],
@@ -81,6 +89,9 @@ const permissions: Record<Role, Permission[]> = {
     "tax_assistant:ask",
     "tax_assistant:review",
     "tax_assistant:export",
+    "executive_dashboard:read",
+    "executive_dashboard:export",
+    "executive_dashboard:view_sensitive",
   ],
   STAFF: [
     "money:write",

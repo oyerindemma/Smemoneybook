@@ -30,6 +30,12 @@ describe("Phase 3 feature flags", () => {
   });
 
   it("enables only explicitly configured Phase 3 modules", async () => {
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("NEXT_PUBLIC_PHASE3_") || key.startsWith("PHASE3_")) {
+        delete process.env[key];
+      }
+    }
+
     process.env.NEXT_PUBLIC_PHASE3_AI_ADVISOR_ENABLED = "true";
     process.env.NEXT_PUBLIC_PHASE3_HEALTH_SCORE_ENABLED = "1";
 

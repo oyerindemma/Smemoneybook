@@ -8,6 +8,7 @@ export type BillingFeature =
   | "receipt_extraction"
   | "bank_reconciliation"
   | "tax_assistant"
+  | "executive_dashboard"
   | "team_management"
   | "audit_tools"
   | "advanced_reports"
@@ -62,6 +63,11 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     id: "tax_assistant",
     name: "Tax assistant",
     summary: "Review tax-readiness estimates, missing data, grounded answers, and working-paper exports.",
+  },
+  executive_dashboard: {
+    id: "executive_dashboard",
+    name: "Executive dashboard",
+    summary: "Unify financial, stock, debt, tax, reconciliation, and staff summaries for owner decisions.",
   },
   team_management: {
     id: "team_management",
@@ -153,6 +159,7 @@ export const billingPlans: BillingPlan[] = [
       "receipt_extraction",
       "bank_reconciliation",
       "tax_assistant",
+      "executive_dashboard",
       "team_management",
       "audit_tools",
       "advanced_reports",

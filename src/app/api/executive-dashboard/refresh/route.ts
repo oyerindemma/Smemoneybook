@@ -1,3 +1,4 @@
+import { assertSameOriginRequest } from "@/lib/api/http";
 import { requireUser } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import {
@@ -11,10 +12,15 @@ import { getExecutiveDashboardSummary } from "@/lib/executive-dashboard/service"
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export function GET() {
+  return executiveDashboardMethodNotAllowed("POST");
+}
+
+export async function POST(request: Request) {
   try {
+    assertSameOriginRequest(request);
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "executive_dashboard.read", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "executive_dashboard.refresh", 30, 60 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -36,29 +42,26 @@ export async function GET(request: Request) {
 
     await logExecutiveDashboardAudit({
       access,
-      action: "executive_dashboard.viewed",
+      action: "executive_dashboard.refresh_requested",
       periodStart: dashboard.period.start,
       periodEnd: dashboard.period.end,
+      metadata: { metricVersion: dashboard.metricVersion },
     });
 
-    return Response.json({ dashboard });
+    return Response.json({ dashboard, message: "Executive Dashboard refreshed." });
   } catch (error) {
-    return executiveDashboardErrorResponse(error, "Could not load Executive Dashboard.");
+    return executiveDashboardErrorResponse(error, "Could not refresh Executive Dashboard.");
   }
 }
 
-export function POST() {
-  return executiveDashboardMethodNotAllowed();
-}
-
 export function PUT() {
-  return executiveDashboardMethodNotAllowed();
+  return executiveDashboardMethodNotAllowed("POST");
 }
 
 export function PATCH() {
-  return executiveDashboardMethodNotAllowed();
+  return executiveDashboardMethodNotAllowed("POST");
 }
 
 export function DELETE() {
-  return executiveDashboardMethodNotAllowed();
+  return executiveDashboardMethodNotAllowed("POST");
 }

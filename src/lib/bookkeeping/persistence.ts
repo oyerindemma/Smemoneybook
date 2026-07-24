@@ -378,6 +378,10 @@ export async function getDashboardState(
           canReviewTaxAssistant: hasPermission(role, "tax_assistant:review"),
           canExportTaxAssistant: hasPermission(role, "tax_assistant:export"),
           canManageTaxAssistantSettings: hasPermission(role, "tax_assistant:manage_settings"),
+          canViewExecutiveDashboard: hasPermission(role, "executive_dashboard:read"),
+          canExportExecutiveDashboard: hasPermission(role, "executive_dashboard:export"),
+          canViewExecutiveDashboardSensitive: hasPermission(role, "executive_dashboard:view_sensitive"),
+          canViewExecutiveDashboardStaffSummary: hasPermission(role, "executive_dashboard:view_staff_summary"),
         }
       : undefined,
     billing: {

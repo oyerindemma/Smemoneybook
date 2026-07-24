@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const limited = await enforceRateLimit(request, "executive_dashboard.read", 80, 15 * 60 * 1000);
+    const limited = await enforceRateLimit(request, "executive_dashboard.attention", 80, 15 * 60 * 1000);
 
     if (limited) {
       return limited;
@@ -39,11 +39,17 @@ export async function GET(request: Request) {
       action: "executive_dashboard.viewed",
       periodStart: dashboard.period.start,
       periodEnd: dashboard.period.end,
+      metadata: { surface: "attention" },
     });
 
-    return Response.json({ dashboard });
+    return Response.json({
+      attention: dashboard.attentionQueue,
+      dataQuality: dashboard.dataQuality,
+      period: dashboard.period,
+      generatedAt: dashboard.generatedAt,
+    });
   } catch (error) {
-    return executiveDashboardErrorResponse(error, "Could not load Executive Dashboard.");
+    return executiveDashboardErrorResponse(error, "Could not load Executive Dashboard attention items.");
   }
 }
 
