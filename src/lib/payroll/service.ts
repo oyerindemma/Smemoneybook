@@ -170,6 +170,7 @@ export async function listPayrollDashboard({
   includeSensitive?: boolean;
 }): Promise<PayrollDashboard> {
   const prisma = getPrisma();
+  const locationScope = locationId ? { OR: [{ locationId }, { locationId: null }] } : {};
   const [business, employees, periods, componentDefinitions] = await Promise.all([
     prisma.business.findUnique({
       where: { id: businessId },
@@ -178,7 +179,7 @@ export async function listPayrollDashboard({
     prisma.payrollEmployee.findMany({
       where: {
         businessId,
-        ...(locationId ? { locationId } : {}),
+        ...locationScope,
       },
       include: {
         compensations: { orderBy: { effectiveFrom: "desc" }, take: 1 },
@@ -194,7 +195,7 @@ export async function listPayrollDashboard({
     prisma.payrollRun.findMany({
       where: {
         businessId,
-        ...(locationId ? { locationId } : {}),
+        ...locationScope,
       },
       include: {
         items: { include: { employee: true, payslip: true }, orderBy: { createdAt: "asc" } },
