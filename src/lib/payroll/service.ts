@@ -513,7 +513,15 @@ export async function calculatePayrollPeriod({
       throw new PayrollDomainError("Choose a valid payroll period.", 404);
     }
 
-    assertPayrollRunCanBeRecalculated(period);
+    try {
+      assertPayrollRunCanBeRecalculated(period);
+    } catch (error) {
+      throw new PayrollDomainError(
+        error instanceof Error ? error.message : "This payroll period cannot be recalculated.",
+        409,
+        "payroll_locked",
+      );
+    }
 
     if (period.status === "UNDER_REVIEW") {
       throw new PayrollDomainError("Return payroll to draft before recalculating.");
@@ -788,8 +796,6 @@ export async function postPayrollExpense({
       throw new PayrollDomainError("Choose a valid payroll period.", 404);
     }
 
-    assertCanPostPayrollExpense(period.status);
-
     if (period.expenseTransactionId && period.expenseTransaction) {
       return {
         period,
@@ -818,6 +824,8 @@ export async function postPayrollExpense({
 
       return { period: updated, transaction: existing, alreadyPosted: true };
     }
+
+    assertCanPostPayrollExpense(period.status);
 
     const account = await tx.account.findFirst({
       where: { businessId },
