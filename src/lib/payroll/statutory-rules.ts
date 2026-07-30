@@ -37,7 +37,8 @@ export function getPayrollStatutorySetup(country = "NG"): PayrollStatutorySetup 
     status: "configured",
     version: `phase3i-statutory-rules-${normalizedCountry.toLowerCase()}-configured-v1`,
     rules: configuredRules,
-    message: "Verified statutory payroll rules are configured for this environment.",
+    message:
+      "Verified statutory payroll sources are configured for this Preview environment. Phase 3I applies reviewed statutory inputs and preserves the source metadata for approval.",
   };
 }
 

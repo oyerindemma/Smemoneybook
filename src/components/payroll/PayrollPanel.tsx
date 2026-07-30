@@ -290,14 +290,21 @@ export function PayrollPanel() {
         <Metric label="Employees" value={loading ? "..." : String(dashboard?.employees.length ?? 0)} icon={<WalletCards size={16} aria-hidden="true" />} />
         <Metric label="Periods" value={String(dashboard?.periods.length ?? 0)} icon={<CalendarDays size={16} aria-hidden="true" />} />
         <Metric label="Latest net pay" value={formatCurrency(selectedPeriod?.netPay ?? 0)} icon={<FileText size={16} aria-hidden="true" />} />
-        <Metric label="Statutory" value={setup?.statutory.status === "configured" ? "Configured" : "Setup required"} icon={<LockKeyhole size={16} aria-hidden="true" />} tone="warning" />
+        <Metric
+          label="Statutory"
+          value={setup?.statutory.status === "configured" ? "Sources configured" : "Setup required"}
+          icon={<LockKeyhole size={16} aria-hidden="true" />}
+          tone={setup?.statutory.status === "configured" ? undefined : "warning"}
+        />
       </div>
 
       <section className="rounded-lg border border-gray-100 bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-medium text-textMuted">Payroll overview</p>
-            <h2 className="text-base font-semibold text-textPrimary">Setup-required statutory notice</h2>
+            <h2 className="text-base font-semibold text-textPrimary">
+              {setup?.statutory.status === "configured" ? "Configured statutory sources" : "Setup-required statutory notice"}
+            </h2>
             <p className="mt-1 text-sm text-textSecondary">
               {setup?.statutory.message ?? "Statutory payroll setup required before PAYE, pension, or statutory deductions are calculated."}
             </p>

@@ -124,7 +124,7 @@ export function maskBankAccount(value: string | null | undefined) {
 export function payrollDisclaimer(statutorySetupStatus: string) {
   const statutory =
     statutorySetupStatus === "configured"
-      ? "Verified statutory rules are applied from configured rule sources."
+      ? "Verified statutory sources are configured; statutory amounts are applied from reviewed payroll inputs."
       : "Statutory payroll calculations are setup required and no PAYE, pension, or statutory rates have been fabricated.";
 
   return `Payroll calculations use recorded salary and custom component inputs only. ${statutory} Review before approval.`;

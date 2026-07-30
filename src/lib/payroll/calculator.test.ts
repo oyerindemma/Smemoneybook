@@ -50,6 +50,48 @@ describe("Phase 3I payroll calculator", () => {
     expect(calculation.warnings.join(" ")).toContain("setup required");
   });
 
+  it("applies reviewed statutory inputs when verified source setup is configured", () => {
+    const calculation = calculatePayrollRun({
+      periodStart: new Date("2026-07-01T00:00:00.000Z"),
+      periodEnd: new Date("2026-08-01T00:00:00.000Z"),
+      payDate: new Date("2026-07-31T00:00:00.000Z"),
+      statutorySetup: {
+        status: "configured",
+        version: "phase3i-statutory-rules-ng-configured-v1",
+        message: "Verified statutory payroll sources are configured.",
+        rules: [
+          {
+            id: "ng-paye-tax-act-2025-v1",
+            country: "NG",
+            ruleType: "PAYE",
+            effectiveFrom: "2026-01-01",
+            thresholds: [{ band: "reviewed" }],
+            officialSource: "https://www.nrs.gov.ng/uploads/NIGERIA_TAX_ACT_2025_ef6bb812a5.pdf",
+            verificationDate: "2026-07-30",
+            status: "verified",
+          },
+        ],
+      },
+      employees: [
+        {
+          employeeId: "employee_1",
+          displayName: "Ada",
+          baseSalary: 100000,
+          pensionEmployeeAmount: 8000,
+          pensionEmployerAmount: 10000,
+          taxAmount: 5000,
+          deductions: [{ label: "NHF", amount: 2500, type: "deduction", statutory: true }],
+        },
+      ],
+    });
+
+    expect(calculation.statutorySetupStatus).toBe("configured");
+    expect(calculation.totalDeductions).toBe(15500);
+    expect(calculation.employerContributionTotal).toBe(10000);
+    expect(calculation.warnings).toEqual([]);
+    expect(calculation.disclaimer).toContain("reviewed payroll inputs");
+  });
+
   it("blocks recalculation after approval or posting", () => {
     expect(() =>
       assertPayrollRunCanBeRecalculated({
