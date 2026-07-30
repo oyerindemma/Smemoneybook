@@ -410,6 +410,11 @@ export const customerRequestSchema = z.object({
   businessId: selectedBusinessId,
   name: requiredText("Customer name"),
   phone: optionalText,
+  marketingConsentStatus: z.enum(["unknown", "consented", "opted_out", "transactional_only"]).default("unknown"),
+  marketingConsentSource: optionalText,
+  preferredChannel: z.enum(["whatsapp", "sms", "email", "phone"]).default("whatsapp"),
+  doNotContact: z.coerce.boolean().default(false),
+  consentNotes: optionalText,
 });
 
 export const productUnitRequestSchema = z.object({

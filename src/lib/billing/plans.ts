@@ -10,6 +10,7 @@ export type BillingFeature =
   | "tax_assistant"
   | "executive_dashboard"
   | "predictive_alerts"
+  | "ai_marketing"
   | "ai_evaluation"
   | "team_management"
   | "audit_tools"
@@ -75,6 +76,11 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     id: "predictive_alerts",
     name: "Predictive alerts",
     summary: "Detect deterministic risk and opportunity signals from recorded sales, debt, stock, bank, tax, and staff data.",
+  },
+  ai_marketing: {
+    id: "ai_marketing",
+    name: "AI marketing",
+    summary: "Create consent-aware customer segments, campaign drafts, approvals, and send-disabled previews.",
   },
   ai_evaluation: {
     id: "ai_evaluation",
@@ -154,7 +160,7 @@ export const billingPlans: BillingPlan[] = [
     amount: 7000,
     amountKobo: 700000,
     recommendedFor: "Retailers, service businesses, and stock-based SMEs recording daily activity.",
-    features: ["basic_exports", "ai_category_assist", "receipt_extraction", "bank_reconciliation", "tax_assistant"],
+    features: ["basic_exports", "ai_category_assist", "receipt_extraction", "bank_reconciliation", "tax_assistant", "ai_marketing"],
   },
   {
     id: "pro",
@@ -173,6 +179,7 @@ export const billingPlans: BillingPlan[] = [
       "tax_assistant",
       "executive_dashboard",
       "predictive_alerts",
+      "ai_marketing",
       "ai_evaluation",
       "team_management",
       "audit_tools",

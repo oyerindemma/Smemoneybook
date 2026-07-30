@@ -35,6 +35,12 @@ export type Permission =
   | "predictive_alerts:manage"
   | "predictive_alerts:acknowledge"
   | "predictive_alerts:export"
+  | "ai_marketing:read"
+  | "ai_marketing:create"
+  | "ai_marketing:approve"
+  | "ai_marketing:send"
+  | "ai_marketing:export"
+  | "ai_marketing:manage_consent"
   | "ai_evaluation:read"
   | "ai_evaluation:run"
   | "ai_evaluation:manage_cases"
@@ -84,6 +90,12 @@ const permissions: Record<Role, Permission[]> = {
     "predictive_alerts:manage",
     "predictive_alerts:acknowledge",
     "predictive_alerts:export",
+    "ai_marketing:read",
+    "ai_marketing:create",
+    "ai_marketing:approve",
+    "ai_marketing:send",
+    "ai_marketing:export",
+    "ai_marketing:manage_consent",
     "ai_evaluation:read",
     "ai_evaluation:run",
     "ai_evaluation:manage_cases",

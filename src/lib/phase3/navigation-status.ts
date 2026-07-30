@@ -21,7 +21,7 @@ const moduleReadiness: Record<Phase3NavigationModule, Phase3Readiness> = {
   cooperativeGroups: "partial",
   payroll: "partial",
   staffPerformance: "gated-implemented",
-  aiMarketing: "partial",
+  aiMarketing: "gated-implemented",
   executiveDashboard: "gated-implemented",
   predictiveAlerts: "gated-implemented",
   aiEvaluation: "gated-implemented",

@@ -29,6 +29,11 @@ export async function POST(request: Request) {
       businessId: body.businessId,
       name: body.name,
       phone: body.phone,
+      marketingConsentStatus: body.marketingConsentStatus,
+      marketingConsentSource: body.marketingConsentSource,
+      preferredChannel: body.preferredChannel,
+      doNotContact: body.doNotContact,
+      consentNotes: body.consentNotes,
     });
 
     return Response.json({ state }, { status: 201 });

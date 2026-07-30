@@ -2,13 +2,13 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/session";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
-import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest } from "@/lib/api/http";
 import { parseJsonBody } from "@/lib/api/validation";
-import { requireMinimumPlan } from "@/lib/billing/subscriptions";
-import { requireBusinessAccess, requireLocationAccess } from "@/lib/operations/access";
+import { requireLocationAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
-import { requirePhase3Feature } from "@/lib/phase3/feature-flags";
 import { maybeRecordAiEvaluationEvent } from "@/lib/phase3/ai-evaluation-service";
+import { requireAiMarketingAccess, type AiMarketingPermission } from "@/lib/ai-marketing/authorization";
+import { aiMarketingErrorResponse } from "@/lib/ai-marketing/api";
 import {
   approveMarketingDraft,
   createMarketingDraftForBusiness,
@@ -55,12 +55,6 @@ const aiMarketingActionSchema = z.discriminatedUnion("action", [
 
 export async function GET(request: Request) {
   try {
-    const featureGate = requirePhase3Feature("aiMarketing", "AI marketing");
-
-    if (featureGate) {
-      return featureGate;
-    }
-
     const user = await requireUser();
     const limited = await enforceRateLimit(request, "ai_marketing.read", 80, 15 * 60 * 1000);
 
@@ -71,25 +65,19 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const requestedBusinessId = searchParams.get("businessId") ?? undefined;
     const locationId = searchParams.get("locationId") ?? undefined;
-    const access = await requireBusinessAccess(user.id, "money:write", requestedBusinessId);
+    const access = await requireAiMarketingAccess({
+      userId: user.id,
+      businessId: requestedBusinessId ?? "",
+      permission: "ai_marketing:read",
+    });
     const resolvedLocationId = locationId
       ? (await requireLocationAccess({
           userId: user.id,
           businessId: access.businessId,
           locationId,
-          permission: "money:write",
+          permission: "ai_marketing:read",
         })).locationId
       : undefined;
-    const planGate = await requireMinimumPlan(
-      user.id,
-      access.businessId,
-      "growth",
-      "Upgrade to Growth to use AI Marketing.",
-    );
-
-    if (planGate) {
-      return planGate;
-    }
 
     const drafts = await listMarketingDrafts({
       businessId: access.businessId,
@@ -98,24 +86,13 @@ export async function GET(request: Request) {
 
     return Response.json({ drafts });
   } catch (error) {
-    if (error instanceof Response) {
-      return jsonError("Sign in to continue.", error.status);
-    }
-
-    console.error("ai_marketing.read_failed", error);
-    return jsonErrorFromUnknown(error, "Could not load marketing drafts.");
+    return aiMarketingErrorResponse(error, "Could not load marketing drafts.");
   }
 }
 
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
-    const featureGate = requirePhase3Feature("aiMarketing", "AI marketing");
-
-    if (featureGate) {
-      return featureGate;
-    }
-
     const user = await requireUser();
     const body = await parseJsonBody(request, aiMarketingActionSchema);
     const limited = await enforceRateLimit(request, "ai_marketing.write", 40, 60 * 60 * 1000);
@@ -124,24 +101,18 @@ export async function POST(request: Request) {
       return limited;
     }
 
-    const access = await requireBusinessAccess(user.id, "money:write", body.businessId);
-    const planGate = await requireMinimumPlan(
-      user.id,
-      access.businessId,
-      "growth",
-      "Upgrade to Growth to use AI Marketing.",
-    );
-
-    if (planGate) {
-      return planGate;
-    }
+    const access = await requireAiMarketingAccess({
+      userId: user.id,
+      businessId: body.businessId,
+      permission: permissionForLegacyAction(body.action),
+    });
 
     if ("locationId" in body && body.locationId) {
       await requireLocationAccess({
         userId: user.id,
         businessId: access.businessId,
         locationId: body.locationId,
-        permission: "money:write",
+        permission: permissionForLegacyAction(body.action),
       });
     }
 
@@ -192,13 +163,20 @@ export async function POST(request: Request) {
 
     return Response.json({ result, message: "AI marketing action recorded." });
   } catch (error) {
-    if (error instanceof Response) {
-      return jsonError("Sign in to continue.", error.status);
-    }
-
-    console.error("ai_marketing.write_failed", error);
-    return jsonErrorFromUnknown(error, "Could not record AI marketing action.");
+    return aiMarketingErrorResponse(error, "Could not record AI marketing action.");
   }
+}
+
+function permissionForLegacyAction(action: z.infer<typeof aiMarketingActionSchema>["action"]): AiMarketingPermission {
+  if (action === "approve_draft") {
+    return "ai_marketing:approve";
+  }
+
+  if (action === "feedback") {
+    return "ai_marketing:read";
+  }
+
+  return "ai_marketing:create";
 }
 
 function readResultString(value: unknown, key: string) {
@@ -254,4 +232,16 @@ async function runAction({
     helpful: body.helpful,
     correction: body.correction || undefined,
   });
+}
+
+export function PUT() {
+  return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET, POST" } });
+}
+
+export function PATCH() {
+  return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET, POST" } });
+}
+
+export function DELETE() {
+  return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET, POST" } });
 }

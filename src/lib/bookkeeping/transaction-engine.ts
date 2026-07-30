@@ -288,6 +288,12 @@ export type MoneybookState = {
     canManagePredictiveAlerts?: boolean;
     canAcknowledgePredictiveAlerts?: boolean;
     canExportPredictiveAlerts?: boolean;
+    canViewAiMarketing?: boolean;
+    canCreateAiMarketingCampaigns?: boolean;
+    canApproveAiMarketingCampaigns?: boolean;
+    canSendAiMarketingCampaigns?: boolean;
+    canExportAiMarketing?: boolean;
+    canManageAiMarketingConsent?: boolean;
     canViewAiEvaluation?: boolean;
     canRunAiEvaluation?: boolean;
     canManageAiEvaluationCases?: boolean;
@@ -349,6 +355,12 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canManagePredictiveAlerts: true,
       canAcknowledgePredictiveAlerts: true,
       canExportPredictiveAlerts: true,
+      canViewAiMarketing: true,
+      canCreateAiMarketingCampaigns: true,
+      canApproveAiMarketingCampaigns: true,
+      canSendAiMarketingCampaigns: true,
+      canExportAiMarketing: true,
+      canManageAiMarketingConsent: true,
       canViewAiEvaluation: true,
       canRunAiEvaluation: true,
       canManageAiEvaluationCases: true,
@@ -369,6 +381,7 @@ export function createDefaultBusiness(name: string): MoneybookState {
         "tax_assistant",
         "executive_dashboard",
         "predictive_alerts",
+        "ai_marketing",
         "ai_evaluation",
         "granular_permissions",
         "team_management",

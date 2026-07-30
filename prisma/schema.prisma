@@ -49,9 +49,9 @@ model User {
   taxReviewItemsReviewed    TaxReviewItem[]            @relation("TaxReviewItemReviewer")
   taxAssistantConversations TaxAssistantConversation[]
   taxAssistantMessages      TaxAssistantMessage[]
-  aiEvaluationSuitesCreated AiEvaluationSuite[]       @relation("AiEvaluationSuiteCreator")
-  aiEvaluationRunsInitiated AiEvaluationRun[]         @relation("AiEvaluationRunInitiator")
-  aiEvaluationBaselines     AiEvaluationBaseline[]    @relation("AiEvaluationBaselineAcceptor")
+  aiEvaluationSuitesCreated AiEvaluationSuite[]        @relation("AiEvaluationSuiteCreator")
+  aiEvaluationRunsInitiated AiEvaluationRun[]          @relation("AiEvaluationRunInitiator")
+  aiEvaluationBaselines     AiEvaluationBaseline[]     @relation("AiEvaluationBaselineAcceptor")
 }
 
 model PasswordResetToken {
@@ -116,6 +116,11 @@ model Business {
   whatsappAutomationJobs      WhatsAppAutomationJob[]
   marketingDrafts             MarketingDraft[]
   marketingDraftFeedback      MarketingDraftFeedback[]
+  marketingCampaigns          MarketingCampaign[]
+  marketingCampaignRecipients MarketingCampaignRecipient[]
+  marketingMessageDrafts      MarketingMessageDraft[]
+  marketingDeliveries         MarketingDelivery[]
+  marketingOptOuts            MarketingOptOut[]
   executiveDashboardSnapshots ExecutiveDashboardSnapshot[]
   predictiveAlerts            PredictiveAlert[]
   predictiveAlertFeedback     PredictiveAlertFeedback[]
@@ -392,19 +397,30 @@ model Transaction {
 }
 
 model Customer {
-  id              String           @id @default(cuid())
-  name            String
-  phone           String?
-  businessId      String
-  createdAt       DateTime         @default(now())
-  business        Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  transactions    Transaction[]
-  debts           Debt[]
-  returns         CustomerReturn[]
-  issuedDocuments IssuedDocument[]
+  id                     String                       @id @default(cuid())
+  name                   String
+  phone                  String?
+  marketingConsentStatus String                       @default("unknown")
+  marketingConsentSource String?
+  marketingConsentAt     DateTime?
+  marketingOptOutAt      DateTime?
+  preferredChannel       String                       @default("whatsapp")
+  doNotContact           Boolean                      @default(false)
+  consentNotes           String?
+  businessId             String
+  createdAt              DateTime                     @default(now())
+  business               Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions           Transaction[]
+  debts                  Debt[]
+  returns                CustomerReturn[]
+  issuedDocuments        IssuedDocument[]
+  marketingRecipients    MarketingCampaignRecipient[]
+  marketingOptOuts       MarketingOptOut[]
 
   @@index([businessId, createdAt])
   @@index([businessId, name])
+  @@index([businessId, marketingConsentStatus])
+  @@index([businessId, doNotContact])
 }
 
 model Supplier {
@@ -1496,6 +1512,7 @@ model WhatsAppAutomationJob {
 model MarketingDraft {
   id             String                   @id @default(cuid())
   businessId     String
+  campaignId     String?
   locationId     String?
   channel        String
   goal           String
@@ -1517,12 +1534,14 @@ model MarketingDraft {
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   business       Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign       MarketingCampaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   location       BusinessLocation?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
   feedback       MarketingDraftFeedback[]
 
   @@index([businessId, status, createdAt])
   @@index([businessId, channel, createdAt])
   @@index([businessId, locationId, createdAt])
+  @@index([campaignId])
 }
 
 model MarketingDraftFeedback {
@@ -1540,6 +1559,108 @@ model MarketingDraftFeedback {
   @@index([businessId, createdAt])
   @@index([draftId, createdAt])
   @@index([businessId, rating, createdAt])
+}
+
+model MarketingCampaign {
+  id                String                       @id @default(cuid())
+  businessId        String
+  name              String
+  objective         String
+  channel           String
+  segmentDefinition Json
+  status            String                       @default("draft")
+  createdByUserId   String
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  scheduledAt       DateTime?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  business          Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  recipients        MarketingCampaignRecipient[]
+  drafts            MarketingMessageDraft[]
+  deliveries        MarketingDelivery[]
+  legacyDrafts      MarketingDraft[]
+
+  @@index([businessId, status, createdAt])
+  @@index([businessId, channel, createdAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model MarketingCampaignRecipient {
+  id                String              @id @default(cuid())
+  businessId        String
+  campaignId        String
+  customerId        String
+  consentStatus     String
+  eligibilityStatus String
+  exclusionReason   String?
+  deliveryStatus    String              @default("not_sent")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign          MarketingCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  deliveries        MarketingDelivery[]
+
+  @@unique([campaignId, customerId])
+  @@index([businessId, eligibilityStatus, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model MarketingMessageDraft {
+  id                String            @id @default(cuid())
+  businessId        String
+  campaignId        String
+  channel           String
+  content           String
+  promptVersion     String?
+  model             String?
+  createdByUserId   String
+  approvedContentAt DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign          MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, campaignId, createdAt])
+  @@index([businessId, channel, createdAt])
+}
+
+model MarketingDelivery {
+  id                String                     @id @default(cuid())
+  businessId        String
+  campaignId        String
+  recipientId       String
+  provider          String
+  status            String
+  providerReference String?
+  attemptedAt       DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  failureReason     String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign          MarketingCampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipient         MarketingCampaignRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, status, createdAt])
+  @@index([campaignId, status, createdAt])
+  @@index([recipientId, createdAt])
+}
+
+model MarketingOptOut {
+  id         String   @id @default(cuid())
+  businessId String
+  customerId String
+  channel    String
+  source     String
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, channel, createdAt])
+  @@index([customerId, channel, createdAt])
 }
 
 model ExecutiveDashboardSnapshot {
@@ -1782,32 +1903,32 @@ model AiEvaluationCase {
 }
 
 model AiEvaluationRun {
-  id               String               @id @default(cuid())
-  datasetId        String?
-  businessId       String?
-  suiteId          String?
-  modelVersion     String
-  model            String?
-  promptVersion    String
-  toolVersion      String?
-  datasetVersion   String?
-  evaluatorVersion String
-  status           String               @default("completed")
-  startedAt        DateTime             @default(now())
-  completedAt      DateTime?
-  cancelledAt      DateTime?
+  id                String                 @id @default(cuid())
+  datasetId         String?
+  businessId        String?
+  suiteId           String?
+  modelVersion      String
+  model             String?
+  promptVersion     String
+  toolVersion       String?
+  datasetVersion    String?
+  evaluatorVersion  String
+  status            String                 @default("completed")
+  startedAt         DateTime               @default(now())
+  completedAt       DateTime?
+  cancelledAt       DateTime?
   initiatedByUserId String?
-  metrics          Json
-  summary          Json?
-  safetyFindings   Json?
-  totalCost        Decimal              @default(0)
-  totalTokens      Int                  @default(0)
-  createdAt        DateTime             @default(now())
-  dataset          AiEvaluationDataset? @relation(fields: [datasetId], references: [id], onDelete: SetNull)
-  business         Business?            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  suite            AiEvaluationSuite?   @relation(fields: [suiteId], references: [id], onDelete: Cascade)
-  initiatedBy      User?                @relation("AiEvaluationRunInitiator", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
-  results          AiEvaluationResult[]
+  metrics           Json
+  summary           Json?
+  safetyFindings    Json?
+  totalCost         Decimal                @default(0)
+  totalTokens       Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  dataset           AiEvaluationDataset?   @relation(fields: [datasetId], references: [id], onDelete: SetNull)
+  business          Business?              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  suite             AiEvaluationSuite?     @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  initiatedBy       User?                  @relation("AiEvaluationRunInitiator", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
+  results           AiEvaluationResult[]
   acceptedBaselines AiEvaluationBaseline[]
 
   @@index([businessId, createdAt])
@@ -1819,21 +1940,21 @@ model AiEvaluationRun {
 }
 
 model AiEvaluationResult {
-  id             String           @id @default(cuid())
-  runId          String
-  caseId         String
-  status         String
-  response       String
-  toolCalls      Json
-  citations      Json
-  scores         Json
-  latencyMs      Int
-  tokenUsage     Json
-  estimatedCost  Decimal          @default(0)
-  failureReason  String?
-  createdAt      DateTime         @default(now())
-  run            AiEvaluationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
-  case           AiEvaluationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  id            String           @id @default(cuid())
+  runId         String
+  caseId        String
+  status        String
+  response      String
+  toolCalls     Json
+  citations     Json
+  scores        Json
+  latencyMs     Int
+  tokenUsage    Json
+  estimatedCost Decimal          @default(0)
+  failureReason String?
+  createdAt     DateTime         @default(now())
+  run           AiEvaluationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  case          AiEvaluationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@unique([runId, caseId])
   @@index([caseId, createdAt])
@@ -1841,19 +1962,19 @@ model AiEvaluationResult {
 }
 
 model AiEvaluationBaseline {
-  id              String          @id @default(cuid())
-  targetFeature   String
-  model           String
-  promptVersion   String
-  datasetVersion  String
-  acceptedRunId   String
+  id               String          @id @default(cuid())
+  targetFeature    String
+  model            String
+  promptVersion    String
+  datasetVersion   String
+  acceptedRunId    String
   acceptedByUserId String
-  acceptedAt      DateTime        @default(now())
-  notes           String?
-  businessId      String?
-  acceptedRun     AiEvaluationRun @relation(fields: [acceptedRunId], references: [id], onDelete: Restrict)
-  acceptedBy      User            @relation("AiEvaluationBaselineAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
-  business        Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  acceptedAt       DateTime        @default(now())
+  notes            String?
+  businessId       String?
+  acceptedRun      AiEvaluationRun @relation(fields: [acceptedRunId], references: [id], onDelete: Restrict)
+  acceptedBy       User            @relation("AiEvaluationBaselineAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
+  business         Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@unique([businessId, targetFeature, model, promptVersion, datasetVersion])
   @@index([acceptedRunId])

@@ -386,6 +386,12 @@ export async function getDashboardState(
           canManagePredictiveAlerts: hasPermission(role, "predictive_alerts:manage"),
           canAcknowledgePredictiveAlerts: hasPermission(role, "predictive_alerts:acknowledge"),
           canExportPredictiveAlerts: hasPermission(role, "predictive_alerts:export"),
+          canViewAiMarketing: hasPermission(role, "ai_marketing:read"),
+          canCreateAiMarketingCampaigns: hasPermission(role, "ai_marketing:create"),
+          canApproveAiMarketingCampaigns: hasPermission(role, "ai_marketing:approve"),
+          canSendAiMarketingCampaigns: hasPermission(role, "ai_marketing:send"),
+          canExportAiMarketing: hasPermission(role, "ai_marketing:export"),
+          canManageAiMarketingConsent: hasPermission(role, "ai_marketing:manage_consent"),
           canViewAiEvaluation: hasPermission(role, "ai_evaluation:read"),
           canRunAiEvaluation: hasPermission(role, "ai_evaluation:run"),
           canManageAiEvaluationCases: hasPermission(role, "ai_evaluation:manage_cases"),
@@ -1094,11 +1100,21 @@ export async function createCustomerForUser({
   businessId,
   name,
   phone,
+  marketingConsentStatus = "unknown",
+  marketingConsentSource,
+  preferredChannel = "whatsapp",
+  doNotContact = false,
+  consentNotes,
 }: {
   userId: string;
   businessId?: string;
   name: string;
   phone?: string;
+  marketingConsentStatus?: "unknown" | "consented" | "opted_out" | "transactional_only";
+  marketingConsentSource?: string;
+  preferredChannel?: "whatsapp" | "sms" | "email" | "phone";
+  doNotContact?: boolean;
+  consentNotes?: string;
 }) {
   const business = await requireBusinessAccess(userId, "money:write", businessId);
 
@@ -1107,6 +1123,13 @@ export async function createCustomerForUser({
       businessId: business.businessId,
       name,
       phone: phone || null,
+      marketingConsentStatus,
+      marketingConsentSource: marketingConsentSource || null,
+      marketingConsentAt: marketingConsentStatus === "consented" ? new Date() : null,
+      marketingOptOutAt: marketingConsentStatus === "opted_out" || doNotContact ? new Date() : null,
+      preferredChannel,
+      doNotContact,
+      consentNotes: consentNotes || null,
     },
   });
 
