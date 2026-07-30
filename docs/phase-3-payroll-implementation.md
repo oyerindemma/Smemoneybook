@@ -1,6 +1,6 @@
 # SME MoneyBook Phase 3I Payroll Implementation
 
-Final classification: `IMPLEMENTED — SETUP REQUIRED`
+Final classification: `PREVIEW OPERATIONAL`
 
 Branch: `phase-3-staging`
 
@@ -9,6 +9,7 @@ Branch: `phase-3-staging`
 - Implementation commit: `8f2bdca187e5fea0913fd5b18e68e7def9a03b9b`
 - Preview workflow guard fix: `75fa0cc10825e50bfb274e3d6bb0a2ebe99653e6`
 - Location-scoped UI data fix and final QA deployment commit: `8a3e2ea27717a34b7158dec1e57f2c9045b8ab68`
+- Statutory setup messaging/test commit: `618964bba0a157bc1c4d0dc3c4ce687902823926`
 
 ## Flags
 
@@ -16,8 +17,9 @@ Exact Payroll flags:
 
 - `PHASE3_PAYROLL_ENABLED`
 - `NEXT_PUBLIC_PHASE3_PAYROLL_ENABLED`
+- `PHASE3_PAYROLL_STATUTORY_RULES_JSON`
 
-Source defaults are `false` in `.env.example`.
+Source defaults are `false` in `.env.example` for the two feature flags. `PHASE3_PAYROLL_STATUTORY_RULES_JSON` is a server-side Preview setup variable and is not exposed to the client.
 
 Vercel Preview configuration completed on `2026-07-30`:
 
@@ -25,6 +27,7 @@ Vercel Preview configuration completed on `2026-07-30`:
 - Git branch: `phase-3-staging`
 - `PHASE3_PAYROLL_ENABLED=true`
 - `NEXT_PUBLIC_PHASE3_PAYROLL_ENABLED=true`
+- `PHASE3_PAYROLL_STATUTORY_RULES_JSON` configured as a sensitive variable for `Preview (phase-3-staging)` only.
 - `DATABASE_URL`, `DIRECT_URL`, and `NEXT_PUBLIC_APP_URL` confirmed present for the same branch without revealing values.
 - Production variables were not modified.
 - `phase-2-staging` variables were not modified.
@@ -52,11 +55,26 @@ Owners receive Payroll permissions by default when the business is entitled. Acc
 
 ## Statutory Rule Status
 
-Status: `setup_required`
+Status: `configured` in Vercel Preview for Git branch `phase-3-staging`.
 
-No verified Nigerian PAYE, pension, statutory deduction, or employer contribution configuration is present in source. Payroll uses versioned rule configuration shape in `src/lib/payroll/statutory-rules.ts`, but statutory amounts are not calculated unless verified rules are supplied with country, effective dates, official source, verification date, thresholds, and `verified` status.
+`PHASE3_PAYROLL_STATUTORY_RULES_JSON` was configured on `2026-07-30` with five verified Nigerian rule-source records:
 
-The calculator allows gross-to-net calculations from recorded base salary and explicitly configured custom allowances/deductions only. It does not fabricate statutory rates.
+- PAYE: Nigeria Tax Act, 2025; effective `2026-01-01`; annual bands from the Fourth Schedule.
+- Pension: PenCom/Pension Reform Act 2014 source; employee `8%`, employer `10%`, minimum total `18%` of monthly emoluments.
+- NHF: FMBN/National Housing Fund source; employee contribution metadata at `2.5%` of monthly salary/income.
+- Employee Compensation Scheme: NSITF source; employer contribution metadata at `1%` of total monthly payroll.
+- Industrial Training Fund: ITF source; annual employer training contribution metadata at `1%` of annual payroll where applicable.
+
+Official sources reviewed:
+
+- `https://www.nrs.gov.ng/uploads/NIGERIA_TAX_ACT_2025_ef6bb812a5.pdf`
+- `https://www.pencom.gov.ng/pra2014/`
+- `https://www.pencom.gov.ng/wp-content/uploads/2018/04/FAQ-CPS-reviewed.-17-Apr.-2018.pdf`
+- `https://fmbn.gov.ng/products/nhf-scheme/legal-framework`
+- `https://nsitf.gov.ng/compensation/`
+- `https://itf.gov.ng/departments/revenue.html`
+
+Phase 3I remains a reviewed-input payroll workflow: verified statutory sources are configured and statutory input lines are retained, but the app does not automatically file returns or transfer funds.
 
 ## Schema And Migration
 
@@ -155,18 +173,18 @@ Completed before Preview deployment:
   - Command: `npx vitest run src/lib/payroll/calculator.test.ts src/lib/payroll/approval.test.ts src/lib/payroll/authorization.test.ts src/lib/payroll/service.test.ts src/app/api/payroll/route.test.ts src/lib/phase3/navigation-status.test.ts src/lib/billing/paystack.test.ts src/lib/phase3/payroll.test.ts`
   - Result: passed, 8 files and 34 tests.
 - Playwright:
-  - Command: `NEXT_PUBLIC_PHASE3_PAYROLL_ENABLED=true PHASE3_PAYROLL_ENABLED=true npx playwright test tests/e2e/payroll.spec.ts`
+  - Command: `PHASE3_PAYROLL_ENABLED=true NEXT_PUBLIC_PHASE3_PAYROLL_ENABLED=true PHASE3_PAYROLL_STATUTORY_RULES_JSON=<configured> npx playwright test tests/e2e/payroll.spec.ts`
   - Result: passed, 6 tests across desktop Chrome, mobile Chrome, and mobile Safari.
   - The spec executed and did not skip.
 - Full test suite:
   - Command: `npm run test`
-  - Result: passed, 93 files and 363 tests.
+  - Result after setup commit: passed, 93 files and 364 tests.
 - `npm run build`: passed.
 - `npx prisma validate`: passed.
 - Branch-scoped Preview `npx prisma migrate status`: passed after deploy; database schema is up to date.
 - `git diff --check`: passed.
 
-Focused test evidence covers flags, permissions, owner access, unauthorized rejection, business isolation, entitlement, salary effective dates, component calculations, Decimal arithmetic, gross pay, deductions, net pay, verified statutory setup requirement, draft recalculation lock, approved-period immutability, approval separation, duplicate-posting prevention, expense posting API contract, reversal controls, payslip authorization, sensitive-field masking, unsupported method `405`s, empty state, feature flag off state, and feature flag on state.
+Focused test evidence covers flags, permissions, owner access, unauthorized rejection, business isolation, entitlement, salary effective dates, component calculations, Decimal arithmetic, gross pay, deductions, net pay, verified statutory setup requirement, configured statutory source setup, draft recalculation lock, approved-period immutability, approval separation, duplicate-posting prevention, expense posting API contract, reversal controls, payslip authorization, sensitive-field masking, unsupported method `405`s, empty state, feature flag off state, and feature flag on state.
 
 Full local validation passed after the live-QA fixes.
 
@@ -174,14 +192,14 @@ Full local validation passed after the live-QA fixes.
 
 - Environment: Preview
 - Branch: `phase-3-staging`
-- Deployment commit: `8a3e2ea27717a34b7158dec1e57f2c9045b8ab68`
-- Preview URL: `https://smemoneybook-adghvumcc-emmanuel-oyerindes-projects.vercel.app`
+- Deployment commit: `618964bba0a157bc1c4d0dc3c4ce687902823926`
+- Preview URL: `https://smemoneybook-q5tkezn9t-emmanuel-oyerindes-projects.vercel.app`
 - Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`
 - Status: Ready
 
 ## Preview QA
 
-Completed on `2026-07-30` against the Ready Preview deployment for commit `8a3e2ea27717a34b7158dec1e57f2c9045b8ab68`.
+Completed on `2026-07-30` against the Ready Preview deployment for commit `618964bba0a157bc1c4d0dc3c4ce687902823926`.
 
 Synthetic QA data was created only in the verified `phase-3-staging` Preview database. The Preview Pro entitlement was assigned through the guarded Preview staging seed path with `PREVIEW_STAGING_SEED_CONFIRM=phase-3-staging`.
 
@@ -192,12 +210,13 @@ Passed checks:
 - Owner Payroll permissions visible.
 - `/api/payroll` dashboard loaded.
 - Empty Payroll state handled before employee creation.
-- Statutory status returned `setup_required`.
+- Statutory status returned `configured` with five verified rule-source records.
 - Payments returned disabled.
 - Employee creation worked.
 - Bank details were masked and the full account number was not returned.
 - Payroll period creation worked.
-- Calculation worked with gross pay `110000`, deductions `3000`, and net pay `107000`.
+- Calculation worked with gross pay `110000`, deductions `5500`, and net pay `104500`.
+- A statutory NHF deduction line was retained after setup; no setup-required warning was returned.
 - Submit review worked.
 - Approval worked.
 - Approved snapshot was locked.
@@ -212,7 +231,7 @@ Passed checks:
 - Unsupported methods returned `405`.
 - `/more` showed Payroll as `Preview`.
 - `/more/payroll` loaded.
-- Setup-required statutory notice was visible.
+- `Sources configured` and `Configured statutory sources` were visible.
 - Employee details were visible.
 - Expense-posted state was visible.
 - No native `404` or unexpected `500` was observed in the Payroll UI/API flow.
@@ -223,9 +242,15 @@ Preview QA found and fixed two issues before final evidence:
 - Duplicate post-expense calls originally hit the status guard before idempotency; fixed to return the existing posted transaction.
 - Location-scoped Payroll UI originally hid business-wide Payroll records; fixed to include `locationId = null` records when a location is selected.
 
+Additional post-setup live QA against `https://smemoneybook-q5tkezn9t-emmanuel-oyerindes-projects.vercel.app` passed:
+
+- API QA: 22 checks covering owner login, configured statutory setup, empty state, owner capabilities, unauthorized rejection, business isolation, employee creation, bank masking, period creation, configured calculation path, statutory deduction retention, approval lock, recalculation `409`, payslips, idempotent expense posting, period detail, CSV export, unsupported methods returning `405`, and no `404`/unexpected `500`.
+- UI QA: `/more` showed Payroll Preview; `/more/payroll` loaded; `Sources configured`, `Configured statutory sources`, the synthetic employee, and `EXPENSE_POSTED` were visible; no `/more` or Payroll `404`/unexpected `500` responses were observed.
+
 ## Known Limitations
 
-- Nigerian statutory Payroll rules are setup-required until verified official configuration is provided.
+- Payroll statutory setup is configured only for the `phase-3-staging` Vercel Preview branch.
+- Verified statutory source metadata is present, but Phase 3I applies reviewed statutory inputs and does not automatically derive every PAYE, pension, NHF, NSITF, or ITF amount from source formulas.
 - No automatic employee payment, bank payroll integration, or statutory filing is implemented.
 - Payslips are JSON snapshots exposed through owner/authorized routes; no staff self-service payslip portal is implemented.
 - No PDF payslip rendering is implemented in this pass.
