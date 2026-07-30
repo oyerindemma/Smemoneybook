@@ -4,6 +4,12 @@ Final classification: `IMPLEMENTED — SETUP REQUIRED`
 
 Branch: `phase-3-staging`
 
+## Commits
+
+- Implementation commit: `8f2bdca187e5fea0913fd5b18e68e7def9a03b9b`
+- Preview workflow guard fix: `75fa0cc10825e50bfb274e3d6bb0a2ebe99653e6`
+- Location-scoped UI data fix and final QA deployment commit: `8a3e2ea27717a34b7158dec1e57f2c9045b8ab68`
+
 ## Flags
 
 Exact Payroll flags:
@@ -162,41 +168,60 @@ Completed before Preview deployment:
 
 Focused test evidence covers flags, permissions, owner access, unauthorized rejection, business isolation, entitlement, salary effective dates, component calculations, Decimal arithmetic, gross pay, deductions, net pay, verified statutory setup requirement, draft recalculation lock, approved-period immutability, approval separation, duplicate-posting prevention, expense posting API contract, reversal controls, payslip authorization, sensitive-field masking, unsupported method `405`s, empty state, feature flag off state, and feature flag on state.
 
-Full local validation passed. Preview deployment evidence is pending final gate execution.
+Full local validation passed after the live-QA fixes.
 
 ## Preview Deployment
 
 - Environment: Preview
 - Branch: `phase-3-staging`
-- Deployment commit: pending
-- Preview URL: pending
-- Status: pending
+- Deployment commit: `8a3e2ea27717a34b7158dec1e57f2c9045b8ab68`
+- Preview URL: `https://smemoneybook-adghvumcc-emmanuel-oyerindes-projects.vercel.app`
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`
+- Status: Ready
 
 ## Preview QA
 
-Pending against the newest Ready Preview deployment.
+Completed on `2026-07-30` against the Ready Preview deployment for commit `8a3e2ea27717a34b7158dec1e57f2c9045b8ab68`.
 
-Required checks:
+Synthetic QA data was created only in the verified `phase-3-staging` Preview database. The Preview Pro entitlement was assigned through the guarded Preview staging seed path with `PREVIEW_STAGING_SEED_CONFIRM=phase-3-staging`.
 
-- `/more` shows Payroll as `Preview`.
-- `/more/payroll` loads.
-- Employee creation works.
-- Salary setup works.
-- Payroll period creation works.
-- Calculation loads gross, deduction, and net amounts.
-- Review/approval workflow works.
-- Payslip generation works.
-- Expense posting works only through explicit action.
-- Duplicate posting is blocked/idempotent.
-- Export works and uses masked fields.
-- Setup-required statutory notice is visible.
-- Empty data is handled correctly.
-- Unauthorized access is rejected.
-- Business isolation is enforced.
-- No native `404`.
-- No unexpected `500`.
-- No bank payment or outbound payroll operation is available.
-- Unsupported methods return `405`.
+Passed checks:
+
+- Owner registration and synthetic business creation.
+- Payroll entitlement visible for the synthetic owner.
+- Owner Payroll permissions visible.
+- `/api/payroll` dashboard loaded.
+- Empty Payroll state handled before employee creation.
+- Statutory status returned `setup_required`.
+- Payments returned disabled.
+- Employee creation worked.
+- Bank details were masked and the full account number was not returned.
+- Payroll period creation worked.
+- Calculation worked with gross pay `110000`, deductions `3000`, and net pay `107000`.
+- Submit review worked.
+- Approval worked.
+- Approved snapshot was locked.
+- Recalculation after approval returned controlled `409`, not `500`.
+- Payslip generation worked and masked sensitive values.
+- Explicit expense posting worked.
+- Posted Payroll transaction was `UNPAID`.
+- Duplicate posting was idempotent.
+- CSV export worked and did not expose the full bank account.
+- Cross-business `businessId` access was rejected with `403`.
+- Unauthenticated access was rejected with `401`.
+- Unsupported methods returned `405`.
+- `/more` showed Payroll as `Preview`.
+- `/more/payroll` loaded.
+- Setup-required statutory notice was visible.
+- Employee details were visible.
+- Expense-posted state was visible.
+- No native `404` or unexpected `500` was observed in the Payroll UI/API flow.
+
+Preview QA found and fixed two issues before final evidence:
+
+- Approved-period recalculation originally surfaced as `500`; fixed to return a controlled `409`.
+- Duplicate post-expense calls originally hit the status guard before idempotency; fixed to return the existing posted transaction.
+- Location-scoped Payroll UI originally hid business-wide Payroll records; fixed to include `locationId = null` records when a location is selected.
 
 ## Known Limitations
 
