@@ -6,16 +6,16 @@ describe("Phase 3 navigation status labels", () => {
     expect(getPhase3NavigationStatus("loanReadiness", false)).toBe("Unavailable");
   });
 
-  it("marks partial modules as coming soon while disabled", () => {
-    expect(getPhase3NavigationStatus("payroll", false)).toBe("Coming soon");
+  it("marks implemented payroll as unavailable while disabled", () => {
+    expect(getPhase3NavigationStatus("payroll", false)).toBe("Unavailable");
   });
 
   it("marks enabled implemented modules as operational Preview", () => {
     expect(getPhase3NavigationStatus("predictiveAlerts", true)).toBe("Preview — operational");
   });
 
-  it("marks enabled partial modules as limited Preview", () => {
-    expect(getPhase3NavigationStatus("payroll", true)).toBe("Preview — limited");
+  it("marks enabled payroll as operational Preview", () => {
+    expect(getPhase3NavigationStatus("payroll", true)).toBe("Preview — operational");
   });
 
   it("marks implemented staff performance as unavailable while disabled", () => {

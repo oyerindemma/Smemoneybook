@@ -1,100 +1,58 @@
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth/session";
-import { enforceRateLimit } from "@/lib/auth/rate-limit";
-import { assertSameOriginRequest, jsonError, jsonErrorFromUnknown } from "@/lib/api/http";
+import { assertSameOriginRequest } from "@/lib/api/http";
 import { parseJsonBody } from "@/lib/api/validation";
-import { requireMinimumPlan } from "@/lib/billing/subscriptions";
-import { requireBusinessAccess, requireLocationAccess } from "@/lib/operations/access";
-import { getPrisma } from "@/lib/prisma";
-import { requirePhase3Feature } from "@/lib/phase3/feature-flags";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
+import { requireUser } from "@/lib/auth/session";
 import {
-  approvePayrollRun,
+  logPayrollAudit,
+  parsePayrollBusinessRequest,
+  payrollCapabilityPayload,
+  payrollErrorResponse,
+  payrollMethodNotAllowed,
+} from "@/lib/payroll/api";
+import { requirePayrollAccess } from "@/lib/payroll/authorization";
+import {
+  approvePayrollPeriod,
+  calculatePayrollPeriod,
   createPayrollEmployee,
-  draftPayrollRun,
+  createPayrollPeriod,
+  getPayrollPeriod,
   listPayrollDashboard,
-  lockPayrollRun,
-  reversePayrollRun,
-} from "@/lib/phase3/payroll-service";
+  postPayrollExpense,
+  reversePayrollPeriod,
+  serializePayrollEmployee,
+  submitPayrollForReview,
+} from "@/lib/payroll/service";
+import {
+  employeeCreateSchema,
+  payrollBusinessIdSchema,
+  periodCreateSchema,
+  periodReverseSchema,
+} from "@/lib/payroll/validation";
 
 export const runtime = "nodejs";
 
-const businessId = z.preprocess((val) => val ?? "", z.string().trim().min(1, "Choose a business."));
-const optionalText = z.preprocess(
-  (val) => (typeof val === "string" && val.trim() ? val.trim() : undefined),
-  z.string().optional(),
-).optional();
-const moneyLineSchema = z.object({
-  label: z.string().trim().min(1),
-  amount: z.coerce.number().nonnegative(),
-});
-
-const payrollActionSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("create_employee"),
-    businessId,
-    locationId: optionalText,
-    displayName: z.string().trim().min(2, "Enter employee name."),
-    roleTitle: optionalText,
-    baseSalary: z.coerce.number().nonnegative(),
-    payFrequency: optionalText,
-    country: optionalText,
-    currency: optionalText,
-    employeeCode: optionalText,
-    email: optionalText,
-    phone: optionalText,
-    pensionNumber: optionalText,
-    taxId: optionalText,
-  }),
-  z.object({
-    action: z.literal("draft_run"),
-    businessId,
-    locationId: optionalText,
-    periodStart: z.coerce.date(),
-    periodEnd: z.coerce.date(),
-    payDate: z.coerce.date(),
-    country: optionalText,
-    adjustments: z
-      .array(
-        z.object({
-          employeeId: z.string().trim().min(1),
-          allowances: z.array(moneyLineSchema).optional(),
-          bonuses: z.array(moneyLineSchema).optional(),
-          deductions: z.array(moneyLineSchema).optional(),
-          loansAndAdvances: z.array(moneyLineSchema).optional(),
-          pensionEmployeeAmount: z.coerce.number().nonnegative().optional(),
-          pensionEmployerAmount: z.coerce.number().nonnegative().optional(),
-          taxAmount: z.coerce.number().nonnegative().optional(),
-        }),
-      )
-      .optional(),
-  }),
+const legacyActionSchema = z.discriminatedUnion("action", [
+  employeeCreateSchema.extend({ action: z.literal("create_employee") }),
+  periodCreateSchema.extend({ action: z.literal("draft_run") }),
   z.object({
     action: z.literal("approve_run"),
-    businessId,
+    businessId: payrollBusinessIdSchema,
     runId: z.string().trim().min(1, "Choose a payroll run."),
   }),
   z.object({
     action: z.literal("lock_run"),
-    businessId,
+    businessId: payrollBusinessIdSchema,
     runId: z.string().trim().min(1, "Choose a payroll run."),
   }),
-  z.object({
+  periodReverseSchema.extend({
     action: z.literal("reverse_run"),
-    businessId,
     runId: z.string().trim().min(1, "Choose a payroll run."),
-    reason: z.string().trim().min(10, "Enter the reversal reason."),
   }),
 ]);
 
 export async function GET(request: Request) {
   try {
-    const featureGate = requirePhase3Feature("payroll", "Payroll");
-
-    if (featureGate) {
-      return featureGate;
-    }
-
     const user = await requireUser();
     const limited = await enforceRateLimit(request, "payroll.read", 80, 15 * 60 * 1000);
 
@@ -102,165 +60,172 @@ export async function GET(request: Request) {
       return limited;
     }
 
-    const { searchParams } = new URL(request.url);
-    const requestedBusinessId = searchParams.get("businessId") ?? undefined;
-    const locationId = searchParams.get("locationId") ?? undefined;
-    const access = await requireBusinessAccess(user.id, "admin", requestedBusinessId);
-    const resolvedLocationId = locationId
-      ? (await requireLocationAccess({
-          userId: user.id,
-          businessId: access.businessId,
-          locationId,
-          permission: "admin",
-        })).locationId
-      : undefined;
-    const planGate = await requireMinimumPlan(
-      user.id,
-      access.businessId,
-      "pro",
-      "Upgrade to Pro to use Payroll.",
-    );
-
-    if (planGate) {
-      return planGate;
-    }
-
+    const filters = parsePayrollBusinessRequest(request.url);
+    const access = await requirePayrollAccess({
+      userId: user.id,
+      businessId: filters.businessId,
+      permission: "payroll:read",
+    });
     const dashboard = await listPayrollDashboard({
       businessId: access.businessId,
-      locationId: resolvedLocationId,
+      locationId: filters.locationId,
+      includeSensitive: access.canViewSensitive,
     });
 
-    return Response.json({ dashboard });
+    return Response.json({
+      dashboard,
+      setup: dashboard.setup,
+      capabilities: payrollCapabilityPayload(access),
+    });
   } catch (error) {
-    if (error instanceof Response) {
-      return jsonError("Sign in to continue.", error.status);
-    }
-
-    console.error("payroll.read_failed", error);
-    return jsonErrorFromUnknown(error, "Could not load payroll.");
+    return payrollErrorResponse(error, "Could not load payroll.");
   }
 }
 
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
-    const featureGate = requirePhase3Feature("payroll", "Payroll");
-
-    if (featureGate) {
-      return featureGate;
-    }
-
     const user = await requireUser();
-    const body = await parseJsonBody(request, payrollActionSchema);
+    const body = await parseJsonBody(request, legacyActionSchema);
     const limited = await enforceRateLimit(request, "payroll.write", 30, 60 * 60 * 1000);
 
     if (limited) {
       return limited;
     }
 
-    const access = await requireBusinessAccess(user.id, "admin", body.businessId);
-    const planGate = await requireMinimumPlan(
-      user.id,
-      access.businessId,
-      "pro",
-      "Upgrade to Pro to use Payroll.",
-    );
-
-    if (planGate) {
-      return planGate;
-    }
-
-    if ("locationId" in body && body.locationId) {
-      await requireLocationAccess({
-        userId: user.id,
-        businessId: access.businessId,
-        locationId: body.locationId,
-        permission: "admin",
-      });
-    }
-
-    const result = await runAction({
+    const access = await requirePayrollAccess({
+      userId: user.id,
+      businessId: body.businessId,
+      permission: permissionForLegacyAction(body.action),
+    });
+    const result = await runLegacyAction({
       businessId: access.businessId,
       actorId: user.id,
       body,
+      canViewSensitive: access.canViewSensitive,
     });
 
-    await getPrisma().auditLog.create({
-      data: {
-        businessId: access.businessId,
-        actorId: user.id,
-        action: `payroll.${body.action}`,
-        message: "Payroll action recorded.",
-        metadata: {
-          feature: "phase3j_payroll",
-          action: body.action,
-          resultId: result.id,
-        } as Prisma.InputJsonObject,
+    await logPayrollAudit({
+      access,
+      action: auditActionForLegacyAction(body.action),
+      metadata: {
+        action: body.action,
+        resultId: result.id,
       },
     });
 
-    return Response.json({ result, message: "Payroll action recorded." });
+    return Response.json({
+      result,
+      message: "Payroll action recorded.",
+      capabilities: payrollCapabilityPayload(access),
+    });
   } catch (error) {
-    if (error instanceof Response) {
-      return jsonError("Sign in to continue.", error.status);
-    }
-
-    console.error("payroll.write_failed", error);
-    return jsonErrorFromUnknown(error, "Could not record payroll action.");
+    return payrollErrorResponse(error, "Could not record payroll action.");
   }
 }
 
-async function runAction({
+export function PUT() {
+  return payrollMethodNotAllowed("GET, POST");
+}
+
+export function PATCH() {
+  return payrollMethodNotAllowed("GET, POST");
+}
+
+export function DELETE() {
+  return payrollMethodNotAllowed("GET, POST");
+}
+
+async function runLegacyAction({
   businessId,
   actorId,
   body,
+  canViewSensitive,
 }: {
   businessId: string;
   actorId: string;
-  body: z.infer<typeof payrollActionSchema>;
+  body: z.infer<typeof legacyActionSchema>;
+  canViewSensitive: boolean;
 }) {
   if (body.action === "create_employee") {
-    return createPayrollEmployee({
+    const employee = await createPayrollEmployee({
+      ...body,
       businessId,
-      locationId: body.locationId || undefined,
-      displayName: body.displayName,
-      roleTitle: body.roleTitle || undefined,
-      baseSalary: body.baseSalary,
-      payFrequency: body.payFrequency || undefined,
-      country: body.country || undefined,
-      currency: body.currency || undefined,
-      employeeCode: body.employeeCode || undefined,
-      email: body.email || undefined,
-      phone: body.phone || undefined,
-      pensionNumber: body.pensionNumber || undefined,
-      taxId: body.taxId || undefined,
     });
+
+    return serializePayrollEmployee(employee, canViewSensitive);
   }
 
   if (body.action === "draft_run") {
-    return draftPayrollRun({
+    const period = await createPayrollPeriod({
+      ...body,
       businessId,
       actorId,
-      locationId: body.locationId || undefined,
-      periodStart: body.periodStart,
-      periodEnd: body.periodEnd,
-      payDate: body.payDate,
-      country: body.country || undefined,
-      adjustments: body.adjustments,
     });
+    const calculated = await calculatePayrollPeriod({
+      businessId,
+      periodId: period.id,
+      actorId,
+    });
+
+    return { ...calculated, id: period.id };
   }
 
   if (body.action === "approve_run") {
-    return approvePayrollRun({ businessId, runId: body.runId, actorId });
+    const period = await getPayrollPeriod({ businessId, periodId: body.runId });
+
+    if (period.status === "CALCULATED" || period.status === "DRAFT") {
+      await submitPayrollForReview({ businessId, periodId: body.runId, actorId });
+    }
+
+    return approvePayrollPeriod({ businessId, periodId: body.runId, actorId });
   }
 
   if (body.action === "lock_run") {
-    return lockPayrollRun({ businessId, runId: body.runId, actorId });
+    const posted = await postPayrollExpense({ businessId, periodId: body.runId, actorId });
+    return posted.period;
   }
 
-  return reversePayrollRun({
+  return reversePayrollPeriod({
     businessId,
-    runId: body.runId,
+    periodId: body.runId,
+    actorId,
     reason: body.reason,
   });
+}
+
+function permissionForLegacyAction(action: z.infer<typeof legacyActionSchema>["action"]) {
+  if (action === "create_employee") {
+    return "payroll:manage_employees" as const;
+  }
+
+  if (action === "draft_run") {
+    return "payroll:prepare" as const;
+  }
+
+  if (action === "lock_run") {
+    return "payroll:post_expense" as const;
+  }
+
+  return "payroll:approve" as const;
+}
+
+function auditActionForLegacyAction(action: z.infer<typeof legacyActionSchema>["action"]) {
+  if (action === "create_employee") {
+    return "payroll.employee_created" as const;
+  }
+
+  if (action === "draft_run") {
+    return "payroll.period_calculated" as const;
+  }
+
+  if (action === "lock_run") {
+    return "payroll.expense_posted" as const;
+  }
+
+  if (action === "reverse_run") {
+    return "payroll.period_reversed" as const;
+  }
+
+  return "payroll.period_approved" as const;
 }

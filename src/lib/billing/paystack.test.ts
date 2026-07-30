@@ -35,6 +35,7 @@ describe("Paystack billing", () => {
       "granular_permissions",
       "invoice_branding",
       "multi_location",
+      "payroll",
       "predictive_alerts",
       "professional_pdf_exports",
       "receipt_extraction",

@@ -174,6 +174,9 @@ model Business {
   cooperativeGroups           CooperativeGroup[]
   payrollEmployees            PayrollEmployee[]
   payrollRuns                 PayrollRun[]
+  payrollComponentDefinitions PayrollComponentDefinition[]
+  payrollApprovalActions      PayrollApprovalAction[]
+  payrollPayslips             PayrollPayslip[]
   staffPerformanceGoals       StaffPerformanceGoal[]
   staffPerformanceSnapshots   StaffPerformanceSnapshot[]
   permissionPolicies          PermissionPolicy[]
@@ -181,6 +184,8 @@ model Business {
   healthScoreSnapshots        BusinessHealthScoreSnapshot[]
   cashflowForecasts           CashflowForecastSnapshot[]
   inventoryForecasts          InventoryForecastSnapshot[]
+  PayrollCompensation         PayrollCompensation[]
+  PayrollEmployeeComponent    PayrollEmployeeComponent[]
 }
 
 model ReferralAttribution {
@@ -388,6 +393,7 @@ model Transaction {
   taxSnapshots                DocumentTaxSnapshot[]
   taxReviewItems              TaxReviewItem[]
   reconciliationMatches       BankReconciliationMatch[]
+  payrollExpenseRuns          PayrollRun[]              @relation("PayrollRunExpenseTransaction")
 
   @@unique([businessId, idempotencyKey])
   @@unique([businessId, duplicateFingerprint])
@@ -2682,68 +2688,99 @@ model CooperativeLedgerEntry {
 }
 
 model PayrollEmployee {
-  id            String            @id @default(cuid())
-  businessId    String
-  locationId    String?
-  userId        String?
-  employeeCode  String?
-  displayName   String
-  roleTitle     String?
-  email         String?
-  phone         String?
-  baseSalary    Decimal           @default(0)
-  payFrequency  String            @default("MONTHLY")
-  country       String            @default("NG")
-  currency      String            @default("NGN")
-  pensionNumber String?
-  taxId         String?
-  status        String            @default("ACTIVE")
-  joinedAt      DateTime          @default(now())
-  exitedAt      DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  location      BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  runItems      PayrollRunItem[]
+  id                 String                     @id @default(cuid())
+  businessId         String
+  locationId         String?
+  userId             String?
+  staffMembershipId  String?
+  employeeCode       String?
+  employeeNumber     String?
+  displayName        String
+  fullName           String?
+  roleTitle          String?
+  jobTitle           String?
+  email              String?
+  phone              String?
+  baseSalary         Decimal                    @default(0)
+  payFrequency       String                     @default("MONTHLY")
+  country            String                     @default("NG")
+  currency           String                     @default("NGN")
+  pensionNumber      String?
+  taxId              String?
+  paymentMethod      String                     @default("manual")
+  maskedBankAccount  String?
+  status             String                     @default("ACTIVE")
+  employmentStatus   String                     @default("active")
+  startDate          DateTime?
+  endDate            DateTime?
+  joinedAt           DateTime                   @default(now())
+  exitedAt           DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  compensations      PayrollCompensation[]
+  employeeComponents PayrollEmployeeComponent[]
+  runItems           PayrollRunItem[]
 
   @@unique([businessId, employeeCode])
+  @@unique([businessId, employeeNumber])
   @@index([businessId, status])
+  @@index([businessId, employmentStatus])
   @@index([businessId, locationId, status])
+  @@index([businessId, staffMembershipId])
   @@index([businessId, displayName])
 }
 
 model PayrollRun {
-  id              String                @id @default(cuid())
-  businessId      String
-  locationId      String?
-  periodStart     DateTime
-  periodEnd       DateTime
-  payDate         DateTime
-  country         String                @default("NG")
-  ruleVersion     String
-  status          String                @default("DRAFT")
-  grossPay        Decimal               @default(0)
-  totalDeductions Decimal               @default(0)
-  netPay          Decimal               @default(0)
-  employeeCount   Int                   @default(0)
-  sourceInputs    Json
-  warnings        Json
-  createdById     String?
-  approvedById    String?
-  approvedAt      DateTime?
-  lockedAt        DateTime?
-  reversedAt      DateTime?
-  reversalReason  String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  business        Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  location        BusinessLocation?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  items           PayrollRunItem[]
-  journalEntries  PayrollJournalEntry[]
+  id                    String                  @id @default(cuid())
+  businessId            String
+  locationId            String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  payDate               DateTime
+  country               String                  @default("NG")
+  ruleVersion           String
+  status                String                  @default("DRAFT")
+  grossPay              Decimal                 @default(0)
+  totalDeductions       Decimal                 @default(0)
+  netPay                Decimal                 @default(0)
+  employeeCount         Int                     @default(0)
+  sourceInputs          Json
+  warnings              Json
+  statutorySetupStatus  String                  @default("setup_required")
+  snapshotVersion       String                  @default("phase3i-payroll-snapshot-v1")
+  requiresDualApproval  Boolean                 @default(false)
+  createdById           String?
+  preparedByUserId      String?
+  submittedForReviewAt  DateTime?
+  reviewedByUserId      String?
+  reviewedAt            DateTime?
+  approvedById          String?
+  approvedAt            DateTime?
+  rejectedByUserId      String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
+  expenseTransactionId  String?
+  expensePostedAt       DateTime?
+  expensePostedByUserId String?
+  lockedAt              DateTime?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  business              Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location              BusinessLocation?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  expenseTransaction    Transaction?            @relation("PayrollRunExpenseTransaction", fields: [expenseTransactionId], references: [id], onDelete: SetNull)
+  items                 PayrollRunItem[]
+  journalEntries        PayrollJournalEntry[]
+  payslips              PayrollPayslip[]
+  approvalActions       PayrollApprovalAction[]
 
   @@index([businessId, status, periodStart])
   @@index([businessId, locationId, periodStart])
   @@index([businessId, lockedAt])
+  @@index([businessId, expenseTransactionId])
 }
 
 model PayrollRunItem {
@@ -2756,11 +2793,16 @@ model PayrollRunItem {
   bonuses               Json
   deductions            Json
   loansAndAdvances      Json
+  componentSnapshot     Json?
+  calculationVersion    String                @default("phase3i-payroll-calculation-v1")
   grossPay              Decimal               @default(0)
+  taxablePay            Decimal               @default(0)
+  totalDeductions       Decimal               @default(0)
   pensionEmployeeAmount Decimal               @default(0)
   pensionEmployerAmount Decimal               @default(0)
   taxAmount             Decimal               @default(0)
   netPay                Decimal               @default(0)
+  status                String                @default("draft")
   paymentStatus         String                @default("UNPAID")
   payslipAccessHash     String?
   lockedAt              DateTime?
@@ -2769,10 +2811,12 @@ model PayrollRunItem {
   run                   PayrollRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
   employee              PayrollEmployee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   journalEntries        PayrollJournalEntry[]
+  payslip               PayrollPayslip?
 
   @@index([businessId, runId])
   @@index([businessId, employeeId])
   @@index([runId, paymentStatus])
+  @@index([runId, status])
 }
 
 model PayrollJournalEntry {
@@ -2792,6 +2836,96 @@ model PayrollJournalEntry {
   @@index([businessId, runId, status])
   @@index([businessId, transactionId])
   @@index([runId, entryType])
+}
+
+model PayrollCompensation {
+  id            String          @id @default(cuid())
+  businessId    String
+  employeeId    String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  baseSalary    Decimal         @default(0)
+  currency      String          @default("NGN")
+  payFrequency  String          @default("MONTHLY")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employee      PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, employeeId, effectiveFrom])
+  @@index([businessId, effectiveFrom, effectiveTo])
+}
+
+model PayrollComponentDefinition {
+  id                 String                     @id @default(cuid())
+  businessId         String
+  name               String
+  type               String
+  calculationMethod  String
+  taxable            Boolean                    @default(false)
+  pensionable        Boolean                    @default(false)
+  statutory          Boolean                    @default(false)
+  formulaConfig      Json?
+  active             Boolean                    @default(true)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employeeComponents PayrollEmployeeComponent[]
+
+  @@unique([businessId, name])
+  @@index([businessId, type, active])
+}
+
+model PayrollEmployeeComponent {
+  id                    String                     @id @default(cuid())
+  businessId            String
+  employeeId            String
+  componentDefinitionId String
+  amount                Decimal?
+  rate                  Decimal?
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  business              Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employee              PayrollEmployee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  componentDefinition   PayrollComponentDefinition @relation(fields: [componentDefinitionId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, employeeId, effectiveFrom])
+  @@index([businessId, componentDefinitionId])
+}
+
+model PayrollPayslip {
+  id                String         @id @default(cuid())
+  businessId        String
+  runId             String
+  runItemId         String         @unique
+  storageReference  String?
+  contentSnapshot   Json
+  generatedAt       DateTime       @default(now())
+  generatedByUserId String?
+  createdAt         DateTime       @default(now())
+  business          Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  run               PayrollRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  runItem           PayrollRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, runId])
+  @@index([businessId, generatedAt])
+}
+
+model PayrollApprovalAction {
+  id                String     @id @default(cuid())
+  businessId        String
+  periodId          String
+  action            String
+  reason            String?
+  performedByUserId String
+  createdAt         DateTime   @default(now())
+  business          Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  period            PayrollRun @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, periodId, createdAt])
+  @@index([businessId, action, createdAt])
 }
 
 model StaffPerformanceGoal {

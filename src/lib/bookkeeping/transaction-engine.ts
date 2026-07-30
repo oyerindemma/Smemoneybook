@@ -288,6 +288,14 @@ export type MoneybookState = {
     canManagePredictiveAlerts?: boolean;
     canAcknowledgePredictiveAlerts?: boolean;
     canExportPredictiveAlerts?: boolean;
+    canViewPayroll?: boolean;
+    canManagePayrollEmployees?: boolean;
+    canPreparePayroll?: boolean;
+    canReviewPayroll?: boolean;
+    canApprovePayroll?: boolean;
+    canExportPayroll?: boolean;
+    canPostPayrollExpense?: boolean;
+    canViewPayrollSensitive?: boolean;
     canViewAiMarketing?: boolean;
     canCreateAiMarketingCampaigns?: boolean;
     canApproveAiMarketingCampaigns?: boolean;
@@ -355,6 +363,14 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canManagePredictiveAlerts: true,
       canAcknowledgePredictiveAlerts: true,
       canExportPredictiveAlerts: true,
+      canViewPayroll: true,
+      canManagePayrollEmployees: true,
+      canPreparePayroll: true,
+      canReviewPayroll: true,
+      canApprovePayroll: true,
+      canExportPayroll: true,
+      canPostPayrollExpense: true,
+      canViewPayrollSensitive: true,
       canViewAiMarketing: true,
       canCreateAiMarketingCampaigns: true,
       canApproveAiMarketingCampaigns: true,

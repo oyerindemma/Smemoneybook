@@ -35,6 +35,14 @@ export type Permission =
   | "predictive_alerts:manage"
   | "predictive_alerts:acknowledge"
   | "predictive_alerts:export"
+  | "payroll:read"
+  | "payroll:manage_employees"
+  | "payroll:prepare"
+  | "payroll:review"
+  | "payroll:approve"
+  | "payroll:export"
+  | "payroll:post_expense"
+  | "payroll:view_sensitive"
   | "ai_marketing:read"
   | "ai_marketing:create"
   | "ai_marketing:approve"
@@ -90,6 +98,14 @@ const permissions: Record<Role, Permission[]> = {
     "predictive_alerts:manage",
     "predictive_alerts:acknowledge",
     "predictive_alerts:export",
+    "payroll:read",
+    "payroll:manage_employees",
+    "payroll:prepare",
+    "payroll:review",
+    "payroll:approve",
+    "payroll:export",
+    "payroll:post_expense",
+    "payroll:view_sensitive",
     "ai_marketing:read",
     "ai_marketing:create",
     "ai_marketing:approve",

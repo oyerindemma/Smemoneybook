@@ -1,6 +1,8 @@
 # SME MoneyBook Phase 3J Payroll
 
-Status: implemented as a gated foundation on `phase-3-staging`.
+Status: superseded by the Phase 3I completion report in `docs/phase-3-payroll-implementation.md`.
+
+This document describes the earlier gated foundation. The Phase 3I completion pass adds Payroll-specific permissions, effective-dated compensation, payslips, explicit accounting expense posting, and statutory setup-required governance.
 
 Payroll is an optional admin-only module for recording employee compensation inputs, drafting payroll runs, approving runs, locking snapshots, and reversing completed runs. It is not a tax, pension, or employment-law advisory system.
 
