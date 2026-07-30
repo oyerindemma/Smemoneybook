@@ -1,11 +1,12 @@
 # SME MoneyBook Phase 3H AI Marketing Implementation
 
-Final classification: IMPLEMENTED — DISABLED
+Final classification: PREVIEW OPERATIONAL
 
 ## Branch And Commits
 
 - Branch: `phase-3-staging`
-- Implementation commit: pending
+- Implementation commit: `c37e5c8`
+- Preview deployment commit: `c37e5c8`
 - Production branch: unchanged
 - Main branch: not merged
 
@@ -44,7 +45,15 @@ The migration is additive. It adds customer consent fields and the campaign work
 
 It also adds an optional `MarketingDraft.campaignId` link for legacy draft compatibility. SQL constraints limit consent, campaign, recipient, and delivery statuses to supported values. No destructive SQL is included.
 
-Preview database migration status: pending validation.
+Preview database migration status:
+
+- `DATABASE_URL` and `DIRECT_URL` were verified as present, valid Postgres URLs, non-placeholder values, and scoped to the dedicated `phase-3-staging` Neon Preview branch.
+- Production database URLs were not used.
+- `npx prisma validate`: passed.
+- `npx prisma migrate status`: initially reported pending migration `20260730100000_phase_3_ai_marketing_completion`.
+- The migration SQL was inspected before deploy and confirmed additive.
+- `npx prisma migrate deploy`: applied the inspected migration to the Preview database only.
+- `npx prisma migrate status`: passed after deploy; `39` migrations found and the schema is up to date.
 
 ## Service Layer
 
@@ -115,16 +124,24 @@ Implemented audit actions:
 
 ## Local Validation
 
-Current completed validation:
+Completed validation:
 
+- `npm run lint`: passed.
 - `npm run typecheck`: passed.
 - Focused Phase 3H tests:
   - Command: `npx vitest run src/lib/ai-marketing/consent.test.ts src/lib/ai-marketing/segments.test.ts src/lib/ai-marketing/drafting.test.ts src/lib/ai-marketing/authorization.test.ts src/app/api/ai-marketing/route.test.ts src/lib/phase3/ai-marketing.test.ts`
   - Result: passed, 6 files and 30 tests.
+- Full test suite:
+  - Command: `npm run test`
+  - Result: passed, 89 files and 348 tests.
 - Playwright:
   - Command: `NEXT_PUBLIC_PHASE3_AI_MARKETING_ENABLED=true PHASE3_AI_MARKETING_ENABLED=true PHASE3_AI_ENABLED=true PHASE3_AI_MARKETING_SENDING_ENABLED=false npx playwright test tests/e2e/ai-marketing.spec.ts`
   - Result: passed, 6 tests across desktop Chrome, mobile Chrome, and mobile Safari.
   - The spec executed and did not skip.
+- `npm run build`: passed.
+- `npx prisma validate`: passed.
+- `npx prisma migrate status`: passed against the `phase-3-staging` Preview database after deploy.
+- `git diff --check`: passed.
 
 Focused test evidence covers:
 
@@ -146,15 +163,41 @@ Focused test evidence covers:
 - Feature flag off and on behavior
 - Unsupported API methods returning `405`
 
-Full validation: pending.
+Full validation passed.
 
 ## Preview Deployment
 
-Pending.
+- Environment: Preview
+- Branch: `phase-3-staging`
+- Deployment commit: `c37e5c8`
+- Status: Ready
+- Preview URL: `https://smemoneybook-j9z5sxjm7-emmanuel-oyerindes-projects.vercel.app`
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`
 
 ## Preview QA
 
-Pending. Do not classify as Preview operational until the newest Preview deployment is Ready and live QA has passed.
+Live QA passed against the newest Ready Preview deployment for commit `c37e5c8`.
+
+Verified checks:
+
+- `/more` showed AI Marketing as `Preview`.
+- `/more/ai-marketing` loaded successfully.
+- Summary metrics and all 10 deterministic segments loaded.
+- Date filters worked for a July 2026 range.
+- Campaign creation worked.
+- Recipient detail and consent exclusions worked.
+- Empty data state worked for a seeded empty business.
+- Unauthenticated access was rejected with `401`.
+- Staff and accountant users without AI Marketing grants were rejected with `403`.
+- Cross-business `businessId` access was rejected with `403`.
+- Sensitive targeting was rejected with `400`.
+- AI draft generation succeeded with prompt version `phase3h-ai-marketing-draft-v1`.
+- Explicit approval worked.
+- CSV export worked and did not include raw phone/contact values.
+- Owner-managed opt-out worked.
+- No native `404` or unexpected `500` occurred in the AI Marketing UI/API flow.
+- No real outbound send operation was available; send attempt returned disabled with `0` sent.
+- Unsupported methods returned `405`.
 
 ## Known Limitations
 

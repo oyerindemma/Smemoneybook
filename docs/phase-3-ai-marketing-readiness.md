@@ -1,6 +1,6 @@
 # SME MoneyBook Phase 3H AI Marketing Readiness
 
-Status: implemented on `phase-3-staging`, disabled by default, awaiting Preview deployment validation.
+Status: `PREVIEW OPERATIONAL` on the `phase-3-staging` Vercel Preview branch. Production remains unchanged.
 
 ## Exact Flags
 
@@ -87,11 +87,80 @@ Segments are calculated from recorded customer, sales, invoice, debt, product, a
 9. Deploy only Vercel Preview for branch `phase-3-staging`.
 10. QA the newest Preview URL for owner access, unauthorized rejection, business isolation, segment filters, campaign creation, draft generation, edit, approval, send-disabled response, export, consent opt-out, empty state, method guards, and no native 404 or unexpected 500.
 
-## Current Local Evidence
+## Executed Evidence
 
+Date: `2026-07-30`
+
+Prisma Preview target:
+
+- `DATABASE_URL`: present, uses a Postgres protocol, not a placeholder, and verified against the dedicated `phase-3-staging` Neon Preview branch.
+- `DIRECT_URL`: present, uses a Postgres protocol, not a placeholder, and verified against the dedicated `phase-3-staging` Neon Preview branch.
+- Production database was not queried or migrated.
+
+Prisma results:
+
+- `npx prisma validate`: passed.
+- `npx prisma migrate status`: initially detected pending migration `20260730100000_phase_3_ai_marketing_completion` on the Preview database.
+- Migration SQL was inspected and confirmed additive: customer consent fields, AI Marketing campaign tables, indexes, foreign keys, and check constraints.
+- `npx prisma migrate deploy`: applied only the inspected additive migration to the `phase-3-staging` Preview database.
+- `npx prisma migrate status`: passed after deploy; `39` migrations found and the schema is up to date.
+
+Vercel Preview flags:
+
+- Environment: Preview
+- Git branch: `phase-3-staging`
+- `PHASE3_AI_MARKETING_ENABLED=true`
+- `NEXT_PUBLIC_PHASE3_AI_MARKETING_ENABLED=true`
+- `PHASE3_AI_MARKETING_SENDING_ENABLED=false`
+- Supporting Preview variables confirmed present for the same branch without revealing values: `PHASE3_AI_ENABLED`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`.
+- Production and `phase-2-staging` variables were not modified.
+
+Local validation:
+
+- `npm run lint`: passed.
 - `npm run typecheck`: passed.
 - Focused Phase 3H tests: passed, 6 files and 30 tests.
+- `npm run test`: passed, 89 files and 348 tests.
+- `npm run build`: passed.
+- `npx prisma validate`: passed.
+- `npx prisma migrate status`: passed against the Preview database after deploy.
+- `git diff --check`: passed.
+
+Playwright:
+
 - Playwright with `NEXT_PUBLIC_PHASE3_AI_MARKETING_ENABLED=true`, `PHASE3_AI_MARKETING_ENABLED=true`, `PHASE3_AI_ENABLED=true`, and `PHASE3_AI_MARKETING_SENDING_ENABLED=false`: passed, 6 tests across desktop Chrome, mobile Chrome, and mobile Safari; executed and did not skip.
+
+Vercel Preview deployment:
+
+- Branch: `phase-3-staging`
+- Deployment commit: `c37e5c8`
+- Deployment status: Ready
+- Preview URL: `https://smemoneybook-j9z5sxjm7-emmanuel-oyerindes-projects.vercel.app`
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`
+
+Live Preview QA:
+
+- Synthetic QA data was seeded only into the verified Preview staging database.
+- `/more`: returned `200` and showed AI Marketing as `Preview`.
+- `/more/ai-marketing`: returned `200` and loaded the campaign workflow.
+- Owner access: passed.
+- Unauthenticated access: rejected with `401`.
+- Staff without AI Marketing grant: rejected with `403`.
+- Accountant without AI Marketing grant: rejected with `403`.
+- Business isolation: cross-business `businessId` request rejected with `403`.
+- Summary metrics and all 10 deterministic segments loaded.
+- Date filtering worked for the selected range.
+- Staff/customer recipient detail and consent exclusion preview worked.
+- Empty data state worked for a seeded empty business.
+- Sensitive targeting was rejected.
+- AI draft generation succeeded with prompt version `phase3h-ai-marketing-draft-v1`.
+- Draft review label was returned.
+- Explicit approval worked.
+- Send endpoint remained disabled and reported zero sent messages.
+- CSV export worked and did not include raw phone/contact values.
+- Opt-out management worked.
+- Unsupported methods returned `405`.
+- No native `404` or unexpected `500` was observed in AI Marketing UI/API flows.
 
 ## Known Limitations
 
