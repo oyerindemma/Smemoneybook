@@ -3,6 +3,7 @@ export const cooperativeLedgerFormulaVersion = "cooperative-ledger-v1";
 export type CooperativeLedgerEntryInput = {
   id?: string;
   memberId?: string | null;
+  accountCode?: string | null;
   entryType: string;
   debit: number;
   credit: number;
@@ -185,9 +186,14 @@ export function summarizeCooperativeLedger({
   );
   const memberNames = new Map(activeMembers.map((member) => [member.id, member.displayName]));
   const memberBalanceMap = new Map(activeMembers.map((member) => [member.id, 0]));
+  const hasAccountCodes = ledgerEntries.some((entry) => Boolean(entry.accountCode));
 
   for (const entry of ledgerEntries) {
     if (!entry.memberId) {
+      continue;
+    }
+
+    if (hasAccountCodes && entry.accountCode !== "MEMBER_SAVINGS") {
       continue;
     }
 

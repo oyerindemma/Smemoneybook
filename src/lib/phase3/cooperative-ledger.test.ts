@@ -48,6 +48,30 @@ describe("cooperative ledger integrity", () => {
     expect(summary.validation.valid).toBe(true);
   });
 
+  it("uses member savings account entries for balances when account codes are available", () => {
+    const summary = summarizeCooperativeLedger({
+      asOf,
+      members: [{ id: "member_1", displayName: "Ada" }],
+      contributionPlans: [],
+      contributions: [{ memberId: "member_1", amount: 5_000, paidAt: asOf }],
+      loans: [{ id: "loan_1", memberId: "member_1", principal: 20_000, totalDue: 20_000, disbursedAmount: 20_000 }],
+      repayments: [{ loanId: "loan_1", memberId: "member_1", amount: 5_000, paidAt: asOf }],
+      expenses: [],
+      distributions: [],
+      ledgerEntries: [
+        { memberId: "member_1", accountCode: "CASH_CONTROL", entryType: "CONTRIBUTION", debit: 5_000, credit: 0 },
+        { memberId: "member_1", accountCode: "MEMBER_SAVINGS", entryType: "CONTRIBUTION", debit: 0, credit: 5_000 },
+        { memberId: "member_1", accountCode: "LOANS_RECEIVABLE", entryType: "LOAN_DISBURSEMENT", debit: 20_000, credit: 0 },
+        { memberId: "member_1", accountCode: "CASH_CONTROL", entryType: "LOAN_DISBURSEMENT", debit: 0, credit: 20_000 },
+        { memberId: "member_1", accountCode: "CASH_CONTROL", entryType: "LOAN_REPAYMENT", debit: 5_000, credit: 0 },
+        { memberId: "member_1", accountCode: "LOANS_RECEIVABLE", entryType: "LOAN_REPAYMENT", debit: 0, credit: 5_000 },
+      ],
+    });
+
+    expect(summary.memberBalances).toEqual([{ memberId: "member_1", displayName: "Ada", balance: 5_000 }]);
+    expect(summary.loanBalances[0]?.outstandingAmount).toBe(15_000);
+  });
+
   it("keeps group cash separate from the normal business ledger", () => {
     const summary = summarizeCooperativeLedger({
       asOf,

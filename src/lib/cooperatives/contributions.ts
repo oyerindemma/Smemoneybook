@@ -202,6 +202,7 @@ export async function listCooperativeDashboard({
       ledgerEntries: group.ledgerEntries.map((entry) => ({
         id: entry.id,
         memberId: entry.memberId,
+        accountCode: entry.accountCode,
         entryType: entry.entryType,
         debit: entry.debit.toNumber(),
         credit: entry.credit.toNumber(),

@@ -84,10 +84,9 @@ export async function getCooperativeMemberStatement({
     const paid = loan.repayments.reduce((repaymentSum, repayment) => repaymentSum + repayment.amount.toNumber(), 0);
     return sum + Math.max(0, loan.totalDue.toNumber() - paid);
   }, 0);
-  const savingsBalance = member.ledgerEntries.reduce(
-    (sum, entry) => sum + entry.credit.toNumber() - entry.debit.toNumber(),
-    0,
-  );
+  const savingsBalance = member.ledgerEntries
+    .filter((entry) => entry.accountCode === "MEMBER_SAVINGS")
+    .reduce((sum, entry) => sum + entry.credit.toNumber() - entry.debit.toNumber(), 0);
 
   return {
     member: {
