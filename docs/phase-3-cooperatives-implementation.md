@@ -2,7 +2,7 @@
 
 ## Status
 
-Current classification before Vercel deployment QA: `IMPLEMENTED — SETUP REQUIRED`.
+Current classification: `PREVIEW OPERATIONAL`.
 
 Cooperatives are implemented behind exact Preview flags and remain disabled by default in source examples.
 
@@ -93,7 +93,7 @@ Final validation run:
 
 - `npm run lint` passed.
 - `npm run typecheck` passed.
-- `npm run test` passed: 95 test files, 373 tests.
+- `npm run test` passed: 95 test files, 374 tests.
 - `npm run build` passed.
 - `npx prisma validate` passed.
 - `npx prisma migrate status` passed: database schema is up to date.
@@ -106,7 +106,7 @@ Targeted Cooperatives tests:
 - `src/lib/cooperatives/ledger.test.ts`
 - Existing `src/lib/phase3/cooperative-ledger.test.ts`
 
-Coverage includes owner access path, server feature gate, public-only flag rejection, business isolation through access scoping, contribution write/audit, loan request path, unsupported methods returning 405, balanced ledger batches, zero/flat interest schedules, reducing-balance rejection, and legacy ledger summaries.
+Coverage includes owner access path, server feature gate, public-only flag rejection, business isolation through access scoping, contribution write/audit, loan request path, unsupported methods returning 405, balanced ledger batches, member savings balance calculation from the member-savings ledger account, zero/flat interest schedules, reducing-balance rejection, and legacy ledger summaries.
 
 ## Playwright Result
 
@@ -148,12 +148,48 @@ Using authenticated Vercel CLI:
 
 ## Preview Deployment
 
-Pending post-push Vercel confirmation.
-
+- Environment: Preview
 - Branch: `phase-3-staging`
-- Deployment commit: pending final pushed HEAD confirmation.
-- Preview URL: pending Vercel deployment confirmation.
-- Required post-deploy QA: route load, summary metrics, date/filter workflow where applicable, member detail/statement, CSV export, empty state, unauthorized rejection, business isolation, no native 404, no unexpected 500, and write-method 405 checks.
+- Deployment commit: `24d8abeabb3d9d8cd9f012d4a0d31dee654c38d0`
+- Preview URL: `https://smemoneybook-pi3qgsovt-emmanuel-oyerindes-projects.vercel.app`
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`
+- Status: Ready
+
+## Preview QA
+
+Completed against the Ready Vercel Preview deployment for commit `24d8abeabb3d9d8cd9f012d4a0d31dee654c38d0`.
+
+Synthetic QA data was created only in the verified `phase-3-staging` Preview database. The QA setup created disposable users, sessions, businesses, a Pro entitlement, and an owner permission policy only for the synthetic Preview business.
+
+Passed checks:
+
+- Unauthenticated Cooperatives API access was rejected with `401`.
+- Cross-business access was rejected with `403`.
+- Non-Pro business access was rejected with `402`.
+- Owner access returned `200` with empty groups and manage capability.
+- `/more` showed Cooperatives as `Preview`.
+- `/more/cooperatives` loaded with the internal-bookkeeping disclaimer and empty state.
+- Cooperative profile setup worked through the UI.
+- Member creation worked through the UI.
+- Member statement loaded through the UI.
+- Contribution plan creation and contribution recording worked through the UI.
+- Loan application worked through the UI.
+- Requesting-owner self-approval was rejected with `403`.
+- A separate owner approved the loan and recorded disbursement through the Preview API.
+- Loan repayment worked through the UI.
+- Controlled transfer bridge record worked without an automatic business transaction when no account was selected.
+- Reports and repayment schedules rendered.
+- CSV export downloaded `cooperative-*.csv`.
+- Member savings balance reported `5000` after the contribution.
+- Loan metrics reported status `active`, outstanding `15000`, and total due `20000` after repayment.
+- Guarantor-required loan entered `guarantor_pending`, blocked approval before guarantor confirmation, and approved after confirmation.
+- Unsupported method checks returned `405` for root `PUT/PATCH/DELETE`, members `PUT`, plans `DELETE`, export `POST`, statement `PATCH`, repayment `GET`, and transfer `GET`.
+- `/more/cooperatives/members`, `/contributions`, `/loans`, and `/reports` loaded.
+- No native `404` or unexpected `500` was observed in the Cooperatives UI/API flow.
+
+Preview QA found and fixed one issue before final passing evidence:
+
+- Member savings balances initially summed all member-tagged ledger lines, causing the cash-control debit to cancel the member-savings credit. The fix passes account codes into the summary and calculates savings balances from `MEMBER_SAVINGS` entries when account codes are available. Member statements use the same savings-account basis.
 
 ## Known Limitations
 
@@ -161,7 +197,6 @@ Pending post-push Vercel confirmation.
 - Cooperative registration/legal compliance is not automated.
 - The module records internal disbursement/repayment events but does not initiate bank transfers or external collections.
 - Controlled transfers are explicit bridge records and optional business-ledger transactions, not automatic money movement.
-- Preview deployment QA must be executed against the newest Vercel deployment before classifying `PREVIEW OPERATIONAL`.
 
 ## Production Unchanged
 
