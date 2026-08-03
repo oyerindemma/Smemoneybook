@@ -18,7 +18,7 @@ const moduleReadiness: Record<Phase3NavigationModule, Phase3Readiness> = {
   bankReconciliation: "gated-implemented",
   loanReadiness: "gated-implemented",
   taxAssistant: "gated-implemented",
-  cooperativeGroups: "partial",
+  cooperativeGroups: "gated-implemented",
   payroll: "gated-implemented",
   staffPerformance: "gated-implemented",
   aiMarketing: "gated-implemented",

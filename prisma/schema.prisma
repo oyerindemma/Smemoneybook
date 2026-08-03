@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -82,110 +83,115 @@ model Session {
 }
 
 model Business {
-  id                          String                        @id @default(cuid())
-  name                        String
-  businessCategory            String?
-  businessType                String?
-  onboardingCompleted         Boolean                       @default(false)
-  country                     String                        @default("NG")
-  currency                    String                        @default("NGN")
-  defaultLanguage             String                        @default("en")
-  vatRate                     Decimal                       @default(7.5)
-  createdAt                   DateTime                      @default(now())
-  updatedAt                   DateTime                      @updatedAt
-  members                     BusinessMember[]
-  accounts                    Account[]
-  customers                   Customer[]
-  suppliers                   Supplier[]
-  transactions                Transaction[]
-  debts                       Debt[]
-  items                       InventoryItem[]
-  taxRuns                     TaxRun[]
-  reportSnapshots             ReportSnapshot[]
-  auditLogs                   AuditLog[]
-  inventoryMovements          InventoryMovement[]
-  invitations                 BusinessInvitation[]
-  apiErrors                   ApiErrorLog[]
-  receipts                    Receipt[]
-  subscriptions               Subscription[]
-  offlineCaptures             OfflineCapture[]
-  whatsappMessages            WhatsAppMessage[]
-  whatsappEvents              WhatsAppEvent[]
-  whatsappAutomationContacts  WhatsAppAutomationContact[]
-  whatsappAutomationTemplates WhatsAppAutomationTemplate[]
-  whatsappAutomationJobs      WhatsAppAutomationJob[]
-  marketingDrafts             MarketingDraft[]
-  marketingDraftFeedback      MarketingDraftFeedback[]
-  marketingCampaigns          MarketingCampaign[]
-  marketingCampaignRecipients MarketingCampaignRecipient[]
-  marketingMessageDrafts      MarketingMessageDraft[]
-  marketingDeliveries         MarketingDelivery[]
-  marketingOptOuts            MarketingOptOut[]
-  executiveDashboardSnapshots ExecutiveDashboardSnapshot[]
-  predictiveAlerts            PredictiveAlert[]
-  predictiveAlertFeedback     PredictiveAlertFeedback[]
-  alertPreferences            BusinessAlertPreference[]
-  predictiveAlertDeliveries   PredictiveAlertDelivery[]
-  aiEvaluationEvents          AiEvaluationEvent[]
-  aiEvaluationDatasets        AiEvaluationDataset[]
-  aiEvaluationRuns            AiEvaluationRun[]
-  aiEvaluationSuites          AiEvaluationSuite[]
-  aiEvaluationBaselines       AiEvaluationBaseline[]
-  messagePreferences          MessagePreference?
-  assistantThreads            AssistantThread[]
-  automationPreference        AutomationPreference?
-  automationLogs              AutomationLog[]
-  pendingAssistantActions     PendingAssistantAction[]
-  referralAttributions        ReferralAttribution[]         @relation("ReferrerBusiness")
-  referredAttributions        ReferralAttribution[]         @relation("ReferredBusiness")
-  referralRewards             ReferralReward[]
-  onboardingProgress          OnboardingProgress?
-  onboardingEvents            OnboardingEvent[]
-  productUnits                ProductUnit[]
-  productCategories           ProductCategory[]
-  productBrands               ProductBrand[]
-  transactionPayments         TransactionPayment[]
-  receiptConfig               ReceiptConfig?
-  customerReturns             CustomerReturn[]
-  supplierReturns             SupplierReturn[]
-  offlineSyncOperations       OfflineSyncOperation[]
-  locations                   BusinessLocation[]
-  locationMemberships         BusinessLocationMember[]
-  inventoryBalances           InventoryBalance[]
-  stockTransfers              StockTransfer[]
-  exportJobs                  ExportJob[]
-  taxConfig                   TaxConfig?
-  taxRates                    TaxRate[]
-  taxAssistantSnapshots       TaxAssistantSnapshot[]
-  taxProfiles                 BusinessTaxProfile[]
-  taxPeriodSnapshots          TaxPeriodSnapshot[]
-  taxReviewItems              TaxReviewItem[]
-  taxAssistantConversations   TaxAssistantConversation[]
-  taxAssistantMessages        TaxAssistantMessage[]
-  documentBranding            DocumentBrandingConfig?
-  issuedDocuments             IssuedDocument[]
-  documentTaxSnapshots        DocumentTaxSnapshot[]
-  bankAccountProfiles         BankAccountProfile[]
-  bankStatementImports        BankStatementImport[]
-  bankReconciliationMatches   BankReconciliationMatch[]
-  bankReconciliationActions   BankReconciliationAction[]
-  loanReadinessSnapshots      LoanReadinessSnapshot[]
-  loanReadinessSharingLogs    LoanReadinessSharingLog[]
-  cooperativeGroups           CooperativeGroup[]
-  payrollEmployees            PayrollEmployee[]
-  payrollRuns                 PayrollRun[]
-  payrollComponentDefinitions PayrollComponentDefinition[]
-  payrollApprovalActions      PayrollApprovalAction[]
-  payrollPayslips             PayrollPayslip[]
-  staffPerformanceGoals       StaffPerformanceGoal[]
-  staffPerformanceSnapshots   StaffPerformanceSnapshot[]
-  permissionPolicies          PermissionPolicy[]
-  permissionOverrides         PermissionOverride[]
-  healthScoreSnapshots        BusinessHealthScoreSnapshot[]
-  cashflowForecasts           CashflowForecastSnapshot[]
-  inventoryForecasts          InventoryForecastSnapshot[]
-  PayrollCompensation         PayrollCompensation[]
-  PayrollEmployeeComponent    PayrollEmployeeComponent[]
+  id                            String                         @id @default(cuid())
+  name                          String
+  businessCategory              String?
+  businessType                  String?
+  onboardingCompleted           Boolean                        @default(false)
+  country                       String                         @default("NG")
+  currency                      String                         @default("NGN")
+  defaultLanguage               String                         @default("en")
+  vatRate                       Decimal                        @default(7.5)
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  members                       BusinessMember[]
+  accounts                      Account[]
+  customers                     Customer[]
+  suppliers                     Supplier[]
+  transactions                  Transaction[]
+  debts                         Debt[]
+  items                         InventoryItem[]
+  taxRuns                       TaxRun[]
+  reportSnapshots               ReportSnapshot[]
+  auditLogs                     AuditLog[]
+  inventoryMovements            InventoryMovement[]
+  invitations                   BusinessInvitation[]
+  apiErrors                     ApiErrorLog[]
+  receipts                      Receipt[]
+  subscriptions                 Subscription[]
+  offlineCaptures               OfflineCapture[]
+  whatsappMessages              WhatsAppMessage[]
+  whatsappEvents                WhatsAppEvent[]
+  whatsappAutomationContacts    WhatsAppAutomationContact[]
+  whatsappAutomationTemplates   WhatsAppAutomationTemplate[]
+  whatsappAutomationJobs        WhatsAppAutomationJob[]
+  marketingDrafts               MarketingDraft[]
+  marketingDraftFeedback        MarketingDraftFeedback[]
+  marketingCampaigns            MarketingCampaign[]
+  marketingCampaignRecipients   MarketingCampaignRecipient[]
+  marketingMessageDrafts        MarketingMessageDraft[]
+  marketingDeliveries           MarketingDelivery[]
+  marketingOptOuts              MarketingOptOut[]
+  executiveDashboardSnapshots   ExecutiveDashboardSnapshot[]
+  predictiveAlerts              PredictiveAlert[]
+  predictiveAlertFeedback       PredictiveAlertFeedback[]
+  alertPreferences              BusinessAlertPreference[]
+  predictiveAlertDeliveries     PredictiveAlertDelivery[]
+  aiEvaluationEvents            AiEvaluationEvent[]
+  aiEvaluationDatasets          AiEvaluationDataset[]
+  aiEvaluationRuns              AiEvaluationRun[]
+  aiEvaluationSuites            AiEvaluationSuite[]
+  aiEvaluationBaselines         AiEvaluationBaseline[]
+  messagePreferences            MessagePreference?
+  assistantThreads              AssistantThread[]
+  automationPreference          AutomationPreference?
+  automationLogs                AutomationLog[]
+  pendingAssistantActions       PendingAssistantAction[]
+  referralAttributions          ReferralAttribution[]          @relation("ReferrerBusiness")
+  referredAttributions          ReferralAttribution[]          @relation("ReferredBusiness")
+  referralRewards               ReferralReward[]
+  onboardingProgress            OnboardingProgress?
+  onboardingEvents              OnboardingEvent[]
+  productUnits                  ProductUnit[]
+  productCategories             ProductCategory[]
+  productBrands                 ProductBrand[]
+  transactionPayments           TransactionPayment[]
+  receiptConfig                 ReceiptConfig?
+  customerReturns               CustomerReturn[]
+  supplierReturns               SupplierReturn[]
+  offlineSyncOperations         OfflineSyncOperation[]
+  locations                     BusinessLocation[]
+  locationMemberships           BusinessLocationMember[]
+  inventoryBalances             InventoryBalance[]
+  stockTransfers                StockTransfer[]
+  exportJobs                    ExportJob[]
+  taxConfig                     TaxConfig?
+  taxRates                      TaxRate[]
+  taxAssistantSnapshots         TaxAssistantSnapshot[]
+  taxProfiles                   BusinessTaxProfile[]
+  taxPeriodSnapshots            TaxPeriodSnapshot[]
+  taxReviewItems                TaxReviewItem[]
+  taxAssistantConversations     TaxAssistantConversation[]
+  taxAssistantMessages          TaxAssistantMessage[]
+  documentBranding              DocumentBrandingConfig?
+  issuedDocuments               IssuedDocument[]
+  documentTaxSnapshots          DocumentTaxSnapshot[]
+  bankAccountProfiles           BankAccountProfile[]
+  bankStatementImports          BankStatementImport[]
+  bankReconciliationMatches     BankReconciliationMatch[]
+  bankReconciliationActions     BankReconciliationAction[]
+  loanReadinessSnapshots        LoanReadinessSnapshot[]
+  loanReadinessSharingLogs      LoanReadinessSharingLog[]
+  cooperativeGroups             CooperativeGroup[]
+  cooperativeApprovalActions    CooperativeApprovalAction[]
+  cooperativeLedgerAccounts     CooperativeLedgerAccount[]
+  cooperativeLedgerBatches      CooperativeLedgerBatch[]
+  cooperativeLedgerTransfers    CooperativeLedgerTransfer[]
+  cooperativeRepaymentSchedules CooperativeRepaymentSchedule[]
+  payrollEmployees              PayrollEmployee[]
+  payrollRuns                   PayrollRun[]
+  payrollComponentDefinitions   PayrollComponentDefinition[]
+  payrollApprovalActions        PayrollApprovalAction[]
+  payrollPayslips               PayrollPayslip[]
+  staffPerformanceGoals         StaffPerformanceGoal[]
+  staffPerformanceSnapshots     StaffPerformanceSnapshot[]
+  permissionPolicies            PermissionPolicy[]
+  permissionOverrides           PermissionOverride[]
+  healthScoreSnapshots          BusinessHealthScoreSnapshot[]
+  cashflowForecasts             CashflowForecastSnapshot[]
+  inventoryForecasts            InventoryForecastSnapshot[]
+  PayrollCompensation           PayrollCompensation[]
+  PayrollEmployeeComponent      PayrollEmployeeComponent[]
 }
 
 model ReferralAttribution {
@@ -347,13 +353,13 @@ model Account {
 }
 
 model Transaction {
-  id                          String                    @id @default(cuid())
+  id                          String                      @id @default(cuid())
   idempotencyKey              String
   duplicateFingerprint        String?
   type                        TransactionType
   amount                      Decimal
-  costOfGoods                 Decimal                   @default(0)
-  profit                      Decimal                   @default(0)
+  costOfGoods                 Decimal                     @default(0)
+  profit                      Decimal                     @default(0)
   description                 String
   category                    String?
   taxTreatment                String?
@@ -362,8 +368,8 @@ model Transaction {
   withholdingTaxRate          Decimal?
   withholdingTaxAmount        Decimal?
   receiptId                   String?
-  paymentStatus               PaymentStatus             @default(PAID)
-  occurredAt                  DateTime                  @default(now())
+  paymentStatus               PaymentStatus               @default(PAID)
+  occurredAt                  DateTime                    @default(now())
   businessId                  String
   accountId                   String
   destinationAccountId        String?
@@ -373,27 +379,28 @@ model Transaction {
   inventoryItemId             String?
   inventoryQuantity           Int?
   invoiceItems                Json?
-  reversesTransactionId       String?                   @unique
-  business                    Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  account                     Account                   @relation("TransactionAccount", fields: [accountId], references: [id])
-  destinationAccount          Account?                  @relation("TransferDestination", fields: [destinationAccountId], references: [id])
-  location                    BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  customer                    Customer?                 @relation(fields: [customerId], references: [id])
-  supplier                    Supplier?                 @relation(fields: [supplierId], references: [id])
-  inventoryItem               InventoryItem?            @relation(fields: [inventoryItemId], references: [id])
-  reversesTransaction         Transaction?              @relation("TransactionReversal", fields: [reversesTransactionId], references: [id])
-  reversalTransaction         Transaction?              @relation("TransactionReversal")
+  reversesTransactionId       String?                     @unique
+  business                    Business                    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account                     Account                     @relation("TransactionAccount", fields: [accountId], references: [id])
+  destinationAccount          Account?                    @relation("TransferDestination", fields: [destinationAccountId], references: [id])
+  location                    BusinessLocation?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  customer                    Customer?                   @relation(fields: [customerId], references: [id])
+  supplier                    Supplier?                   @relation(fields: [supplierId], references: [id])
+  inventoryItem               InventoryItem?              @relation(fields: [inventoryItemId], references: [id])
+  reversesTransaction         Transaction?                @relation("TransactionReversal", fields: [reversesTransactionId], references: [id])
+  reversalTransaction         Transaction?                @relation("TransactionReversal")
   debts                       Debt[]
   inventoryMovements          InventoryMovement[]
   payments                    TransactionPayment[]
-  customerReturnsAsOriginal   CustomerReturn[]          @relation("CustomerReturnOriginal")
-  customerReturnsAsRefund     CustomerReturn[]          @relation("CustomerReturnRefund")
-  supplierReturnsAsOriginal   SupplierReturn[]          @relation("SupplierReturnOriginal")
-  supplierReturnsAsSettlement SupplierReturn[]          @relation("SupplierReturnSettlement")
+  customerReturnsAsOriginal   CustomerReturn[]            @relation("CustomerReturnOriginal")
+  customerReturnsAsRefund     CustomerReturn[]            @relation("CustomerReturnRefund")
+  supplierReturnsAsOriginal   SupplierReturn[]            @relation("SupplierReturnOriginal")
+  supplierReturnsAsSettlement SupplierReturn[]            @relation("SupplierReturnSettlement")
   taxSnapshots                DocumentTaxSnapshot[]
   taxReviewItems              TaxReviewItem[]
   reconciliationMatches       BankReconciliationMatch[]
-  payrollExpenseRuns          PayrollRun[]              @relation("PayrollRunExpenseTransaction")
+  payrollExpenseRuns          PayrollRun[]                @relation("PayrollRunExpenseTransaction")
+  cooperativeLedgerTransfers  CooperativeLedgerTransfer[]
 
   @@unique([businessId, idempotencyKey])
   @@unique([businessId, duplicateFingerprint])
@@ -2396,35 +2403,48 @@ model LoanReadinessSharingLog {
 }
 
 model CooperativeGroup {
-  id                String                        @id @default(cuid())
-  businessId        String
-  locationId        String?
-  name              String
-  description       String?
-  currency          String                        @default("NGN")
-  status            String                        @default("ACTIVE")
-  contributionCycle String                        @default("MONTHLY")
-  loanApprovalMode  String                        @default("committee")
-  dividendRule      String                        @default("proportional_contributions")
-  createdById       String?
-  archivedAt        DateTime?
-  createdAt         DateTime                      @default(now())
-  updatedAt         DateTime                      @updatedAt
-  business          Business                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  location          BusinessLocation?             @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  members           CooperativeMember[]
-  contributionPlans CooperativeContributionPlan[]
-  contributions     CooperativeContribution[]
-  loans             CooperativeLoan[]
-  meetings          CooperativeMeeting[]
-  resolutions       CooperativeResolution[]
-  expenses          CooperativeExpense[]
-  distributions     CooperativeDistribution[]
-  ledgerEntries     CooperativeLedgerEntry[]
+  id                    String                         @id @default(cuid())
+  businessId            String
+  locationId            String?
+  name                  String
+  description           String?
+  registrationReference String?
+  currency              String                         @default("NGN")
+  status                String                         @default("ACTIVE")
+  contributionCycle     String                         @default("MONTHLY")
+  loanApprovalMode      String                         @default("committee")
+  dividendRule          String                         @default("proportional_contributions")
+  fiscalYearStart       Int                            @default(1)
+  memberSelfViewEnabled Boolean                        @default(false)
+  requireGuarantors     Boolean                        @default(false)
+  minimumGuarantors     Int                            @default(0)
+  interestPolicy        Json?
+  transferPolicy        Json?
+  createdById           String?
+  archivedAt            DateTime?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+  business              Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location              BusinessLocation?              @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  members               CooperativeMember[]
+  contributionPlans     CooperativeContributionPlan[]
+  contributions         CooperativeContribution[]
+  loans                 CooperativeLoan[]
+  meetings              CooperativeMeeting[]
+  resolutions           CooperativeResolution[]
+  expenses              CooperativeExpense[]
+  distributions         CooperativeDistribution[]
+  ledgerEntries         CooperativeLedgerEntry[]
+  ledgerAccounts        CooperativeLedgerAccount[]
+  ledgerBatches         CooperativeLedgerBatch[]
+  approvalActions       CooperativeApprovalAction[]
+  repaymentSchedules    CooperativeRepaymentSchedule[]
+  ledgerTransfers       CooperativeLedgerTransfer[]
 
   @@unique([businessId, name])
   @@index([businessId, status, createdAt])
   @@index([businessId, locationId, status])
+  @@index([businessId, registrationReference])
 }
 
 model CooperativeMember {
@@ -2432,10 +2452,13 @@ model CooperativeMember {
   businessId        String
   groupId           String
   userId            String?
+  memberNumber      String?
   displayName       String
+  fullName          String?
   phone             String?
   email             String?
   externalReference String?
+  sensitiveMetadata Json?
   status            String                     @default("ACTIVE")
   joinedAt          DateTime                   @default(now())
   exitedAt          DateTime?
@@ -2450,6 +2473,7 @@ model CooperativeMember {
   ledgerEntries     CooperativeLedgerEntry[]
 
   @@unique([groupId, externalReference])
+  @@unique([groupId, memberNumber])
   @@index([businessId, groupId, status])
   @@index([groupId, displayName])
   @@index([groupId, phone])
@@ -2463,8 +2487,11 @@ model CooperativeContributionPlan {
   amount        Decimal                   @default(0)
   frequency     String                    @default("MONTHLY")
   startDate     DateTime                  @default(now())
+  endDate       DateTime?
   graceDays     Int                       @default(0)
   penaltyAmount Decimal                   @default(0)
+  mandatory     Boolean                   @default(true)
+  active        Boolean                   @default(true)
   status        String                    @default("ACTIVE")
   metadata      Json?
   createdAt     DateTime                  @default(now())
@@ -2477,25 +2504,31 @@ model CooperativeContributionPlan {
 }
 
 model CooperativeContribution {
-  id            String                       @id @default(cuid())
-  businessId    String
-  groupId       String
-  memberId      String
-  planId        String?
-  dueDate       DateTime?
-  paidAt        DateTime                     @default(now())
-  amount        Decimal                      @default(0)
-  penaltyAmount Decimal                      @default(0)
-  reference     String?
-  status        String                       @default("RECORDED")
-  recordedById  String?
-  createdAt     DateTime                     @default(now())
-  updatedAt     DateTime                     @updatedAt
-  group         CooperativeGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  member        CooperativeMember            @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  plan          CooperativeContributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
-  ledgerEntries CooperativeLedgerEntry[]
+  id               String                       @id @default(cuid())
+  businessId       String
+  groupId          String
+  memberId         String
+  planId           String?
+  dueDate          DateTime?
+  paidAt           DateTime                     @default(now())
+  amount           Decimal                      @default(0)
+  penaltyAmount    Decimal                      @default(0)
+  reference        String?
+  paymentReference String?
+  idempotencyKey   String?
+  status           String                       @default("RECORDED")
+  reversedAt       DateTime?
+  reversalReason   String?
+  reversalOfId     String?
+  recordedById     String?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  group            CooperativeGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member           CooperativeMember            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan             CooperativeContributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  ledgerEntries    CooperativeLedgerEntry[]
 
+  @@unique([businessId, idempotencyKey])
   @@index([businessId, groupId, paidAt])
   @@index([groupId, memberId, paidAt])
   @@index([groupId, planId, paidAt])
@@ -2503,46 +2536,67 @@ model CooperativeContribution {
 }
 
 model CooperativeLoan {
-  id              String                     @id @default(cuid())
-  businessId      String
-  groupId         String
-  memberId        String
-  principal       Decimal                    @default(0)
-  interestAmount  Decimal                    @default(0)
-  penaltyAmount   Decimal                    @default(0)
-  totalDue        Decimal                    @default(0)
-  disbursedAmount Decimal                    @default(0)
-  status          String                     @default("REQUESTED")
-  requestedAt     DateTime                   @default(now())
-  approvedAt      DateTime?
-  approvedById    String?
-  disbursedAt     DateTime?
-  dueAt           DateTime?
-  metadata        Json?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-  group           CooperativeGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  member          CooperativeMember          @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  guarantors      CooperativeLoanGuarantor[]
-  repayments      CooperativeLoanRepayment[]
-  ledgerEntries   CooperativeLedgerEntry[]
+  id                        String                         @id @default(cuid())
+  businessId                String
+  groupId                   String
+  memberId                  String
+  principal                 Decimal                        @default(0)
+  approvedAmount            Decimal?
+  interestAmount            Decimal                        @default(0)
+  interestRate              Decimal                        @default(0)
+  interestMethod            String                         @default("zero")
+  termCount                 Int                            @default(1)
+  repaymentFrequency        String                         @default("MONTHLY")
+  purpose                   String?
+  penaltyAmount             Decimal                        @default(0)
+  totalDue                  Decimal                        @default(0)
+  disbursedAmount           Decimal                        @default(0)
+  status                    String                         @default("REQUESTED")
+  applicationDate           DateTime                       @default(now())
+  requestedAt               DateTime                       @default(now())
+  submittedAt               DateTime?
+  reviewedAt                DateTime?
+  reviewedByUserId          String?
+  approvedAt                DateTime?
+  approvedById              String?
+  rejectedAt                DateTime?
+  rejectionReason           String?
+  disbursedAt               DateTime?
+  disbursementReference     String?
+  disbursedRecordedByUserId String?
+  completedAt               DateTime?
+  cancelledAt               DateTime?
+  idempotencyKey            String?
+  dueAt                     DateTime?
+  metadata                  Json?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+  group                     CooperativeGroup               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member                    CooperativeMember              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guarantors                CooperativeLoanGuarantor[]
+  repayments                CooperativeLoanRepayment[]
+  repaymentSchedules        CooperativeRepaymentSchedule[]
+  ledgerEntries             CooperativeLedgerEntry[]
 
+  @@unique([businessId, idempotencyKey])
   @@index([businessId, groupId, status])
   @@index([groupId, memberId, status])
   @@index([groupId, dueAt])
 }
 
 model CooperativeLoanGuarantor {
-  id         String            @id @default(cuid())
-  businessId String
-  groupId    String
-  loanId     String
-  memberId   String
-  status     String            @default("PENDING")
-  approvedAt DateTime?
-  createdAt  DateTime          @default(now())
-  loan       CooperativeLoan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  member     CooperativeMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id              String            @id @default(cuid())
+  businessId      String
+  groupId         String
+  loanId          String
+  memberId        String
+  guaranteeAmount Decimal?
+  status          String            @default("PENDING")
+  confirmedAt     DateTime?
+  approvedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  loan            CooperativeLoan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  member          CooperativeMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([loanId, memberId])
   @@index([businessId, groupId, status])
@@ -2550,26 +2604,36 @@ model CooperativeLoanGuarantor {
 }
 
 model CooperativeLoanRepayment {
-  id               String                   @id @default(cuid())
+  id               String                        @id @default(cuid())
   businessId       String
   groupId          String
   loanId           String
   memberId         String
-  paidAt           DateTime                 @default(now())
-  amount           Decimal                  @default(0)
-  principalPortion Decimal                  @default(0)
-  interestPortion  Decimal                  @default(0)
-  penaltyPortion   Decimal                  @default(0)
+  scheduleId       String?
+  paidAt           DateTime                      @default(now())
+  repaymentDate    DateTime?
+  amount           Decimal                       @default(0)
+  principalPortion Decimal                       @default(0)
+  interestPortion  Decimal                       @default(0)
+  penaltyPortion   Decimal                       @default(0)
   reference        String?
+  paymentReference String?
+  idempotencyKey   String?
+  status           String                        @default("RECORDED")
+  reversedAt       DateTime?
+  reversalReason   String?
   recordedById     String?
-  createdAt        DateTime                 @default(now())
-  loan             CooperativeLoan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  member           CooperativeMember        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt        DateTime                      @default(now())
+  loan             CooperativeLoan               @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  member           CooperativeMember             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  schedule         CooperativeRepaymentSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   ledgerEntries    CooperativeLedgerEntry[]
 
+  @@unique([businessId, idempotencyKey])
   @@index([businessId, groupId, paidAt])
   @@index([groupId, loanId, paidAt])
   @@index([groupId, memberId, paidAt])
+  @@index([scheduleId])
 }
 
 model CooperativeMeeting {
@@ -2658,6 +2722,9 @@ model CooperativeLedgerEntry {
   id             String                    @id @default(cuid())
   businessId     String
   groupId        String
+  batchId        String?
+  accountId      String?
+  accountCode    String?
   memberId       String?
   contributionId String?
   loanId         String?
@@ -2670,10 +2737,17 @@ model CooperativeLedgerEntry {
   credit         Decimal                   @default(0)
   memo           String?
   reference      String?
+  sourceType     String?
+  sourceId       String?
+  reversalOfId   String?
   lockedAt       DateTime?
+  postedByUserId String?
+  postedAt       DateTime?
   createdById    String?
   createdAt      DateTime                  @default(now())
   group          CooperativeGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  batch          CooperativeLedgerBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  account        CooperativeLedgerAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   member         CooperativeMember?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
   contribution   CooperativeContribution?  @relation(fields: [contributionId], references: [id], onDelete: SetNull)
   loan           CooperativeLoan?          @relation(fields: [loanId], references: [id], onDelete: SetNull)
@@ -2684,7 +2758,127 @@ model CooperativeLedgerEntry {
   @@index([businessId, groupId, entryDate])
   @@index([groupId, memberId, entryDate])
   @@index([groupId, entryType, entryDate])
+  @@index([groupId, accountCode, entryDate])
+  @@index([batchId])
   @@index([businessId, reference])
+}
+
+model CooperativeLedgerAccount {
+  id            String                   @id @default(cuid())
+  businessId    String
+  groupId       String
+  code          String
+  name          String
+  accountType   String
+  normalBalance String
+  active        Boolean                  @default(true)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  business      Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group         CooperativeGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entries       CooperativeLedgerEntry[]
+
+  @@unique([groupId, code])
+  @@index([businessId, groupId, active])
+}
+
+model CooperativeLedgerBatch {
+  id             String                      @id @default(cuid())
+  businessId     String
+  groupId        String
+  eventType      String
+  sourceType     String?
+  sourceId       String?
+  idempotencyKey String?
+  memo           String?
+  reversalOfId   String?
+  postedByUserId String?
+  postedAt       DateTime                    @default(now())
+  createdAt      DateTime                    @default(now())
+  business       Business                    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group          CooperativeGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entries        CooperativeLedgerEntry[]
+  transfers      CooperativeLedgerTransfer[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, groupId, postedAt])
+  @@index([groupId, eventType, postedAt])
+  @@index([businessId, sourceType, sourceId])
+}
+
+model CooperativeRepaymentSchedule {
+  id               String                     @id @default(cuid())
+  businessId       String
+  groupId          String
+  loanId           String
+  instalmentNumber Int
+  dueDate          DateTime
+  principalDue     Decimal                    @default(0)
+  interestDue      Decimal                    @default(0)
+  penaltyDue       Decimal                    @default(0)
+  totalDue         Decimal                    @default(0)
+  paidAmount       Decimal                    @default(0)
+  status           String                     @default("PENDING")
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  business         Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group            CooperativeGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  loan             CooperativeLoan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  repayments       CooperativeLoanRepayment[]
+
+  @@unique([loanId, instalmentNumber])
+  @@index([businessId, groupId, dueDate, status])
+  @@index([groupId, loanId, dueDate])
+}
+
+model CooperativeApprovalAction {
+  id         String           @id @default(cuid())
+  businessId String
+  groupId    String
+  targetType String
+  targetId   String
+  action     String
+  actorId    String?
+  reason     String?
+  metadata   Json?
+  recordedAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group      CooperativeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, groupId, recordedAt])
+  @@index([groupId, targetType, targetId])
+  @@index([businessId, action, recordedAt])
+}
+
+model CooperativeLedgerTransfer {
+  id                       String                  @id @default(cuid())
+  businessId               String
+  groupId                  String
+  cooperativeLedgerBatchId String?
+  businessTransactionId    String?
+  direction                String
+  amount                   Decimal                 @default(0)
+  currency                 String                  @default("NGN")
+  status                   String                  @default("RECORDED")
+  memo                     String?
+  reference                String?
+  requestedByUserId        String?
+  approvedByUserId         String?
+  approvedAt               DateTime?
+  recordedAt               DateTime                @default(now())
+  reversedAt               DateTime?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  business                 Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group                    CooperativeGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  cooperativeLedgerBatch   CooperativeLedgerBatch? @relation(fields: [cooperativeLedgerBatchId], references: [id], onDelete: SetNull)
+  businessTransaction      Transaction?            @relation(fields: [businessTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, groupId, recordedAt])
+  @@index([groupId, direction, status])
+  @@index([businessTransactionId])
+  @@index([cooperativeLedgerBatchId])
 }
 
 model PayrollEmployee {

@@ -10,6 +10,7 @@ export type BillingFeature =
   | "tax_assistant"
   | "executive_dashboard"
   | "predictive_alerts"
+  | "cooperatives"
   | "payroll"
   | "ai_marketing"
   | "ai_evaluation"
@@ -77,6 +78,11 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     id: "predictive_alerts",
     name: "Predictive alerts",
     summary: "Detect deterministic risk and opportunity signals from recorded sales, debt, stock, bank, tax, and staff data.",
+  },
+  cooperatives: {
+    id: "cooperatives",
+    name: "Cooperatives",
+    summary: "Run a separate member savings and internal loan ledger with approvals, arrears, and exports.",
   },
   payroll: {
     id: "payroll",
@@ -185,6 +191,7 @@ export const billingPlans: BillingPlan[] = [
       "tax_assistant",
       "executive_dashboard",
       "predictive_alerts",
+      "cooperatives",
       "payroll",
       "ai_marketing",
       "ai_evaluation",

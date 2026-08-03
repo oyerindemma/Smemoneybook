@@ -35,6 +35,16 @@ export type Permission =
   | "predictive_alerts:manage"
   | "predictive_alerts:acknowledge"
   | "predictive_alerts:export"
+  | "cooperatives:read"
+  | "cooperatives:manage"
+  | "cooperatives:manage_members"
+  | "cooperatives:record_contributions"
+  | "cooperatives:review_loans"
+  | "cooperatives:approve_loans"
+  | "cooperatives:record_disbursement"
+  | "cooperatives:record_repayment"
+  | "cooperatives:export"
+  | "cooperatives:view_member_sensitive"
   | "payroll:read"
   | "payroll:manage_employees"
   | "payroll:prepare"
@@ -98,6 +108,16 @@ const permissions: Record<Role, Permission[]> = {
     "predictive_alerts:manage",
     "predictive_alerts:acknowledge",
     "predictive_alerts:export",
+    "cooperatives:read",
+    "cooperatives:manage",
+    "cooperatives:manage_members",
+    "cooperatives:record_contributions",
+    "cooperatives:review_loans",
+    "cooperatives:approve_loans",
+    "cooperatives:record_disbursement",
+    "cooperatives:record_repayment",
+    "cooperatives:export",
+    "cooperatives:view_member_sensitive",
     "payroll:read",
     "payroll:manage_employees",
     "payroll:prepare",
@@ -141,6 +161,9 @@ const permissions: Record<Role, Permission[]> = {
     "predictive_alerts:read",
     "predictive_alerts:acknowledge",
     "predictive_alerts:export",
+    "cooperatives:read",
+    "cooperatives:export",
+    "cooperatives:view_member_sensitive",
   ],
   STAFF: [
     "money:write",
