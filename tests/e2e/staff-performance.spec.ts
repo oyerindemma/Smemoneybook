@@ -54,7 +54,7 @@ test.describe("Staff Performance Preview workflow", () => {
     await expect(page.getByRole("button", { name: /Tunde/i })).toBeVisible();
 
     await page.getByLabel("Date range").selectOption("last_7_days");
-    await page.getByLabel("Location").selectOption("loc_main");
+    await page.locator("label").filter({ hasText: /^Location/ }).locator("select").selectOption("loc_main");
     await page.getByRole("button", { name: /Tunde/i }).click();
     await expect(page.getByText("Trend comparison")).toBeVisible();
 

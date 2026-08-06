@@ -47,8 +47,9 @@ test.describe("Predictive Alerts Preview workflow", () => {
     await expect(page.getByText("30000")).toBeVisible();
 
     await page.getByLabel("Date range").selectOption("14");
-    await expect(page.getByText("1 active")).toBeVisible();
+    await expect.poll(() => state.lastListPeriodDays).toBe("14");
     await expect(page.getByRole("button", { name: /Low stock needs review/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Recorded sales declined/i })).toHaveCount(0);
 
     await page.getByLabel("Date range").selectOption("30");
     await page.getByLabel("Category").selectOption("staff_attribution_anomalies");
@@ -189,6 +190,7 @@ type PredictiveRouteState = {
   lifecycleActions: string[];
   preferenceUpdates: number;
   lastPreferencePayload: { preferences: Array<Record<string, unknown>> } | null;
+  lastListPeriodDays: string | null;
   forceUnauthorized: boolean;
 };
 
@@ -225,6 +227,7 @@ function createPredictiveRouteState(): PredictiveRouteState {
     lifecycleActions: [],
     preferenceUpdates: 0,
     lastPreferencePayload: null,
+    lastListPeriodDays: null,
     forceUnauthorized: false,
   };
 }
@@ -253,6 +256,7 @@ async function installPredictiveAlertRoutes(page: Page, state: PredictiveRouteSt
       }
 
       const periodDays = url.searchParams.get("periodDays") ?? "30";
+      state.lastListPeriodDays = periodDays;
       const statuses = new Set((url.searchParams.get("status") ?? "active,acknowledged").split(","));
       const category = url.searchParams.get("category");
       const baseAlerts = statuses.has("resolved") || statuses.has("dismissed")

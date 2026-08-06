@@ -69,7 +69,7 @@ test.describe("AI Marketing Preview workflow", () => {
 
     await page.getByRole("button", { name: "Record opt-out" }).click();
     await expect.poll(() => state.optOutRecorded).toBe(true);
-    await expect(page.getByText(/opted_out.*excluded/)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Chi.*opted_out.*excluded.*opted_out/ })).toBeVisible();
 
     const checks = await page.evaluate(async () => {
       const isolation = await fetch("/api/ai-marketing/segments?businessId=other_biz");

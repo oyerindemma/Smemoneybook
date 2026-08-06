@@ -60,7 +60,9 @@ test.describe("Cooperatives Preview workflow", () => {
     await page.getByLabel("Reference").fill("CONT-001");
     await page.getByRole("button", { name: "Record", exact: true }).click();
     await expect.poll(() => state.contributionRecorded).toBe(true);
-    await expect(page.getByText(/5,000/)).toBeVisible();
+    const recentContributions = page.getByRole("heading", { name: "Recent contributions" }).locator("xpath=ancestor::div[1]");
+    await expect(recentContributions.getByText("Ada Member")).toBeVisible();
+    await expect(recentContributions.getByText(/5,000/)).toBeVisible();
 
     await page.getByRole("tab", { name: "Loans" }).click();
     await page.getByLabel("Principal").fill("20000");
