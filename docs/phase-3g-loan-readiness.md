@@ -6,7 +6,8 @@ Loan Readiness is a preparation assessment from recorded SME MoneyBook data. It 
 
 ## Implemented Scope
 
-- Feature-gated by `NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED`.
+- Feature-gated by `NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED` for navigation and
+  `PHASE3_LOAN_READINESS_ENABLED` for server-side API/page access.
 - API:
   - `GET /api/loan-readiness` calculates the current assessment.
   - `POST /api/loan-readiness` recalculates and saves a snapshot.

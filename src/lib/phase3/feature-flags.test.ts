@@ -70,4 +70,17 @@ describe("Phase 3 feature flags", () => {
     expect(phase3OperationalControls.monthlyCostBudgetKobo).toBe(250000);
     expect(phase3OperationalControls.dailyRequestLimitPerBusiness).toBe(75);
   });
+
+  it("requires the private server flag before Loan Readiness can run server-side", async () => {
+    process.env.NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED = "true";
+    process.env.PHASE3_LOAN_READINESS_ENABLED = "false";
+
+    const {
+      isLoanReadinessFeatureEnabledForServer,
+      requireLoanReadinessFeatureForServer,
+    } = await loadFlags();
+
+    expect(isLoanReadinessFeatureEnabledForServer()).toBe(false);
+    expect(requireLoanReadinessFeatureForServer()?.status).toBe(404);
+  });
 });

@@ -66,6 +66,7 @@ describe("/api/loan-readiness", () => {
     vi.resetModules();
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED = "true";
+    process.env.PHASE3_LOAN_READINESS_ENABLED = "true";
     requireUser.mockResolvedValue({ id: "user_1" });
     enforceRateLimit.mockResolvedValue(null);
     requireBusinessAccess.mockResolvedValue({ businessId: "biz_1" });
@@ -81,14 +82,28 @@ describe("/api/loan-readiness", () => {
     vi.resetModules();
   });
 
-  it("requires the Phase 3 loan readiness flag", async () => {
+  it("requires both Phase 3 loan readiness flags", async () => {
     process.env.NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED = "false";
+    process.env.PHASE3_LOAN_READINESS_ENABLED = "true";
     vi.resetModules();
 
     const { GET } = await import("@/app/api/loan-readiness/route");
     const response = await GET(new Request("http://localhost/api/loan-readiness?businessId=biz_1"));
 
     expect(response.status).toBe(404);
+    expect(calculateAssessment).not.toHaveBeenCalled();
+  });
+
+  it("keeps the API unavailable when the private flag is off", async () => {
+    process.env.NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED = "true";
+    process.env.PHASE3_LOAN_READINESS_ENABLED = "false";
+    vi.resetModules();
+
+    const { GET } = await import("@/app/api/loan-readiness/route");
+    const response = await GET(new Request("http://localhost/api/loan-readiness?businessId=biz_1"));
+
+    expect(response.status).toBe(404);
+    expect(requireUser).not.toHaveBeenCalled();
     expect(calculateAssessment).not.toHaveBeenCalled();
   });
 

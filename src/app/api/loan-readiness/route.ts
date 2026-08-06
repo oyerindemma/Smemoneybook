@@ -7,7 +7,7 @@ import { parseJsonBody } from "@/lib/api/validation";
 import { requireMinimumPlan } from "@/lib/billing/subscriptions";
 import { requireBusinessAccess, requireLocationAccess } from "@/lib/operations/access";
 import { getPrisma } from "@/lib/prisma";
-import { requirePhase3Feature } from "@/lib/phase3/feature-flags";
+import { requireLoanReadinessFeatureForServer } from "@/lib/phase3/feature-flags";
 import {
   calculateLoanReadinessForBusiness,
   recordLoanReadinessSharingConsent,
@@ -33,7 +33,7 @@ const sharingConsentSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const featureGate = requirePhase3Feature("loanReadiness", "Loan readiness");
+    const featureGate = requireLoanReadinessFeatureForServer();
 
     if (featureGate) {
       return featureGate;
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
-    const featureGate = requirePhase3Feature("loanReadiness", "Loan readiness");
+    const featureGate = requireLoanReadinessFeatureForServer();
 
     if (featureGate) {
       return featureGate;
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     assertSameOriginRequest(request);
-    const featureGate = requirePhase3Feature("loanReadiness", "Loan readiness");
+    const featureGate = requireLoanReadinessFeatureForServer();
 
     if (featureGate) {
       return featureGate;

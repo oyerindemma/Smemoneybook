@@ -68,6 +68,26 @@ export function requirePhase3Feature(feature: Phase3Feature, label: string) {
   return Response.json({ error: reason }, { status });
 }
 
+export function isLoanReadinessFeatureEnabledForServer() {
+  return (
+    isPhase3FeatureEnabled("loanReadiness") &&
+    readFlag(process.env.PHASE3_LOAN_READINESS_ENABLED, false)
+  );
+}
+
+export function requireLoanReadinessFeatureForServer() {
+  if (isLoanReadinessFeatureEnabledForServer()) {
+    return null;
+  }
+
+  const status = phase3OperationalControls.globalKillSwitch ? 503 : 404;
+  const reason = phase3OperationalControls.globalKillSwitch
+    ? "Phase 3 AI capabilities are temporarily paused."
+    : "Loan readiness is not available right now.";
+
+  return Response.json({ error: reason }, { status });
+}
+
 function disableAllPhase3Features(): Phase3FeatureFlagState {
   return Object.fromEntries(
     Object.keys(rawPhase3FeatureFlags).map((feature) => [feature, false]),

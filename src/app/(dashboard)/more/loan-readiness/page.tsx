@@ -1,8 +1,10 @@
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { LoanReadinessPanel } from "@/components/loan-readiness/LoanReadinessPanel";
-import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
+import { isLoanReadinessFeatureEnabledForServer } from "@/lib/phase3/feature-flags";
 
 export default function LoanReadinessPage() {
+  const enabled = isLoanReadinessFeatureEnabledForServer();
+
   return (
     <main className="space-y-6 md:space-y-8">
       <header>
@@ -12,7 +14,7 @@ export default function LoanReadinessPage() {
           Review readiness evidence before speaking with a financing partner.
         </p>
       </header>
-      {phase3FeatureFlags.loanReadiness ? (
+      {enabled ? (
         <LoanReadinessPanel />
       ) : (
         <FeatureUnavailablePanel
