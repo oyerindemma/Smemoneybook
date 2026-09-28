@@ -34,8 +34,8 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.468.0",
-    "next": "^16.2.6",
-    "posthog-js": "^1.374.3",
+    "next": "^16.3.3",
+    "posthog-js": "^1.434.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^4.4.0"
@@ -48,8 +48,8 @@
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.16.0",
-    "eslint-config-next": "^16.2.6",
-    "postcss": "^8.5.12",
+    "eslint-config-next": "^16.3.3",
+    "postcss": "^8.5.23",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.16",
     "tsx": "^4.21.0",
@@ -60,7 +60,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
-    "postcss": "^8.5.12",
+    "postcss": "^8.5.23",
     "tar": "^7.5.13",
     "@capacitor/cli": "^7.6.2",
     "uuid": "^11.1.1",

@@ -16,9 +16,7 @@ async function signUpAndOnboard(page: Page, prefix = "mobile-qa") {
   await page.setExtraHTTPHeaders({
     "x-forwarded-for": `10.${ipSeed}.${Math.floor(Math.random() * 200) + 1}.${Math.floor(Math.random() * 200) + 1}`,
   });
-  await page.goto("/");
-  await expect(page.getByText("SME Moneybook").first()).toBeVisible();
-  await page.getByRole("button", { name: "Start Free" }).click();
+  await page.goto("/auth");
   await page.getByLabel("Your name").fill("Mobile QA Owner");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
@@ -49,7 +47,7 @@ async function signOut(page: Page) {
 }
 
 async function signIn(page: Page, email: string) {
-  await page.goto("/");
+  await page.goto("/auth");
   const existingAccountButton = page.getByRole("button", { name: "I already have an account" });
   if (await existingAccountButton.count()) {
     await existingAccountButton.click();

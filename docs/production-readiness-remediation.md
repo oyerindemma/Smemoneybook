@@ -4,19 +4,180 @@ Audit date: 2026-09-28
 
 Branch: `phase-3-staging`
 
-Final classification: `PRODUCTION CONFIGURATION INCOMPLETE`
+Final classification: `DEPENDENCY GATE PASSED — INFRASTRUCTURE REMEDIATION NEXT`
 
 No Production deployment, merge, environment mutation, database command, or database query was performed.
 
+## Step 2 Evidence - 2026-09-28
+
+### Dependency Security
+
+Baseline command: `npm audit --omit=dev --json`.
+
+Baseline result: 17 Production-tree findings: 1 critical, 4 high, 12 moderate.
+
+| Package/group | Installed before | Severity | Affected range/advisory | Dependency path | Direct/transitive | Fix selected | Breaking risk |
+|---|---:|---|---|---|---|---|---|
+| `next` | `16.2.6` | Critical | Eleven advisories, including middleware/proxy bypass, Server Action denial of service/SSRF, cache confusion, endpoint disclosure, and RCE; latest affected range ended below `16.3.3` | Direct application framework | Direct | Manifest minimum `^16.3.3`; lock resolved `16.3.6` | Non-breaking minor/patch within major 16; full regression required |
+| `postcss` | `8.5.14` | High | Source-map path traversal/file disclosure, affected through `8.5.22` | Direct dev declaration and Next runtime tree | Direct plus framework dependency | Manifest minimum `^8.5.23`; lock resolved `8.5.28` | Non-breaking patch |
+| `nanoid` | `3.3.11` | High | Generator infinite loops/integer overflow, affected below `3.3.18` | Next -> PostCSS -> Nanoid | Transitive | `3.3.19` through refreshed tree | Non-breaking patch |
+| `sharp` | `0.34.5` | High | libvips/libheif inherited vulnerabilities, affected below `0.35.4` | Next optional image dependency | Transitive, runtime image path | `0.35.5` through Next | Minor transitive update; image/build regression covered |
+| `protobufjs` | `7.6.0` | High | unbounded expansion, shadowed runtime properties, parser loop; affected through `7.6.4` | PostHog -> OpenTelemetry | Transitive, conditional analytics path | Removed from current Production dependency tree by PostHog update | Non-breaking PostHog major-1 update |
+| `posthog-js` and OpenTelemetry subtree | `1.374.3`; OpenTelemetry `2.2.0`/`0.208.0` | Moderate | PostHog dependency effects plus OpenTelemetry baggage memory allocation below `2.8.0` | Direct analytics SDK and transitive telemetry | Direct/transitive, reachable only when analytics key is set | `posthog-js` `1.434.16`; vulnerable telemetry tree removed | Non-breaking within major 1 |
+| `dompurify` | `3.4.5` | Moderate | Multiple sanitization bypass advisories through `3.4.12` | PostHog | Transitive, conditional analytics/browser features | `3.4.16` | Non-breaking patch |
+| `fflate` | `0.4.8` | Moderate | malformed ZIP64 infinite loop, affected `0.4.5` through `0.4.8` | PostHog | Transitive, conditional analytics path | `0.4.9` | Non-breaking patch |
+| `baseline-browser-mapping` | `2.10.24` | Moderate | process termination on invalid input, affected below `2.11.0` | Next build tree | Transitive build-time | `2.11.26` | Non-breaking minor |
+
+`eslint-config-next` moved from `^16.2.6` to `^16.3.3` to keep framework lint rules aligned. React and React DOM were unchanged because Next `16.3.3+` supports the existing React 19 range.
+
+After remediation, `npm audit --omit=dev --json` reports zero critical, high, moderate, low, or total Production-tree findings. No `npm audit fix --force`, major upgrade, suppression, or audit exception was used.
+
+Validation results:
+
+- `npm install`: passed; Prisma client regenerated.
+- `npm run lint`: passed with zero errors and three existing/newly surfaced Next navigation warnings.
+- `npm run typecheck`: passed.
+- `npm run test`: passed, 95 files and 376 tests.
+- `npm run build`: passed with Next `16.3.6`; 148 static pages generated.
+- `npx prisma validate`: passed locally; no Production database command was run.
+- Playwright safe mocked regression: passed, 51 tests across Chromium, Mobile Chrome, and Mobile Safari with Phase 2 and approved Phase 3 flags enabled.
+- The initial broad Playwright run exposed stale landing-page locators in smoke/mobile setup. The smoke assertion and auth navigation were updated to the current landing/auth routes. The write-capable mobile suite was not rerun because local database URLs could not be positively identified as non-Production from safe metadata; this remains a controlled QA follow-up.
+
+### Vercel Authentication
+
+`vercel whoami` passed as `oyerindemma`. The linked project is `emmanuel-oyerindes-projects/smemoneybook`.
+
+- `https://smemoneybook.com` is assigned to deployment `dpl_AAQBGWwQYUiBF8KykLsKncond3Zk`.
+- Target: Production.
+- Status: Ready.
+- Production Git branch: `main`.
+- Production commit: `77324e2487dca1c373ce7961a4c0ee53a6c87642`.
+- No deployment, promotion, alias change, or environment mutation was performed.
+
+### Production Environment
+
+Current Vercel Production names present:
+
+- Core: `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`, `ADMIN_EMAILS`, `CRON_SECRET`.
+- Paystack: `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_SECRET_KEY`.
+- Resend: `RESEND_API_KEY`, `EMAIL_FROM`.
+- WhatsApp: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_BUSINESS_ACCOUNT_ID`.
+- OpenAI: `OPENAI_API_KEY`, `OPENAI_MODEL`.
+- Legacy/unused by current source: `SUPPORT_EMAIL`, `BILLING_EMAIL`, and five `PAYSTACK_PLAN_*` variables.
+
+Wrong or over-broad scope requiring review:
+
+- Resend variables are shared across Preview and Production rather than environment-separated.
+- WhatsApp variables are shared across Preview and Production rather than environment-separated.
+- Legacy/unused support, billing, and Paystack-plan variables are shared across Preview and Production.
+
+Missing from Production:
+
+- `WHATSAPP_APP_SECRET`.
+- Every Phase 2 rollout flag.
+- Every Phase 3 public/private module flag and operational control.
+- `PHASE3_PAYROLL_STATUTORY_RULES_JSON`.
+- Optional analytics/canonical variables `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, and `NEXT_PUBLIC_SITE_URL` are absent; their absence is non-blocking while analytics is intentionally disabled. The encrypted `NEXT_PUBLIC_APP_URL` value still requires manual verification.
+
+Encrypted Vercel metadata proves presence and scope, not correctness of secret values.
+
+### Database
+
+Production contains encrypted `DATABASE_URL` and `DIRECT_URL` names. This does not prove that they target the Neon `production` branch or that application/direct pooling roles are correct. Preview branch `phase-3-staging` separately contains both names. No value was copied, printed, compared, queried, or changed. Production migration status and restore capability remain blocked pending Neon-side manual verification.
+
+### Paystack
+
+Production has encrypted public and secret key variables. Mode is `UNKNOWN`: encrypted metadata cannot prove `pk_live_`/`sk_live_` prefixes or account ownership. `PAYSTACK_WEBHOOK_SECRET` is not expected by source; webhook HMAC uses `PAYSTACK_SECRET_KEY`. Live webhook registration and callback behavior remain manual-verification gates. No charge or provider mutation occurred.
+
+### Payroll
+
+Production has no `PHASE3_PAYROLL_STATUTORY_RULES_JSON`. Preview has an encrypted branch-scoped value, but it must not be copied blindly and the exact authoritative payload is not reproducible from source. Payroll remains `BLOCKED` pending strict validation, authoritative Nigerian source review, secure versioning, and Production-specific approval.
+
+### Phase 2 Feature Flags
+
+Vercel does not disclose encrypted flag values through the listing command. Preview existence is scoped to both `phase-2-staging` and `phase-3-staging`; Production existence is definitive from names.
+
+| Flag | Source expects | Preview exists | Production exists/value | Action required |
+|---|---|---|---|---|
+| `NEXT_PUBLIC_PHASE2_LOCATIONS_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false before deployment; enable only after migration/QA |
+| `NEXT_PUBLIC_PHASE2_TRANSFERS_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; staged activation only |
+| `NEXT_PUBLIC_PHASE2_REPORTING_CENTRE_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; staged activation only |
+| `NEXT_PUBLIC_PHASE2_PDF_EXPORTS_ENABLED` | Boolean, default false; currently dormant | Yes | No / absent | Keep false until source gate is wired/tested |
+| `NEXT_PUBLIC_PHASE2_TAX_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; staged activation only |
+| `NEXT_PUBLIC_PHASE2_INVOICE_BRANDING_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; staged activation only |
+| `NEXT_PUBLIC_PHASE2_I18N_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; staged activation only |
+| `NEXT_PUBLIC_PHASE2_GRANULAR_PERMISSIONS_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; permission regression before activation |
+| `NEXT_PUBLIC_PHASE2_ANNOUNCEMENTS_ENABLED` | Boolean, default false | Yes | No / absent | Add explicit false; admin allowlist QA before activation |
+| `NEXT_PUBLIC_PHASE2_BUSINESS_SWITCHER_ENABLED` | Boolean, default false; currently dormant | Yes | No / absent | Keep false until source gate is wired/tested |
+
+### Phase 3 Feature Flags
+
+| Flag/control | Source expects | Preview `phase-3-staging` exists | Production exists/value | Action required |
+|---|---|---|---|---|
+| `PHASE3_AI_ENABLED` | Boolean, default false | Yes | No / absent | Add false initially; provider approval before true |
+| `PHASE3_AI_GLOBAL_KILL_SWITCH` | Boolean emergency control | No | No / absent | Add true for initial deployment |
+| `PHASE3_AI_MONTHLY_COST_BUDGET_KOBO` | Positive integer | No | No / absent | Define approved budget before AI activation |
+| `PHASE3_AI_DAILY_REQUEST_LIMIT_PER_BUSINESS` | Positive integer | No | No / absent | Define approved limit before AI activation |
+| Staff Performance public/private pair | Both booleans | Yes | No / absent | Add false; read-only first after migration/QA |
+| Bank Reconciliation public/private pair | Both booleans | Yes | No / absent | Add false; workflow QA before activation |
+| Tax Assistant public/private pair | Both plus master AI flag | Yes | No / absent | Add false; read-only/governance gate |
+| Executive Dashboard public/private pair | Both booleans | Yes | No / absent | Add false; candidate first read-only activation |
+| Predictive Alerts public/private pair | Both booleans | Yes | No / absent | Add false; deterministic first |
+| `PHASE3_PREDICTIVE_ALERTS_AI_EXPLANATION_ENABLED` | Optional boolean | Yes | No / absent | Keep false initially |
+| AI Evaluation public/private pair | Both booleans | Yes | No / absent | Keep false; internal-only |
+| AI Marketing public/private pair | Both booleans | Yes | No / absent | Add false; provider/consent QA |
+| `PHASE3_AI_MARKETING_SENDING_ENABLED` | Separate send boolean | Yes | No / absent | Keep false |
+| Payroll public/private pair | Both booleans | Yes | No / absent | Keep false; Payroll blocked |
+| `PHASE3_PAYROLL_STATUTORY_RULES_JSON` | Verified JSON rules | Yes | No / absent | Do not copy; create reviewed Production ruleset |
+| Cooperatives public/private pair | Both booleans | Yes | No / absent | Add false; financial workflow QA |
+| Loan Readiness public/private pair | Both booleans | No | No / absent | Keep absent/false; excluded scope |
+| `NEXT_PUBLIC_PHASE3_AI_ADVISOR_ENABLED` | Boolean | No | No / absent | Keep false unless separately approved |
+| `NEXT_PUBLIC_PHASE3_HEALTH_SCORE_ENABLED` | Boolean | No | No / absent | Keep false unless separately approved |
+| `NEXT_PUBLIC_PHASE3_CASHFLOW_FORECASTS_ENABLED` | Boolean | No | No / absent | Keep false unless separately approved |
+| `NEXT_PUBLIC_PHASE3_INVENTORY_FORECASTING_ENABLED` | Boolean | No | No / absent | Keep false unless separately approved |
+| `NEXT_PUBLIC_PHASE3_WHATSAPP_AUTOMATION_ENABLED` | Boolean | No | No / absent | Keep false; provider/webhook gate |
+| `NEXT_PUBLIC_PHASE3_ADMIN_AI_OPS_ENABLED` | Boolean | No | No / absent | Keep false; internal-only |
+
+### Provider Configuration
+
+| Provider | Production presence | Scope/quality | Status |
+|---|---|---|---|
+| Paystack | Public and secret key names present | Production-only, mode/account/webhook unverified | `MANUAL VERIFICATION REQUIRED` |
+| WhatsApp Cloud API | Token, phone ID, business ID, verify token present | Shared Preview/Production; app secret missing | `FAIL` |
+| Resend | API key and sender present | Shared Preview/Production; sender-domain/delivery unverified | `MANUAL VERIFICATION REQUIRED` |
+| OpenAI | API key and model present | Production-only; project/model/privacy/budget unverified | `MANUAL VERIFICATION REQUIRED` |
+
+### Release Gate Matrix
+
+| Gate | Status | Evidence | Required action |
+|---|---|---|---|
+| Branch and documentation baseline | PASS | `phase-3-staging`; `cb9efc2` contained only two readiness documents and was pushed to the same branch | Preserve branch isolation |
+| Dependency Production audit | PASS | Before 17 findings; after zero findings | Preserve lockfile and rerun in CI |
+| Next.js critical remediation | PASS | Installed `16.2.6` -> `16.3.6`; minimum safe floor `16.3.3` | Keep patched floor; monitor advisories |
+| Lint/typecheck/unit/build/Prisma validation | PASS | All commands passed; 376 tests; 148 pages | Address three lint warnings opportunistically |
+| Playwright mocked regression | PASS | 51 tests passed across three projects | Run write-capable mobile flow only on verified non-Production DB |
+| Full write-capable Playwright regression | MANUAL VERIFICATION REQUIRED | Local DB branch could not be safely identified | Run on verified disposable/Preview database after dependency Preview deployment |
+| Vercel authentication/project/domain | PASS | Authenticated account; linked project; Ready Production domain | Maintain read-only access for remaining audit |
+| Production branch/deployment identity | PASS | Domain deployment metadata reports branch `main`, commit `77324e2` | Preserve rollback deployment ID |
+| Production environment manifest completeness | FAIL | All Phase 2/3 flags and several controls missing | Configure explicitly in a later authorized task |
+| Production database target | BLOCKED | Names present, encrypted targets not verifiable | Neon-side branch/pooling attestation |
+| Production migration status/restore | BLOCKED | No Production Prisma command; restore capability unverified | Verify backup/PITR, then separately authorize status check |
+| Paystack live billing | MANUAL VERIFICATION REQUIRED | Key names present; mode unknown | Verify live account, prefixes, webhook, callback |
+| WhatsApp webhook security | FAIL | `WHATSAPP_APP_SECRET` missing | Add verified Production app secret in authorized configuration task |
+| Resend delivery | MANUAL VERIFICATION REQUIRED | Names present but shared scope/value unverified | Verify sender domain and isolate credentials |
+| OpenAI governance | MANUAL VERIFICATION REQUIRED | Names present; budgets/limits/flags missing | Verify project/model/privacy and add controls |
+| Payroll statutory readiness | BLOCKED | Production rules absent; no reproducible authoritative payload | Legal/statutory review and strict schema remediation |
+| Production release | BLOCKED | Infrastructure and application configuration gates remain open | Do not deploy or merge |
+
 ## Release Blockers
 
-1. Current Vercel Production variables and deployment metadata could not be re-inspected because the CLI is unauthenticated.
-2. `DATABASE_URL` and `DIRECT_URL` have not been proven to target pooled/direct endpoints on the Neon `production` branch.
-3. Production migration status, backup/PITR, and restore readiness remain unverified.
-4. Production Phase 2 and Phase 3 flags were missing in the last authenticated audit.
-5. No reproducible, verified Production `PHASE3_PAYROLL_STATUTORY_RULES_JSON` exists.
-6. Live Paystack credentials, webhook registration, and callback behavior have not been verified.
-7. `npm audit --omit=dev` currently reports one critical direct Next.js advisory plus high and moderate runtime-tree findings.
+1. `DATABASE_URL` and `DIRECT_URL` exist, but encrypted Vercel metadata cannot prove that they target pooled/direct endpoints on the Neon `production` branch.
+2. Production migration status, backup/PITR, and restore readiness remain unverified because no Production database command was authorized or run.
+3. Production Phase 2 and Phase 3 flags and operational controls are absent; no Production variables were changed during this audit.
+4. No reproducible, verified Production `PHASE3_PAYROLL_STATUTORY_RULES_JSON` exists.
+5. Live Paystack credentials, webhook registration, and callback behavior have not been verified.
+6. `WHATSAPP_APP_SECRET` is absent, while other WhatsApp and Resend credentials have over-broad Preview/Production scope.
+7. OpenAI provider governance, budgets, and per-business request limits remain unverified or absent.
 
 ## Phase 2 Gate Matrix
 
@@ -158,20 +319,19 @@ Reachability labels are source/dependency-tree assessments, not exploitability p
 
 ## Ordered Remediation
 
-1. Restore authenticated, read-only Vercel access and export only variable names, scopes, creation metadata, and safe validation booleans. Do not print values.
-2. Verify the current Production deployment commit and preserve its deployment ID as rollback target.
-3. Have a Neon-authorized operator attest that Production `DATABASE_URL` is pooled and `DIRECT_URL` is direct, both target the `production` branch, and neither targets `phase-3-staging`.
-4. Verify Neon backup/PITR retention and perform or document a restore drill before migration approval.
-5. Reconcile `npx prisma migrate status` against the verified Production target in a separately authorized release window; inspect the exact pending set before any deploy command.
-6. Upgrade Next.js above the critical affected range and refresh the Next/PostCSS/Sharp dependency tree without force; upgrade PostHog and its telemetry tree; run audit again.
-7. Run lint, typecheck, complete unit/integration tests, build, focused security tests, and all Phase 2/3 Playwright suites after dependency remediation.
-8. Configure `NEXT_PUBLIC_APP_URL=https://smemoneybook.com` and optionally matching `NEXT_PUBLIC_SITE_URL`; verify no generated callback or email uses localhost, Preview, or `*.vercel.app`.
-9. Verify Production Resend sender/domain, email delivery, invitation/reset links, expiry, and replay controls.
-10. Verify the Production Meta app, token, IDs, webhook verify token, app-secret signatures, approved templates, consent, suppression, and monitoring before enabling WhatsApp automation.
-11. Verify live Paystack account ownership and matching live keys; register the exact Production webhook; execute controlled end-to-end billing and idempotency QA.
-12. Add explicit Phase 1/2 flags. Keep Phase 2 false for migration deployment, then activate tested modules gradually. Keep PDF exports and business switcher false until their dormant flags are wired and tested.
-13. Add Phase 3 global controls with the kill switch initially true and all feature flags false. Set approved budgets and request limits before provider AI activation.
-14. Activate read-only modules first: Executive Dashboard, then Staff Performance, deterministic Predictive Alerts, and read-only Tax Assistant, each with paired flags, entitlements, permissions, business isolation, exports, and rollback checks.
-15. Keep Loan Readiness excluded, AI Marketing sending false, AI Evaluation internal-only, and write-heavy Bank Reconciliation/Cooperatives disabled until dedicated Production workflow approval.
-16. Remediate Payroll statutory validation and obtain an authoritative, legally reviewed, securely versioned Production ruleset. Keep Payroll flags false until then.
-17. Perform a fresh Production-readiness audit. Only a complete evidence set can change the classification to `PRODUCTION CONFIGURATION READY`.
+1. Preserve authenticated, read-only Vercel access and the current Production deployment ID as the rollback reference.
+2. Have a Neon-authorized operator attest that Production `DATABASE_URL` is pooled and `DIRECT_URL` is direct, both target the `production` branch, and neither targets `phase-3-staging`.
+3. Verify Neon backup/PITR retention and perform or document a restore drill before migration approval.
+4. Reconcile `npx prisma migrate status` against the verified Production target in a separately authorized release window; inspect the exact pending set before any deploy command.
+5. Preserve the remediated Next/PostCSS/Sharp/PostHog dependency tree and rerun `npm audit --omit=dev` in CI.
+6. Run the write-capable Playwright suite only against a positively verified disposable or Preview database.
+7. Manually verify `NEXT_PUBLIC_APP_URL=https://smemoneybook.com` and optionally configure matching `NEXT_PUBLIC_SITE_URL`; verify no generated callback or email uses localhost, Preview, or `*.vercel.app`.
+8. Verify Production Resend sender/domain, email delivery, invitation/reset links, expiry, and replay controls.
+9. Verify the Production Meta app, token, IDs, webhook verify token, app-secret signatures, approved templates, consent, suppression, and monitoring before enabling WhatsApp automation.
+10. Verify live Paystack account ownership and matching live keys; register the exact Production webhook; execute controlled end-to-end billing and idempotency QA.
+11. Add explicit Phase 1/2 flags. Keep Phase 2 false for migration deployment, then activate tested modules gradually. Keep PDF exports and business switcher false until their dormant flags are wired and tested.
+12. Add Phase 3 global controls with the kill switch initially true and all feature flags false. Set approved budgets and request limits before provider AI activation.
+13. Activate read-only modules first: Executive Dashboard, then Staff Performance, deterministic Predictive Alerts, and read-only Tax Assistant, each with paired flags, entitlements, permissions, business isolation, exports, and rollback checks.
+14. Keep Loan Readiness excluded, AI Marketing sending false, AI Evaluation internal-only, and write-heavy Bank Reconciliation/Cooperatives disabled until dedicated Production workflow approval.
+15. Remediate Payroll statutory validation and obtain an authoritative, legally reviewed, securely versioned Production ruleset. Keep Payroll flags false until then.
+16. Perform a fresh Production-readiness audit. Only a complete evidence set can change the classification to `PRODUCTION CONFIGURATION READY`.
