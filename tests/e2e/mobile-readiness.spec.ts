@@ -1,8 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 
 const password = "password123";
+const pin = "123456";
 
-test.setTimeout(90_000);
+test.setTimeout(180_000);
 
 function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
@@ -17,25 +18,28 @@ async function signUpAndOnboard(page: Page, prefix = "mobile-qa") {
     "x-forwarded-for": `10.${ipSeed}.${Math.floor(Math.random() * 200) + 1}.${Math.floor(Math.random() * 200) + 1}`,
   });
   await page.goto("/auth");
-  await page.getByLabel("Your name").fill("Mobile QA Owner");
+  await page.waitForLoadState("networkidle");
+  const startFreeButton = page.getByRole("button", { name: "Start Free" });
+  const nameInput = page.getByRole("textbox", { name: "Your name", exact: true });
+  if (await startFreeButton.isVisible()) {
+    await startFreeButton.click();
+    await expect(nameInput).toBeVisible();
+  }
+  await nameInput.fill("Mobile QA Owner");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill(password);
+  await page.getByLabel("6-digit access PIN").fill(pin);
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator("body")).toContainText(/What business do you run\?|Available balance/, {
-    timeout: 25_000,
+  await expect(page.locator("body")).toContainText(/Start using the app|Available (?:balance|Money)/i, {
+    timeout: 60_000,
   });
 
-  if ((await page.locator("body").innerText()).includes("What business do you run?")) {
-    await page.getByLabel("Business name optional").fill(businessName);
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("button", { name: "Record my first transaction" }).click();
-    await page.getByLabel("Amount").fill("1000");
-    await page.getByRole("button", { name: "Save first record" }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("button", { name: "Not now" }).click();
+  const startUsingAppButton = page.getByRole("button", { name: "Start using the app" });
+  if (await startUsingAppButton.isVisible()) {
+    await startUsingAppButton.click();
   }
 
-  await expect(page.getByText("Available balance")).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible({ timeout: 60_000 });
 
   return { email, password, businessName };
 }
@@ -43,21 +47,19 @@ async function signUpAndOnboard(page: Page, prefix = "mobile-qa") {
 async function signOut(page: Page) {
   await page.goto("/more");
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("button", { name: "I already have an account" })).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
+  await expect(page.getByRole("link", { name: "Start Free" }).first()).toBeVisible();
 }
 
 async function signIn(page: Page, email: string) {
   await page.goto("/auth");
   const existingAccountButton = page.getByRole("button", { name: "I already have an account" });
-  if (await existingAccountButton.count()) {
-    await existingAccountButton.click();
-  } else {
-    await page.getByRole("button", { name: "Sign in" }).click();
-  }
+  await expect(existingAccountButton).toBeVisible();
+  await existingAccountButton.click();
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password or 6-digit PIN").fill(password);
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Available balance")).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible({ timeout: 60_000 });
 }
 
 async function openRecordSheet(page: Page) {
@@ -69,15 +71,15 @@ async function openRecordSheet(page: Page) {
     await page.getByRole("button", { name: "+ Record money" }).first().click();
   }
 
-  await expect(page.getByRole("dialog", { name: "Record money" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeVisible();
 }
 
 async function saveSale(page: Page, amount: string, note = "Mobile sale") {
   await openRecordSheet(page);
   await page.getByLabel("Amount").fill(amount);
-  await page.getByLabel("Short note optional").fill(note);
-  await page.getByRole("button", { name: "Save money" }).click();
-  await expect(page.getByRole("dialog", { name: "Record money" })).toBeHidden({ timeout: 45_000 });
+  await page.getByLabel(/Customer or note optional|Short note optional/i).fill(note);
+  await page.getByRole("button", { name: /Save sale|Save money/i }).click();
+  await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeHidden({ timeout: 45_000 });
   await expect(page.locator("body")).toContainText(new RegExp(amount.replace(/\B(?=(\d{3})+(?!\d))/g, ",")), {
     timeout: 10_000,
   });
@@ -86,10 +88,10 @@ async function saveSale(page: Page, amount: string, note = "Mobile sale") {
 async function saveCreditSale(page: Page, amount: string, customerName: string) {
   await openRecordSheet(page);
   await page.getByLabel("Amount").fill(amount);
-  await page.getByLabel("Short note optional").fill(customerName);
-  await page.getByLabel("Paid now").uncheck();
-  await page.getByRole("button", { name: "Save money" }).click();
-  await expect(page.getByRole("dialog", { name: "Record money" })).toBeHidden({ timeout: 45_000 });
+  await page.getByLabel(/Customer paid now|Paid now/i).uncheck();
+  await page.getByLabel("Customer name").fill(customerName);
+  await page.getByRole("button", { name: /Save sale|Save money/i }).click();
+  await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeHidden({ timeout: 45_000 });
 }
 
 test.describe("mobile readiness flows", () => {
@@ -109,7 +111,7 @@ test.describe("mobile readiness flows", () => {
     await signOut(page);
     await signIn(page, account.email);
 
-    await expect(page.getByText("Available balance")).toBeVisible();
+    await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText("Something went wrong");
   });
 
@@ -120,7 +122,7 @@ test.describe("mobile readiness flows", () => {
     await expect(page.getByText(/₦1,500|₦1500/).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Record money", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "Record money" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeVisible();
     await page.keyboard.press("Escape");
 
     await page.getByRole("link", { name: "People" }).click();
@@ -155,7 +157,7 @@ test.describe("mobile readiness flows", () => {
 
     await page.goto("/people");
     await expect(page.getByText("Amina Customer").first()).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("button", { name: "Collect" }).first().click();
+    await page.getByRole("button", { name: "Collect", exact: true }).click();
     await expect(page.getByText("Collect payment")).toBeVisible();
     await page.getByRole("button", { name: "Confirm collection" }).click();
     await expect(page.getByText("Collected money saved.")).toBeVisible({ timeout: 20_000 });
@@ -166,7 +168,7 @@ test.describe("mobile readiness flows", () => {
     await saveSale(page, "1200", "Report sale");
 
     await page.goto("/reports");
-    await expect(page.getByText("This month", { exact: true })).toBeVisible();
+    await expect(page.getByText("This month", { exact: true })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText("You made")).toBeVisible();
     await expect(page.getByText("You spent")).toBeVisible();
     await expect(page.getByText("Profit")).toBeVisible();

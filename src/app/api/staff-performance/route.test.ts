@@ -222,11 +222,14 @@ describe("/api/staff-performance", () => {
   });
 
   it("does not expose write operations", async () => {
-    const { POST } = await import("@/app/api/staff-performance/route");
-    const response = await POST();
-    const payload = await response.json();
+    const { POST, PUT, PATCH, DELETE } = await import("@/app/api/staff-performance/route");
 
-    expect(response.status).toBe(405);
-    expect(payload.error).toBe("Staff Performance is read-only.");
+    for (const method of [POST, PUT, PATCH, DELETE]) {
+      const response = await method();
+      const payload = await response.json();
+
+      expect(response.status).toBe(405);
+      expect(payload.error).toBe("Staff Performance is read-only.");
+    }
   });
 });

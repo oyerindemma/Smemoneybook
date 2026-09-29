@@ -4,9 +4,70 @@ Audit date: 2026-09-28
 
 Branch: `phase-3-staging`
 
-Final classification: `DEPENDENCY GATE PASSED — INFRASTRUCTURE REMEDIATION NEXT`
+Final classification: `PRODUCTION PLATFORM BLOCKED`
 
-No Production deployment, merge, environment mutation, database command, or database query was performed.
+Authorized Vercel environment remediation and read-only migration-status checks were performed. No Production deployment, merge, migration, data write, customer-data query, provider mutation, feature activation, charge, message, or email was performed.
+
+## Preview Remediation Evidence - 2026-09-29
+
+This section supersedes the 2026-09-28 Preview migration and release-suite findings below. It does not change the Production classification or authorize a Production release.
+
+- Dedicated Preview target: Neon branch `phase-3-staging`, endpoint `ep-curly-poetry-am5ua3ev`; pooled and direct URLs were structurally and independently verified without printing credentials.
+- Migration review: the seven completion migrations were additive and required; the Preview-only Payroll data preflight found no conflicting rows.
+- Preview migration action: `npx prisma migrate deploy` applied all seven only to the verified Preview database.
+- Final Preview status: 41 repository migrations, 41 applied, zero pending; `npx prisma validate` passed.
+- Staff Performance flags: the exact private/public flags are `true` only for Vercel Preview branch `phase-3-staging`; Production values remain `false` and `phase-2-staging` was untouched.
+- Preview runtime connection: branch-scoped `DATABASE_URL` was refreshed with bounded connect/pool timeouts after intermittent Preview cold-connect failures. `DIRECT_URL` and `NEXT_PUBLIC_APP_URL` remain present and branch-scoped.
+- Focused Staff tests: 4 files and 21 tests passed. Staff Playwright executed 6 tests with 0 skipped across desktop Chrome, Pixel 5, and iPhone 13.
+- Full local gates: lint passed with zero errors and three existing warnings; typecheck passed; Vitest passed 95 files and 376 tests; Prisma validation/status passed; Production dependency audit returned zero vulnerabilities; `git diff --check` passed before this report edit.
+- Build evidence: `npm run build -- --webpack` passed and generated 148 pages. The normal Turbopack command could not bind its internal worker port in the managed local sandbox, so the fresh Vercel Preview build is the outstanding normal-build gate.
+- Browser evidence: 45 Phase 3 feature checks and 18 Preview-backed mobile workflow checks passed across configured desktop/mobile projects. Offline visible queuing passed, but restored-network replay was not asserted and emitted a rejected development request; replay synchronization remains residual risk.
+- Source hardening: Prisma interactive transactions now use bounded 10-second queue and 15-second execution limits; Staff read-only route tests explicitly cover `POST`, `PUT`, `PATCH`, and `DELETE` as `405`.
+
+A fresh Git-triggered Preview deployment and exact-deployment QA are still pending. Provider verification, Payroll statutory configuration, and Loan Readiness evidence remain Production blockers. Production was not queried, migrated, deployed, promoted, or enabled during this Preview remediation.
+
+## Controlled Remediation Evidence - 2026-09-28
+
+This section supersedes all earlier database, migration, and environment findings below where they conflict.
+
+### Verified Database Mapping
+
+| Target | Neon branch | Endpoint | Type | Result |
+|---|---|---|---|---|
+| Production `DATABASE_URL` | `production` | `ep-dawn-sky-amvgvfjj` | Pooled | VERIFIED |
+| Production `DIRECT_URL` | `production` | `ep-dawn-sky-amvgvfjj` | Direct | VERIFIED |
+| Preview `DATABASE_URL` | `phase-3-staging` | `ep-curly-poetry-am5ua3ev` | Pooled | VERIFIED |
+| Preview `DIRECT_URL` | `phase-3-staging` | `ep-curly-poetry-am5ua3ev` | Direct | VERIFIED |
+
+All mappings use the expected `neondb` database, `neondb_owner` role, and required SSL. The Production and Preview endpoints were independently compared without logging complete URLs or credentials. Production `NEXT_PUBLIC_APP_URL` is now readable Config and was verified exactly as `https://smemoneybook.com`; Preview was not changed.
+
+### Migration And Recovery State
+
+- `npx prisma validate`: passed.
+- Repository: 41 migrations.
+- Production: 41 applied, zero pending, no failed migration reported; schema is current.
+- Preview `phase-3-staging`: 34 applied, seven pending completion migrations for Bank Reconciliation, Tax Assistant, Predictive Alerts, AI Evaluation, AI Marketing, Payroll, and Cooperatives.
+- No Production `prisma migrate deploy` was necessary or run.
+- Neon history retention is 21,600 seconds and point-in-time recovery branches are supported. A named release checkpoint remains deferred because there is no pending Production migration and mandatory provider/release gates have not passed.
+- Preview migration remediation requires separate authorization; Preview is currently behind Production and cannot provide final release-equivalent QA evidence.
+
+### Fail-Closed Production Controls
+
+The exact 42 source-derived Phase 2/3 controls were added as Production Config. All feature flags are `false`; `PHASE3_AI_GLOBAL_KILL_SWITCH` is `true`; AI monthly budget and per-business daily limit are both `0`. Verification found no missing or mismatched control. `PHASE3_PAYROLL_STATUTORY_RULES_JSON` was deliberately not created, and Payroll remains disabled.
+
+### Provider And Module Decision
+
+| Area | Result | Evidence / blocker |
+|---|---|---|
+| Paystack credentials | PARTIAL PASS | `/api/billing/status` reports secure Paystack billing; source only reports this in Production for matching live-compatible keys |
+| Paystack webhook | BLOCKED | Provider-side registration of `https://smemoneybook.com/api/paystack/webhook` is not independently verified |
+| WhatsApp | BLOCKED | Source requires `WHATSAPP_APP_SECRET` for Production signature verification; it is absent, and four existing credentials are shared with Preview |
+| Resend | BLOCKED | API key and sender configuration are shared with Preview; Production account/domain verification is outstanding |
+| OpenAI | BLOCKED | Production-only key/model names exist, but provider project, model, privacy/retention, and spend settings are unverified |
+| Payroll | BLOCKED MODULE | No authoritative, versioned, approved Production statutory ruleset exists |
+| Loan Readiness | BLOCKED MODULE | Dedicated models, entitlement, permissions, API separation, export/history/profile paths, and complete Preview QA remain unproven |
+
+The mandatory provider checks require account-owner actions outside the authenticated Vercel/Neon tooling. The release therefore stops before `npm ci`, the full regression suite, recovery checkpoint, source merge, Production deployment, or any feature activation. Existing dependency and Preview test evidence remains historical evidence only and is not represented as a fresh release pass.
 
 ## Step 2 Evidence - 2026-09-28
 
@@ -169,15 +230,150 @@ Vercel does not disclose encrypted flag values through the listing command. Prev
 | Payroll statutory readiness | BLOCKED | Production rules absent; no reproducible authoritative payload | Legal/statutory review and strict schema remediation |
 | Production release | BLOCKED | Infrastructure and application configuration gates remain open | Do not deploy or merge |
 
+## Step 3 Pre-Authorization Evidence - 2026-09-28
+
+### Release Branch
+
+- Branch: `phase-3-staging`.
+- Dependency remediation commit: `b1fc1b4d54771e7e849c34aa3cdeb1aacfb9db6b`.
+- Push: passed; `origin/phase-3-staging` advanced from `cb9efc2` to `b1fc1b4`.
+- `AGENTS.md` and `CLAUDE.md` remain unrelated, untracked, and excluded.
+- No merge, Production deployment, promotion, alias change, or Production environment mutation was performed.
+
+The Git-connected branch may create its normal Preview build. No deployment was manually created or promoted, and the Production domain remains on deployment `dpl_AAQBGWwQYUiBF8KykLsKncond3Zk` in Ready state.
+
+### Neon Target And Prisma Architecture
+
+Prisma declares `url = env("DATABASE_URL")` and `directUrl = env("DIRECT_URL")`. The required architecture is therefore:
+
+| Variable | Intended purpose | Required target | Step 3 result |
+|---|---|---|---|
+| `DATABASE_URL` | Pooled application/runtime connection | Neon `production` branch | `UNVERIFIED` |
+| `DIRECT_URL` | Direct migration/introspection connection | The same Neon `production` branch | `UNVERIFIED` |
+
+Neon CLI 6.2.3 authentication subsequently passed. Read-only management metadata proves:
+
+- Project `SMEmoneyBook` is PostgreSQL 17 in `aws-us-east-1`.
+- `production` is the ready, primary, default branch `br-round-flower-amsxctwi` with endpoint `ep-dawn-sky-amvgvfjj`.
+- `phase-3-staging` is the ready child branch `br-hidden-mouse-amlibnj9` with endpoint `ep-curly-poetry-am5ua3ev`.
+- The official pooled host variant appends `-pooler` to each endpoint ID; the direct host does not.
+
+Vercel proves that the Production database names are Production-only and the Preview database names are branch-scoped to `phase-3-staging`. All four are Vercel Secrets. Vercel intentionally returns a transport redaction marker for Production/Preview Secrets, and their records have no Neon integration configuration ID. Therefore their stored host, database, role, SSL mode, and pooled/direct purpose cannot be compared to the Neon endpoint metadata. The mapping remains `UNVERIFIED`; the redaction marker is not evidence that the stored value itself is a placeholder.
+
+The database stop condition was applied. No connection was made and no Production Prisma command, query, migration, branch operation, or data operation was run.
+
+Minimum proof/remediation required before any database command:
+
+1. In a controlled Vercel configuration task, replace or re-enter Production `DATABASE_URL` from Neon's generated **pooled** connection for `production` endpoint `ep-dawn-sky-amvgvfjj`.
+2. Replace or re-enter Production `DIRECT_URL` from Neon's generated **direct** connection for that same endpoint.
+3. Replace or re-enter branch-scoped Preview `DATABASE_URL` and `DIRECT_URL` from the pooled/direct connections for `phase-3-staging` endpoint `ep-curly-poetry-am5ua3ev`.
+4. Set Production `NEXT_PUBLIC_APP_URL` as readable Config with exact value `https://smemoneybook.com`; it is currently an unreadable Secret and cannot be audited.
+5. Record a four-way operator attestation containing only project, branch, endpoint, database, role, SSL-required, and pooled/direct booleans. Never record passwords or full URLs.
+6. Resume with read-only migration status only after all four mappings pass.
+
+### Migration Status And Safety
+
+`npx prisma migrate status` against Production was **not run** because the target was not verified. Consequently:
+
+- Repository migration count: 41.
+- Production applied count: unknown.
+- Production pending count/list: unknown.
+- Divergence and schema state: unknown.
+- Comparison with `phase-3-staging`: unavailable without two verified database targets.
+
+The exact pending set must come from a read-only `npx prisma migrate status` only after the target proof above. Static SQL review does not establish that a migration is pending.
+
+Static repository risk inventory:
+
+| Migration group | Static classification | Principal concern if pending |
+|---|---|---|
+| Initial through pre-Phase-1 migrations | Mostly additive; indexes and foreign keys | Locking and uniqueness validation depend on current data volume/state |
+| `20260717090000_phase_1_core_foundation` | DATA TRANSFORMATION, BACKFILL REQUIRED, LOCKING RISK, ROLLBACK CONCERN | Updates inventory quantities, seeds product units, creates tables/indexes/foreign keys |
+| `20260717110000_phase_2_location_foundation` | DATA TRANSFORMATION, BACKFILL REQUIRED, LOCKING RISK, ROLLBACK CONCERN | Seeds locations and balances, updates multiple existing business tables, then adds indexes/foreign keys |
+| `20260717130000_phase_2_completion_modules` | ADDITIVE, LOCKING RISK, ROLLBACK CONCERN | Adds defaulted columns/tables, unique indexes and constraints; renames one index |
+| Initial Phase 3 migrations `20260719070000` through `20260719130000` | ADDITIVE, LOCKING RISK | New tables, indexes, unique constraints, and foreign keys; no destructive SQL found |
+| `20260723143000_phase_3_bank_reconciliation_completion` | ADDITIVE, LOCKING RISK | Defaulted columns on existing reconciliation tables plus new tables/indexes/constraints |
+| `20260723180000_phase_3_tax_assistant_completion` | ADDITIVE, DATA TRANSFORMATION, ROLLBACK CONCERN | Creates tax tables and inserts rule-set/rule seed records |
+| `20260724200000_phase_3_predictive_alerts_completion` | ADDITIVE, DATA TRANSFORMATION, BACKFILL REQUIRED, LOCKING RISK | Adds defaulted columns, updates existing alerts, seeds alert rules, and creates indexes |
+| `20260724213000_phase_3_ai_evaluation_completion` | ADDITIVE, DATA TRANSFORMATION, BACKFILL REQUIRED, LOCKING RISK | Adds aggregate columns, updates existing runs, then adds tables/indexes/foreign keys |
+| `20260730100000_phase_3_ai_marketing_completion` | ADDITIVE, BACKFILL REQUIRED, LOCKING RISK | Adds defaulted Customer columns, creates tables, indexes existing Customer data, and adds checks |
+| `20260730120000_phase_3_payroll_completion` | ADDITIVE, DATA TRANSFORMATION, BACKFILL REQUIRED, LOCKING RISK, ROLLBACK CONCERN | Updates payroll records, creates a unique employee-number index, adds tables/checks/foreign keys |
+| `20260803100000_phase_3j_cooperatives_completion` | ADDITIVE, LOCKING RISK, ROLLBACK CONCERN | Adds defaulted columns to existing cooperative tables and creates unique indexes/tables/constraints |
+
+No `DROP TABLE`, `DROP COLUMN`, or column type alteration was found in the repository migration SQL. A single index rename exists in the Phase 2 completion migration. Defaulted `NOT NULL` columns are present, but no unsafe default-free `NOT NULL` addition was found in the Phase 2/3 migration set. Final risk classification is blocked until the exact pending subset and Production row counts are known.
+
+### Backup, PITR, And Restore
+
+Classification: `RECOVERY CAPABILITY VERIFIED — CHECKPOINT REQUIRED`.
+
+Read-only Neon metadata at `2026-09-28T13:19:26Z` confirms:
+
+- Plan: `free_v3`.
+- History retention: 21,600 seconds (six hours), giving an earliest recoverable point of approximately `2026-09-28T07:19:26Z` at inspection time.
+- Effective project permission: `ADMIN`.
+- Branch capacity: 10; two branches currently exist.
+- Production is ready, primary, and default, but not protected.
+- Point-in-time branch creation is available and can omit a compute and credentials.
+- Snapshot inventory is empty.
+
+The six-hour history window can support this migration only if a named, non-destructive recovery branch is created from Production immediately before migration and retained until post-release acceptance. No checkpoint was created because the release is not ready and no migration window has begun. If the release window, observation period, or rollback policy requires more than six hours of native history, upgrade/configure Neon retention before release.
+
+### Production Environment Inventory
+
+Authenticated Vercel CLI access passed for `oyerindemma` and linked project `emmanuel-oyerindes-projects/smemoneybook`. Variable values remain hidden.
+
+| Area | Result | Evidence/action |
+|---|---|---|
+| Core database names | `MANUAL_VERIFICATION_REQUIRED` | `DATABASE_URL` and `DIRECT_URL` are Production-only but targets/purpose are unverified |
+| Canonical URL | `MANUAL_VERIFICATION_REQUIRED` | `NEXT_PUBLIC_APP_URL` exists Production-only; hidden value cannot prove `https://smemoneybook.com` |
+| Admin/cron | `PRESENT_UNVERIFIED` | `ADMIN_EMAILS` and `CRON_SECRET` exist Production-only |
+| Phase 2 flags | `MISSING` | All ten source-declared flags are absent from Production |
+| Phase 3 flags/controls | `MISSING` | All source-declared public/private flags and operational controls are absent from Production |
+| Paystack | `PRESENT_UNVERIFIED` | Public/secret key names exist Production-only; live/test mode is `UNKNOWN` |
+| WhatsApp | `WRONG_SCOPE` / `MANUAL_SECRET_REQUIRED` | Four variables are shared with Preview; `WHATSAPP_APP_SECRET` is absent |
+| Resend | `WRONG_SCOPE` | `RESEND_API_KEY` and `EMAIL_FROM` are shared with Preview; values/domain are unverified |
+| OpenAI | `PRESENT_UNVERIFIED` | Key/model names exist Production-only; project/model/governance are unverified |
+| Payroll rules | `MISSING` / `BLOCKED` | No Production rules variable and no approved Production ruleset |
+
+`SUPPORT_EMAIL`, `BILLING_EMAIL`, and five `PAYSTACK_PLAN_*` names are shared with Preview but are not current source requirements. `PAYSTACK_WEBHOOK_SECRET` is absent and is not consumed by source; Paystack webhook HMAC uses `PAYSTACK_SECRET_KEY`.
+
+`NEXT_PUBLIC_APP_URL` feeds Paystack callbacks, password-reset and staff-invitation links, WhatsApp links, referral links, and API same-origin checks. `NEXT_PUBLIC_SITE_URL` feeds canonical landing metadata. No runtime Production callback/base URL is hard-coded to a Preview Vercel domain or staging branch. The only `phase-2-staging`/`phase-3-staging` runtime references are in the guarded Preview seed helper. A localhost fallback exists in the shared environment parser, so the hidden Production `NEXT_PUBLIC_APP_URL` must still be verified exactly before release.
+
+### Feature Flags And Module Scope
+
+All ten `NEXT_PUBLIC_PHASE2_*` flags declared in `src/lib/phase2/feature-flags.ts` are source-required for explicit rollout and absent from Production. Configure all as `false` for the initial immutable build. PDF exports and Business Switcher must remain false because their declarations are currently dormant.
+
+All Phase 3 public/private module flags and AI controls declared by source are absent from Production. The exact safe initial values are in `docs/production-environment-activation-plan.md`: the global kill switch is `true`, all feature flags are `false`, and AI budget/request limits are `0`. These are recommendations only; this audit did not configure them.
+
+Current module classifications:
+
+| Module | Classification | Reason |
+|---|---|---|
+| Core application | `BLOCKED` | Database target, migration state, and recovery readiness are unverified |
+| Staff Performance | `MANUAL_CONFIGURATION_REQUIRED` | Read-only design, but paired flags and migration/Production isolation QA remain |
+| Executive Dashboard | `MANUAL_CONFIGURATION_REQUIRED` | Read-only design, but paired flags, migration state, and metric reconciliation remain |
+| Predictive Alerts deterministic mode | `MANUAL_CONFIGURATION_REQUIRED` | Paired flags/migrations required; keep AI explanation disabled |
+| Bank Reconciliation | `MANUAL_CONFIGURATION_REQUIRED` | Write workflow requires migration and controlled Production workflow QA |
+| Tax Assistant | `READY_BUT_KEEP_DISABLED` | Deterministic/read-only posture is possible, but source also requires master AI and tax governance gates |
+| AI Evaluation | `READY_BUT_KEEP_DISABLED` | Internal-only; requires provider/admin governance and migration verification |
+| AI Marketing drafting | `READY_BUT_KEEP_DISABLED` | Requires provider, consent, budgets, and migration verification |
+| AI Marketing sending | `BLOCKED` | External action path lacks provider/consent/monitoring approval |
+| Loan Readiness | `BLOCKED` | Excluded from approved release scope |
+| Cooperatives | `MANUAL_CONFIGURATION_REQUIRED` | Financial write workflow requires migration and operational approval |
+| Payroll | `BLOCKED` | No authoritative, validated, approved Production statutory ruleset |
+
+No module is currently `READY_TO_ENABLE` because the shared Production database gate is unresolved.
+
 ## Release Blockers
 
-1. `DATABASE_URL` and `DIRECT_URL` exist, but encrypted Vercel metadata cannot prove that they target pooled/direct endpoints on the Neon `production` branch.
-2. Production migration status, backup/PITR, and restore readiness remain unverified because no Production database command was authorized or run.
-3. Production Phase 2 and Phase 3 flags and operational controls are absent; no Production variables were changed during this audit.
-4. No reproducible, verified Production `PHASE3_PAYROLL_STATUTORY_RULES_JSON` exists.
-5. Live Paystack credentials, webhook registration, and callback behavior have not been verified.
-6. `WHATSAPP_APP_SECRET` is absent, while other WhatsApp and Resend credentials have over-broad Preview/Production scope.
-7. OpenAI provider governance, budgets, and per-business request limits remain unverified or absent.
+1. Provider-side Paystack webhook registration remains unverified.
+2. `WHATSAPP_APP_SECRET` is absent, while the other WhatsApp credentials have over-broad Preview/Production scope.
+3. Resend credentials/sender configuration have over-broad scope and require Production account/domain verification.
+4. OpenAI provider project, approved model, privacy/retention, and spend governance remain unverified. Runtime AI controls are safely disabled.
+5. Fresh Vercel Preview deployment and exact-deployment QA remain pending after the now-complete 41/41 Preview migration remediation.
+6. The local post-remediation suite passed except for the normal Turbopack build being sandbox-limited; the fresh Vercel build is the outstanding normal-build evidence.
+7. No reproducible, verified Production `PHASE3_PAYROLL_STATUTORY_RULES_JSON` exists; Payroll remains independently blocked.
+8. Loan Readiness lacks the implementation and QA completion evidence required by its readiness specification and remains independently blocked.
 
 ## Phase 2 Gate Matrix
 

@@ -4,6 +4,120 @@ Date: 2026-08-17
 
 Final classification: `PRODUCTION RELEASE BLOCKED`
 
+## 2026-09-29 Preview Remediation Result
+
+This section supersedes the 2026-09-28 Preview migration and local validation findings below. Work remained on `phase-3-staging`; no merge, Production deployment, Production database command, Production feature activation, provider mutation, charge, message, or email occurred.
+
+### Preview Database
+
+- `DATABASE_URL` and `DIRECT_URL` were verified without printing credentials as PostgreSQL URLs for the dedicated Neon `phase-3-staging` branch, endpoint `ep-curly-poetry-am5ua3ev`, and not the Production endpoint.
+- The seven pending Phase 3 completion migrations were inspected as additive and required. Preview-only data preflight found no Payroll uniqueness or check-constraint conflicts.
+- `npx prisma migrate deploy` was run only against the verified Preview target and applied all seven migrations.
+- Final `npx prisma migrate status`: 41 repository migrations, 41 applied, zero pending; schema is current.
+- Production remained at its previously verified 41/41 state and was not queried or modified in this continuation.
+
+### Preview Configuration
+
+- `PHASE3_STAFF_PERFORMANCE_ENABLED=true` is configured only for Vercel Environment `Preview`, Git branch `phase-3-staging`.
+- `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true` is configured only for Vercel Environment `Preview`, Git branch `phase-3-staging`.
+- Preview `DATABASE_URL`, `DIRECT_URL`, and `NEXT_PUBLIC_APP_URL` are present for that branch. The pooled Preview URL was refreshed with bounded connection/pool timeouts after intermittent Neon cold-connect failures; no credential was logged.
+- Production Staff Performance flags remain `false`. No `phase-2-staging` variable was changed.
+
+### Local Release Gates
+
+| Gate | Result |
+|---|---|
+| Staff Performance focused Vitest | PASS: 4 files, 21 tests |
+| Staff Performance Playwright | PASS: 6 executed, 0 skipped across desktop Chrome, Pixel 5, and iPhone 13 |
+| Phase 3 feature Playwright | PASS: 45 tests across the configured desktop/mobile projects |
+| Preview-backed mobile workflows | PASS: 18 tests across the configured desktop/mobile projects |
+| `npm run lint` | PASS: zero errors; three existing navigation warnings |
+| `npm run typecheck` | PASS |
+| `npm run test` | PASS: 95 files, 376 tests |
+| `npm run build -- --webpack` | PASS: 148 pages generated |
+| `npm run build` | Environment-limited locally: Turbopack worker port binding is denied by the managed sandbox; fresh Vercel build remains the authoritative normal-build gate |
+| `npx prisma validate` | PASS |
+| `npx prisma migrate status` | PASS: Preview 41/41, zero pending |
+| `npm audit --omit=dev` | PASS: zero vulnerabilities |
+| `git diff --check` | PASS before report update; rerun required before commit |
+
+The mobile offline scenario verified visible queuing but did not prove restored-network replay; development logs showed a rejected replay request after reconnection. Treat replay synchronization as residual risk, not as a completed release assertion.
+
+### Remaining Preview Gate
+
+A fresh Git-triggered Vercel Preview deployment, commit match, Ready status, and QA against that exact deployment are still required. The provider, Payroll ruleset, and Loan Readiness blockers recorded below remain independent Production blockers.
+
+## 2026-09-28 Controlled Remediation Result
+
+This update supersedes older database, migration, and environment evidence below where the two conflict. Audited release source is `b1fc1b4d54771e7e849c34aa3cdeb1aacfb9db6b` on `phase-3-staging`; it is pushed to `origin/phase-3-staging`. The approved Vercel configuration remediation and read-only Prisma status checks were completed. No merge, Production migration, feature activation, deployment, provider mutation, customer-data query, charge, message, or email occurred.
+
+### Gate Matrix
+
+| Gate | Status | Evidence |
+|---|---|---|
+| Git branch/source | PASS | Local and origin release source are `b1fc1b4`; branch is `phase-3-staging` |
+| Vercel authentication/project | PASS | Authenticated as `oyerindemma`; linked project is `emmanuel-oyerindes-projects/smemoneybook` |
+| Production deployment unchanged | PASS | `smemoneybook.com` remains on Ready deployment `dpl_AAQBGWwQYUiBF8KykLsKncond3Zk` |
+| Neon authentication/project | PASS | Project `SMEmoneyBook`; Production and Preview branch identities verified |
+| Vercel Production DB mapping | PASS | `DATABASE_URL` is pooled and `DIRECT_URL` is direct on Production endpoint `ep-dawn-sky-amvgvfjj` |
+| Vercel Preview DB mapping | PASS | Branch-scoped URLs use pooled/direct Preview endpoint `ep-curly-poetry-am5ua3ev` |
+| Canonical Production URL | PASS | `NEXT_PUBLIC_APP_URL` is readable Config and equals `https://smemoneybook.com` |
+| Recovery capability | CONDITIONAL PASS | Six-hour history and point-in-time branch recovery are available; final checkpoint is deferred until a release window is approved |
+| Prisma schema validation | PASS | `npx prisma validate` completed successfully |
+| Production migration status | PASS | 41 repository migrations; 41 applied; zero pending or failed |
+| Preview migration status | FAIL | 34 applied; seven Phase 3 completion migrations pending |
+| Fail-closed rollout controls | PASS | All 42 source-required Phase 2/3 controls are configured; flags false, AI kill switch true, AI budgets/limits zero |
+| Payroll rules | BLOCKED MODULE | `PHASE3_PAYROLL_STATUTORY_RULES_JSON` remains absent; Payroll flags remain false |
+| Paystack | PARTIAL PASS | Production runtime reports live-compatible matching keys; provider-side webhook registration remains unverified |
+| WhatsApp | BLOCKED | `WHATSAPP_APP_SECRET` is absent and existing credentials are shared with Preview |
+| Resend | BLOCKED | API key and sender configuration are shared with Preview; provider account/domain verification is outstanding |
+| OpenAI | BLOCKED | Names are present Production-only, but project, model, retention, and spend controls require provider verification |
+| Pre-release suite | NOT RUN | Release stopped at the first unavoidable provider-side verification point |
+| Production release | BLOCKED | Provider configuration and full release gates are incomplete; no deployment is permitted |
+
+### Sanitized Database Evidence
+
+| Target | Neon branch | Branch ID | Endpoint ID | Connection | Verified |
+|---|---|---|---|---|---|
+| Production `DATABASE_URL` | `production` | `br-round-flower-amsxctwi` | `ep-dawn-sky-amvgvfjj` | Pooled | YES |
+| Production `DIRECT_URL` | `production` | `br-round-flower-amsxctwi` | `ep-dawn-sky-amvgvfjj` | Direct | YES |
+| Preview `DATABASE_URL` | `phase-3-staging` | `br-hidden-mouse-amlibnj9` | `ep-curly-poetry-am5ua3ev` | Pooled | YES |
+| Preview `DIRECT_URL` | `phase-3-staging` | `br-hidden-mouse-amlibnj9` | `ep-curly-poetry-am5ua3ev` | Direct | YES |
+
+All four use database `neondb`, role `neondb_owner`, and required SSL. Passwords and complete URLs were neither printed nor written to this report.
+
+### Migration And Recovery Evidence
+
+- Repository migration count: 41.
+- Production: 41 applied, zero pending, no failed migration reported, schema current.
+- Preview `phase-3-staging`: 34 applied and seven pending.
+- Pending only on Preview: `20260723143000_phase_3_bank_reconciliation_completion`, `20260723180000_phase_3_tax_assistant_completion`, `20260724200000_phase_3_predictive_alerts_completion`, `20260724213000_phase_3_ai_evaluation_completion`, `20260730100000_phase_3_ai_marketing_completion`, `20260730120000_phase_3_payroll_completion`, and `20260803100000_phase_3j_cooperatives_completion`.
+- No Production migration was pending, so `prisma migrate deploy` was not run.
+- The Neon project provides 21,600 seconds (six hours) of history and supports point-in-time recovery branches. No checkpoint was created because there is no pending Production migration and the release is blocked before the deployment window.
+- Preview's seven-migration deficit must be resolved in a separately authorized Preview database task before relying on Preview for final release QA.
+
+### Environment And Module State
+
+Production has 42 exact source-derived Phase 2/3 rollout controls in a fail-closed state. This includes all feature flags set to `false`, `PHASE3_AI_GLOBAL_KILL_SWITCH=true`, `PHASE3_AI_MONTHLY_COST_BUDGET_KOBO=0`, and `PHASE3_AI_DAILY_REQUEST_LIMIT_PER_BUSINESS=0`. No Payroll statutory payload was created.
+
+| Module | Production state | QA status | Notes |
+|---|---|---|---|
+| Phase 2 modules | DISABLED | Preview evidence only | Ten flags configured false |
+| Staff Performance | DISABLED | Preview passed; Production not tested | Public/private flags configured false |
+| Executive Dashboard | DISABLED | Preview passed; Production not tested | Public/private flags configured false |
+| Bank Reconciliation | DISABLED | Preview passed; Production not tested | Preview completion migration is pending |
+| Tax Assistant | DISABLED | Preview passed; Production not tested | Preview completion migration is pending |
+| Predictive Alerts | DISABLED | Preview passed; Production not tested | Deterministic and AI explanation controls remain off |
+| AI Evaluation | DISABLED | Preview passed; Production not tested | Provider governance remains open |
+| AI Marketing | DISABLED | Preview passed; Production not tested | Drafting and sending remain off |
+| Cooperatives | DISABLED | Preview passed; Production not tested | Financial workflow requires controlled Production QA |
+| Loan Readiness | BLOCKED | Completion and full Preview QA not evidenced | Missing dedicated schema, permissions, APIs, entitlement, and workflow evidence |
+| Payroll | BLOCKED | No approved Production ruleset | Flags false; statutory payload absent |
+
+### Required Human Provider Action
+
+Provider administrators must verify the Paystack live webhook, add and isolate the required Production WhatsApp app secret/credentials, isolate and verify Resend Production credentials and sender domain, and approve the OpenAI Production project/model/governance settings. After those attestations, resume with Preview migration remediation, the complete release gate suite, and a fresh release decision. Production remains unchanged except for the authorized environment configuration; no new build consumes it yet.
+
 ## Release
 
 | Item | Result |

@@ -61,7 +61,7 @@ No composite score was added.
   - Server-side API/route authorization: `src/lib/staff-performance/authorization.ts` requires both Staff Performance flags and keeps respecting `PHASE3_AI_GLOBAL_KILL_SWITCH`; Staff Performance summary, detail, and export API routes call `requireStaffPerformanceAccess`.
   - Client-side navigation/UI visibility: `src/lib/phase3/feature-flags.ts` reads `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED`; `/more` uses that public flag for the Staff Performance navigation status; `/more/staff-performance` renders the panel only when the public flag and server helper are enabled.
   - Tests: `src/lib/staff-performance/authorization.test.ts`, `src/lib/phase3/navigation-status.test.ts`, `src/app/api/staff-performance/route.test.ts`, and `tests/e2e/staff-performance.spec.ts`.
-- Vercel Preview configuration completed on 2026-07-23:
+- Vercel Preview configuration reverified on 2026-09-29:
   - `PHASE3_STAFF_PERFORMANCE_ENABLED=true` for Environment `Preview`, Git branch `phase-3-staging`.
   - `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true` for Environment `Preview`, Git branch `phase-3-staging`.
   - `DATABASE_URL`, `DIRECT_URL`, and `NEXT_PUBLIC_APP_URL` confirmed present for Environment `Preview`, Git branch `phase-3-staging`.
@@ -102,17 +102,18 @@ Recommended future additive schema work remains:
 
 ## Validation
 
-Completed locally on 2026-07-23:
+Revalidated locally on 2026-09-29:
 
 - `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true PHASE3_STAFF_PERFORMANCE_ENABLED=true npm run test -- src/app/api/staff-performance/route.test.ts src/lib/staff-performance/definitions.test.ts src/lib/staff-performance/authorization.test.ts src/lib/phase3/navigation-status.test.ts`: passed, 4 files and 21 tests.
 - `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED=true PHASE3_STAFF_PERFORMANCE_ENABLED=true npx playwright test tests/e2e/staff-performance.spec.ts`: passed, 6 tests across desktop Chrome, mobile Chrome, and mobile Safari. The spec executed and did not skip.
-- `npm run lint`: passed.
+- `npm run lint`: passed with zero errors and three existing navigation warnings.
 - `npm run typecheck`: passed.
-- `npm run test`: passed, 77 files and 267 tests.
-- `npm run build`: passed.
+- `npm run test`: passed, 95 files and 376 tests.
+- `npm run build -- --webpack`: passed; 148 pages generated. The normal Turbopack command could not bind its internal worker port in the managed local sandbox, so the fresh Vercel build remains the authoritative normal-build check.
 - `npx prisma validate`: passed.
-- `npx prisma migrate status`: passed against the checked Preview Neon PostgreSQL target; 34 migrations found; database schema is up to date.
+- `npx prisma migrate status`: passed against the verified dedicated Preview Neon target; 41 migrations found, 41 applied, zero pending, and the schema is up to date.
 - `git diff --check`: passed.
+- `npm audit --omit=dev`: passed with zero vulnerabilities.
 
 The focused test evidence covers:
 
@@ -131,7 +132,7 @@ Preview QA found and fixed one issue before final classification:
 
 - During UI custom-date edits, an over-366-day intermediate range could return `500`. `src/lib/staff-performance/api.ts` now maps Staff Performance date-parse failures to a controlled `400`, covered by `src/app/api/staff-performance/route.test.ts`.
 
-## Preview QA
+## Historical Preview QA
 
 Completed on 2026-07-23 against the newest code-fix deployment:
 
@@ -161,6 +162,19 @@ Preview QA result:
 - `POST`, `PUT`, `PATCH`, and `DELETE` on `/api/staff-performance` return `405`.
 
 Preview QA used dedicated seeded Preview QA data in the phase-3-staging database only.
+
+## 2026-09-29 Preview Revalidation
+
+- Database target: dedicated Neon branch `phase-3-staging`, endpoint `ep-curly-poetry-am5ua3ev`; neither URL targeted Production and no credential was printed.
+- Migration pre-state: seven Phase 3 completion migrations pending.
+- Migration review: all seven were additive and required; Preview Payroll preflight found no uniqueness/check conflicts.
+- Migration action: `npx prisma migrate deploy` ran only against the verified Preview database.
+- Migration post-state: 41/41 applied, zero pending.
+- Exact Staff flags are `true` only for Vercel Environment `Preview`, Git branch `phase-3-staging`; Production remains `false` and `phase-2-staging` was not changed.
+- Focused unit/integration result: 4 files and 21 tests passed with both flags enabled.
+- Staff Playwright result: 6 passed, 0 skipped across desktop Chrome, Pixel 5, and iPhone 13; the feature test executed with both flags enabled.
+- Executed coverage includes owner access, unauthorized-user rejection, business isolation, date filtering, staff detail, empty state, CSV export, flag-off and flag-on states, and explicit `405` assertions for `POST`, `PUT`, `PATCH`, and `DELETE`.
+- A fresh Vercel Preview deployment, commit match, Ready status, URL, and exact-deployment QA remain pending at this checkpoint. Do not classify this revalidation as operational until those checks execute.
 
 ## Known Limitations
 
