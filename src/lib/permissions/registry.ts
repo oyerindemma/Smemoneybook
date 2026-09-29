@@ -67,6 +67,10 @@ export const permissionRegistry = [
   "ai_evaluation:compare_models",
   "staff_performance:read",
   "staff_performance:export",
+  "loan_readiness:read",
+  "loan_readiness:generate",
+  "loan_readiness:export",
+  "loan_readiness:manage_profile",
 ] as const;
 
 export async function listPermissionPoliciesForUser(userId: string, businessId: string) {

@@ -5,6 +5,7 @@ import { getLocalAssistantResponse } from "@/lib/assistant/assistant-router";
 import { assistantToolDefinitions, executeAssistantTool } from "@/lib/assistant/assistant-tools";
 import { formatAssistantGrounding } from "@/lib/assistant/source-metrics";
 import type { AssistantToolName, AssistantToolResult } from "@/lib/assistant/assistant-types";
+import { requestOpenAIResponses } from "@/lib/ai/openai-responses";
 
 type ResponseOutput = {
   type?: string;
@@ -30,6 +31,11 @@ export async function createAssistantReply({
   message: string;
 }) {
   let env: ReturnType<typeof getOpenAIEnv>;
+  if (!readFlag(process.env.PHASE3_AI_ENABLED, false)) {
+    const local = await getLocalAssistantResponse({ businessId, userId, message });
+    return { reply: local.reply, toolResults: local.toolResults, provider: "local" };
+  }
+
   try {
     env = getOpenAIEnv();
   } catch {
@@ -109,25 +115,16 @@ async function callResponsesApi(
   env: ReturnType<typeof getOpenAIEnv>,
   input: Array<Record<string, unknown>>,
 ): Promise<OpenAIResponse> {
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  return requestOpenAIResponses<OpenAIResponse>({
+    apiKey: env.OPENAI_API_KEY,
+    body: {
       model: env.OPENAI_MODEL,
       input,
       tools: assistantToolDefinitions,
       tool_choice: "auto",
-    }),
+      max_output_tokens: 700,
+    },
   });
-
-  if (!response.ok) {
-    throw new Error("Assistant provider failed.");
-  }
-
-  return (await response.json()) as OpenAIResponse;
 }
 
 function appendGrounding(reply: string, toolResults: AssistantToolResult[]) {
@@ -167,4 +164,9 @@ function safeJson(value?: string) {
   } catch {
     return {};
   }
+}
+
+function readFlag(value: string | undefined, defaultValue: boolean) {
+  if (value === undefined) return defaultValue;
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }

@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { after } from "next/server";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/env";
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   if (
     mode === "subscribe" &&
     token &&
-    token === getWebhookToken() &&
+    safeEqual(token, getWebhookToken()) &&
     challenge
   ) {
     return new Response(challenge, { status: 200 });
@@ -42,15 +42,13 @@ export async function POST(request: Request) {
       }
 
       const events = parseWebhookPayload(payload);
-      await Promise.all([
-        writeEvent("raw_webhook", sanitizePayload(payload)),
-        ...events.map((event) =>
-          writeEvent(event.eventType, event.payload, event.externalId, event.status),
-        ),
-        ...events
-          .filter((event) => event.eventType === "incoming_message")
-          .map((event) => routeIncomingMessage(event)),
-      ]);
+      await writeEvent("raw_webhook", sanitizePayload(payload));
+      for (const event of events) {
+        const inserted = await writeEvent(event.eventType, event.payload, event.externalId, event.status);
+        if (inserted && event.eventType === "incoming_message") {
+          await routeIncomingMessage(event);
+        }
+      }
     });
 
     return new Response("EVENT_RECEIVED", { status: 200 });
@@ -173,6 +171,7 @@ async function writeEvent(
     await getPrisma().$transaction(async (tx) => {
       await tx.whatsAppEvent.create({
         data: {
+          ...(externalId ? { id: deterministicEventId(eventType, externalId) } : {}),
           eventType,
           payload: payload as Prisma.InputJsonObject,
           externalId,
@@ -186,8 +185,13 @@ async function writeEvent(
         });
       }
     });
+    return true;
   } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return false;
+    }
     console.error("whatsapp.webhook_event_log_failed", error);
+    return false;
   }
 }
 
@@ -203,7 +207,7 @@ function getWebhookToken() {
 function isValidSignature(rawBody: string, signature: string | null) {
   const appSecret = process.env.WHATSAPP_APP_SECRET;
   if (!appSecret) {
-    return process.env.NODE_ENV !== "production";
+    return false;
   }
 
   if (!signature?.startsWith("sha256=")) {
@@ -212,6 +216,14 @@ function isValidSignature(rawBody: string, signature: string | null) {
 
   const expected = `sha256=${createHmac("sha256", appSecret).update(rawBody).digest("hex")}`;
   return safeEqual(signature, expected);
+}
+
+function deterministicEventId(eventType: string, externalId: string) {
+  return `waevt_${createHash("sha256").update(`${eventType}:${externalId}`).digest("hex")}`;
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
 function safeEqual(a: string, b: string) {

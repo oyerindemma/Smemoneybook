@@ -14,6 +14,7 @@ export type BillingFeature =
   | "payroll"
   | "ai_marketing"
   | "ai_evaluation"
+  | "loan_readiness"
   | "team_management"
   | "audit_tools"
   | "advanced_reports"
@@ -99,6 +100,11 @@ export const billingFeatureDetails: Record<BillingFeature, BillingFeatureDetail>
     name: "AI evaluation",
     summary: "Run internal AI safety, grounding, regression, latency, and cost checks before rollout.",
   },
+  loan_readiness: {
+    id: "loan_readiness",
+    name: "Loan readiness",
+    summary: "Review bookkeeping and document evidence before speaking with a financing partner.",
+  },
   team_management: {
     id: "team_management",
     name: "Team and accountant access",
@@ -172,7 +178,7 @@ export const billingPlans: BillingPlan[] = [
     amount: 7000,
     amountKobo: 700000,
     recommendedFor: "Retailers, service businesses, and stock-based SMEs recording daily activity.",
-    features: ["basic_exports", "ai_category_assist", "receipt_extraction", "bank_reconciliation", "tax_assistant", "ai_marketing"],
+    features: ["basic_exports", "ai_category_assist", "receipt_extraction", "bank_reconciliation", "tax_assistant", "ai_marketing", "loan_readiness"],
   },
   {
     id: "pro",
@@ -195,6 +201,7 @@ export const billingPlans: BillingPlan[] = [
       "payroll",
       "ai_marketing",
       "ai_evaluation",
+      "loan_readiness",
       "team_management",
       "audit_tools",
       "advanced_reports",

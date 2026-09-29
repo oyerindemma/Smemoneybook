@@ -1,6 +1,6 @@
 import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
 import { LoanReadinessPanel } from "@/components/loan-readiness/LoanReadinessPanel";
-import { isLoanReadinessFeatureEnabledForServer } from "@/lib/phase3/feature-flags";
+import { isLoanReadinessFeatureEnabledForServer } from "@/lib/loan-readiness/authorization";
 
 export default function LoanReadinessPage() {
   const enabled = isLoanReadinessFeatureEnabledForServer();
@@ -19,7 +19,7 @@ export default function LoanReadinessPage() {
       ) : (
         <FeatureUnavailablePanel
           title="Loan Readiness is not available"
-          description="Phase 3G is behind a rollout flag while scoring, disclaimers, and consent logging are validated."
+          description="This module is disabled for the current environment."
           billingLink={false}
         />
       )}

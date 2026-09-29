@@ -405,6 +405,10 @@ export async function getDashboardState(
           canManageAiEvaluationCases: hasPermission(role, "ai_evaluation:manage_cases"),
           canExportAiEvaluation: hasPermission(role, "ai_evaluation:export"),
           canCompareAiEvaluationModels: hasPermission(role, "ai_evaluation:compare_models"),
+          canViewLoanReadiness: hasPermission(role, "loan_readiness:read"),
+          canGenerateLoanReadiness: hasPermission(role, "loan_readiness:generate"),
+          canExportLoanReadiness: hasPermission(role, "loan_readiness:export"),
+          canManageLoanReadinessProfile: hasPermission(role, "loan_readiness:manage_profile"),
         }
       : undefined,
     billing: {

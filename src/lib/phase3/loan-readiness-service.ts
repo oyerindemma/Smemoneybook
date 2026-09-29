@@ -5,6 +5,7 @@ import {
   loanReadinessFormulaVersion,
   type LoanReadinessAssessment,
 } from "@/lib/phase3/loan-readiness";
+import { LoanReadinessServiceError } from "@/lib/loan-readiness/service";
 
 export type LoanReadinessScope = {
   businessId: string;
@@ -180,7 +181,11 @@ export async function recordLoanReadinessSharingConsent({
     });
 
     if (!snapshot) {
-      throw new Error("Choose a valid loan readiness snapshot.");
+      throw new LoanReadinessServiceError(
+        "Choose a valid Loan Readiness assessment from this business.",
+        404,
+        "snapshot_not_found",
+      );
     }
   }
 

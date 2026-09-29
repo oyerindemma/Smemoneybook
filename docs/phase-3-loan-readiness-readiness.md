@@ -188,3 +188,51 @@ Playwright with flags enabled:
 - No native 404 and no unexpected 500.
 
 Preview operational classification may only be used after executed Vercel Preview evidence. Without deployed Preview evidence, final classification must be `IMPLEMENTED - DISABLED` or `PARTIALLY IMPLEMENTED`.
+
+## 2026-09-29 Implementation And Local QA
+
+Loan Readiness completion is implemented on `phase-3-staging`. Production remains disabled and unchanged.
+
+### Delivered Surface
+
+- Exact flags: `PHASE3_LOAN_READINESS_ENABLED` and `NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED`; both default to `false` and the server requires both.
+- Entitlement: exact `loan_readiness` feature on Growth and Pro.
+- Permissions: `loan_readiness:read`, `loan_readiness:generate`, `loan_readiness:export`, and `loan_readiness:manage_profile`.
+- Default RBAC: Owner has all four permissions; Accountant has read, generate, and export; Staff has none unless explicitly granted by policy or override.
+- Split routes: `summary`, `categories`, `evidence`, `generate`, `history`, `export`, and `profile`, with explicit method guards and `400`/`401`/`402`/`403`/`404`/`405` handling.
+- Workflows: deterministic 180-day assessment, evidence and category views, readiness-only profile, document checklist, auditable snapshot history, and CSV export with spreadsheet-formula neutralization.
+- Tenant controls: authorization precedes every read or mutation; all service queries and snapshot references include the authorized `businessId`, with optional validated location scope.
+- The existing compatibility route remains available for summary/generation and consent logging. Consent logging does not transmit data externally.
+
+### Database
+
+Migration `20260929160000_phase_3_loan_readiness_completion` is additive. It adds nullable snapshot audit/result fields plus `LoanReadinessProfile` and `LoanReadinessDocument`; it does not alter an already-applied migration or remove existing data.
+
+The dedicated Neon Preview branch was independently verified before Prisma execution:
+
+- branch: `phase-3-staging`
+- branch ID: `br-hidden-mouse-amlibnj9`
+- endpoint ID: `ep-curly-poetry-am5ua3ev`
+- both pooled `DATABASE_URL` and direct `DIRECT_URL` parsed as PostgreSQL URLs for that endpoint and not the Production endpoint
+- baseline: 41 applied migrations and only the new Loan Readiness migration pending
+- `npx prisma migrate deploy`: applied only the reviewed migration to Preview
+- final `npx prisma migrate status`: 42 migrations found; schema current; zero pending
+
+Production was not migrated. Its previously verified 41-migration schema remains unchanged; the new migration is reserved for a separately authorized Production release.
+
+### Configuration And Executed Tests
+
+- Vercel Environment `Preview`, Git branch `phase-3-staging`: both exact Loan Readiness flags are `true`.
+- No Production flag was changed. Payroll's public and private Preview flags were explicitly pinned to `false`.
+- Focused Loan Readiness Vitest: 7 files and 29 tests passed after the final contract correction.
+- Full Vitest after all hardening changes: 103 files and 409 tests passed.
+- Loan Readiness Playwright: 6 passed and 0 skipped across Desktop Chrome, Pixel 5, and iPhone 13.
+- Complete Playwright suite: 69 passed; six intentional Payroll skips (two disabled Payroll scenarios across three browser projects); no Loan Readiness skip.
+- Local webpack Production build: passed, including TypeScript and 155 generated pages.
+- Normal local Turbopack build: blocked by the host denying an internal worker port; source compilation must therefore also pass in the fresh Vercel Preview before deployment readiness is claimed.
+- `npm audit --omit=dev`: zero vulnerabilities.
+- Changed-source credential scan: zero actionable credentials; synthetic Paystack keys were confined to tests.
+
+### Remaining Preview Gate
+
+A fresh Vercel Preview from the remediation commit must be `Ready`, must use the exact branch-scoped flags above, and must pass exact-deployment Loan Readiness browser/API QA. Until that evidence is recorded, this implementation is not classified as Production eligible.

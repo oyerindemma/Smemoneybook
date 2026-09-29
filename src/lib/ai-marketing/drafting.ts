@@ -3,6 +3,7 @@ import {
   assertNoSensitiveMarketingTargeting,
   containsSensitiveMarketingTargeting,
 } from "@/lib/ai-marketing/consent";
+import { requestOpenAIResponses } from "@/lib/ai/openai-responses";
 
 export const aiMarketingPromptVersion = "phase3h-ai-marketing-draft-v1";
 export const aiMarketingReviewLabel = "AI-generated draft \u2014 review before approval.";
@@ -115,13 +116,12 @@ export function createOpenAiMarketingDraftProvider(): AiMarketingDraftProvider {
     provider: "openai",
     model: env.OPENAI_MODEL,
     async generate(input) {
-      const response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const payload = await requestOpenAIResponses<{
+        output_text?: string;
+        output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+      }>({
+        apiKey: env.OPENAI_API_KEY,
+        body: {
           model: env.OPENAI_MODEL,
           input: [
             {
@@ -141,14 +141,8 @@ export function createOpenAiMarketingDraftProvider(): AiMarketingDraftProvider {
             },
           ],
           max_output_tokens: 450,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        throw new Error("AI Marketing drafting provider failed.");
-      }
-
-      const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> };
       const text = payload.output_text || payload.output?.find((item) => item.type === "message")?.content?.find((item) => item.type === "output_text")?.text || "";
 
       if (!text.trim()) {

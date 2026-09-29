@@ -35,6 +35,7 @@ describe("Paystack billing", () => {
       "executive_dashboard",
       "granular_permissions",
       "invoice_branding",
+      "loan_readiness",
       "multi_location",
       "payroll",
       "predictive_alerts",
@@ -52,6 +53,7 @@ describe("Paystack billing", () => {
       "Bank reconciliation",
       "Tax assistant",
       "AI marketing",
+      "Loan readiness",
     ]);
   });
 

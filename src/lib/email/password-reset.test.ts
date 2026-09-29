@@ -50,20 +50,15 @@ describe("sendPasswordResetEmail", () => {
     expect(body.html).toContain("Reset your password");
   });
 
-  it("can use Admin_Email as a sender fallback for Vercel envs", async () => {
+  it("fails closed when the dedicated EMAIL_FROM setting is absent", async () => {
     delete process.env.EMAIL_FROM;
     process.env.Admin_Email = "admin@smemoneybook.com";
 
-    expect(isPasswordResetEmailConfigured()).toBe(true);
-
-    await sendPasswordResetEmail({
+    expect(isPasswordResetEmailConfigured()).toBe(false);
+    await expect(sendPasswordResetEmail({
       to: "owner@example.com",
       resetUrl: "https://app.example.com/reset-password?token=abc123",
-    });
-
-    const [, request] = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse(String(request?.body));
-    expect(body.from).toBe("admin@smemoneybook.com");
+    })).rejects.toThrow("EMAIL_FROM");
   });
 
   it("surfaces provider errors", async () => {
@@ -78,6 +73,17 @@ describe("sendPasswordResetEmail", () => {
         to: "owner@example.com",
         resetUrl: "https://app.example.com/reset-password?token=abc123",
       }),
-    ).rejects.toThrow("Domain is not verified");
+    ).rejects.toThrow("Email provider returned 403");
+  });
+
+  it("requires the verified SME MoneyBook sender domain in Production", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.EMAIL_FROM = "SME MoneyBook <support@example.com>";
+
+    expect(isPasswordResetEmailConfigured()).toBe(false);
+    await expect(sendPasswordResetEmail({
+      to: "owner@example.com",
+      resetUrl: "https://smemoneybook.com/reset-password?token=abc123",
+    })).rejects.toThrow("smemoneybook.com");
   });
 });

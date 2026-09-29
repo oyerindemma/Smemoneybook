@@ -307,6 +307,10 @@ export type MoneybookState = {
     canManageAiEvaluationCases?: boolean;
     canExportAiEvaluation?: boolean;
     canCompareAiEvaluationModels?: boolean;
+    canViewLoanReadiness?: boolean;
+    canGenerateLoanReadiness?: boolean;
+    canExportLoanReadiness?: boolean;
+    canManageLoanReadinessProfile?: boolean;
   };
   billing?: {
     planId: BillingPlanId | "free";
@@ -382,6 +386,10 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canManageAiEvaluationCases: true,
       canExportAiEvaluation: true,
       canCompareAiEvaluationModels: true,
+      canViewLoanReadiness: true,
+      canGenerateLoanReadiness: true,
+      canExportLoanReadiness: true,
+      canManageLoanReadinessProfile: true,
     },
     billing: {
       planId: "pro",
@@ -399,6 +407,7 @@ export function createDefaultBusiness(name: string): MoneybookState {
         "predictive_alerts",
         "ai_marketing",
         "ai_evaluation",
+        "loan_readiness",
         "granular_permissions",
         "team_management",
         "audit_tools",

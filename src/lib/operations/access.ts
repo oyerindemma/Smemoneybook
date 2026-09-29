@@ -65,7 +65,11 @@ export type Permission =
   | "ai_evaluation:export"
   | "ai_evaluation:compare_models"
   | "staff_performance:read"
-  | "staff_performance:export";
+  | "staff_performance:export"
+  | "loan_readiness:read"
+  | "loan_readiness:generate"
+  | "loan_readiness:export"
+  | "loan_readiness:manage_profile";
 
 export type BusinessAccess = {
   businessId: string;
@@ -139,6 +143,10 @@ const permissions: Record<Role, Permission[]> = {
     "ai_evaluation:compare_models",
     "staff_performance:read",
     "staff_performance:export",
+    "loan_readiness:read",
+    "loan_readiness:generate",
+    "loan_readiness:export",
+    "loan_readiness:manage_profile",
   ],
   ACCOUNTANT: [
     "reports:write",
@@ -164,6 +172,9 @@ const permissions: Record<Role, Permission[]> = {
     "cooperatives:read",
     "cooperatives:export",
     "cooperatives:view_member_sensitive",
+    "loan_readiness:read",
+    "loan_readiness:generate",
+    "loan_readiness:export",
   ],
   STAFF: [
     "money:write",

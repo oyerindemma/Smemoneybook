@@ -18,6 +18,10 @@ type PaystackWebhookPayload = {
       businessId?: string;
       planId?: string;
     };
+    customer?: {
+      email?: string;
+      customer_code?: string;
+    };
   };
 };
 
@@ -31,7 +35,10 @@ export async function POST(request: Request) {
       return jsonError("Invalid Paystack signature.", 401);
     }
 
-    const payload = JSON.parse(rawBody) as PaystackWebhookPayload;
+    const payload = parseWebhookPayload(rawBody);
+    if (!payload) {
+      return jsonError("Invalid Paystack webhook payload.", 400);
+    }
 
     if (payload.event !== "charge.success") {
       return Response.json({ ok: true, ignored: true });
@@ -47,7 +54,6 @@ export async function POST(request: Request) {
       reference,
       eventType: payload.event,
       payload: payload.data ?? {},
-      actorId: payload.data?.metadata?.userId,
     });
 
     return Response.json({
@@ -55,7 +61,21 @@ export async function POST(request: Request) {
       alreadyProcessed: result.alreadyProcessed,
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "paystack.webhook_failed",
+      error instanceof Error ? error.message : "Unknown webhook failure.",
+    );
     return jsonErrorFromUnknown(error, "Could not process Paystack webhook.");
+  }
+}
+
+function parseWebhookPayload(rawBody: string): PaystackWebhookPayload | null {
+  try {
+    const payload = JSON.parse(rawBody) as unknown;
+    return typeof payload === "object" && payload !== null && !Array.isArray(payload)
+      ? payload as PaystackWebhookPayload
+      : null;
+  } catch {
+    return null;
   }
 }

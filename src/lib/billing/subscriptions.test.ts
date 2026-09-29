@@ -40,6 +40,8 @@ describe("billing subscriptions", () => {
       plan: SubscriptionPlan.STARTER,
       status: SubscriptionStatus.TRIALING,
       reference: "sme_starter_ref",
+      provider: "paystack",
+      user: { email: "owner@example.com" },
     });
     paymentEventFindUnique.mockResolvedValue(null);
     subscriptionUpdate.mockResolvedValue({
@@ -60,6 +62,8 @@ describe("billing subscriptions", () => {
         amount: 350000,
         currency: "NGN",
         paid_at: "2026-06-12T00:00:00.000Z",
+        metadata: { userId: "user_1", businessId: "biz_1", planId: "starter" },
+        customer: { email: "owner@example.com" },
       },
     });
 
@@ -92,6 +96,7 @@ describe("billing subscriptions", () => {
           status: "success",
           amount: 1200000,
           currency: "NGN",
+          metadata: { userId: "user_1", businessId: "biz_1", planId: "starter" },
         },
       }),
     ).rejects.toThrow("Payment verification failed.");
@@ -115,11 +120,32 @@ describe("billing subscriptions", () => {
         status: "success",
         amount: 350000,
         currency: "NGN",
+        metadata: { userId: "user_1", businessId: "biz_1", planId: "starter" },
       },
     });
 
     expect(result.alreadyProcessed).toBe(true);
     expect(paymentEventCreate).not.toHaveBeenCalled();
+    expect(subscriptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects metadata that does not own the server-created subscription", async () => {
+    const { activatePaystackSubscription } = await import("@/lib/billing/subscriptions");
+
+    await expect(
+      activatePaystackSubscription({
+        reference: "sme_starter_ref",
+        eventType: "charge.success",
+        payload: {
+          reference: "sme_starter_ref",
+          status: "success",
+          amount: 350000,
+          currency: "NGN",
+          metadata: { userId: "user_1", businessId: "other_business", planId: "starter" },
+        },
+      }),
+    ).rejects.toThrow("Payment ownership verification failed.");
+
     expect(subscriptionUpdate).not.toHaveBeenCalled();
   });
 });

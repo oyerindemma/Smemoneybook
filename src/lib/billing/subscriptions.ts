@@ -73,7 +73,10 @@ export async function activatePaystackSubscription({
   return prisma.$transaction(async (tx) => {
     const subscription = await tx.subscription.findUnique({
       where: { reference },
-      include: { business: true },
+      include: {
+        business: true,
+        user: { select: { email: true } },
+      },
     });
 
     if (!subscription) {
@@ -84,9 +87,29 @@ export async function activatePaystackSubscription({
     const amount = Number((payload as PaystackVerifyData).amount ?? 0);
     const status = String((payload as PaystackVerifyData).status ?? "");
     const currency = String((payload as PaystackVerifyData).currency ?? "NGN");
+    const paymentReference = String((payload as PaystackVerifyData).reference ?? "");
+    const metadata = (payload as PaystackVerifyData).metadata;
+    const customerEmail = (payload as PaystackVerifyData).customer?.email?.trim().toLowerCase();
 
-    if (!plan || amount !== plan.amountKobo || status !== "success" || currency !== "NGN") {
+    if (
+      !plan ||
+      subscription.provider !== "paystack" ||
+      paymentReference !== reference ||
+      amount !== plan.amountKobo ||
+      status !== "success" ||
+      currency !== "NGN"
+    ) {
       throw new Error("Payment verification failed.");
+    }
+
+    if (
+      metadata?.businessId !== subscription.businessId ||
+      metadata?.userId !== subscription.userId ||
+      metadata?.planId !== plan.id ||
+      (actorId && actorId !== subscription.userId) ||
+      (customerEmail && customerEmail !== subscription.user?.email.toLowerCase())
+    ) {
+      throw new Error("Payment ownership verification failed.");
     }
 
     const existingEvent = await tx.paymentEvent.findUnique({ where: { reference } });
@@ -134,7 +157,7 @@ export async function activatePaystackSubscription({
     await tx.auditLog.create({
       data: {
         businessId: subscription.businessId,
-        actorId: actorId ?? subscription.userId,
+        actorId: subscription.userId,
         action: "billing.subscription_activated",
         message: `${plan.name} subscription was activated via Paystack.`,
         metadata: {

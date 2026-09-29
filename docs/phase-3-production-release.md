@@ -4,6 +4,71 @@ Date: 2026-08-17
 
 Final classification: `PRODUCTION RELEASE BLOCKED`
 
+## 2026-09-29 Final Blocker Remediation Candidate
+
+This work remains on `phase-3-staging`. It does not merge to `main`, deploy or promote Production, activate a Production feature, mutate Production data, create a charge, send a WhatsApp message, or send an email.
+
+### Platform State
+
+- Production database mapping and its 41/41 pre-remediation schema state remain supported by the previously executed release evidence. Production has not received the new Loan Readiness migration, so the release source now contains 42 migrations while Production remains intentionally unchanged at 41 applied.
+- Preview URLs were independently generated for Neon branch `phase-3-staging` (`br-hidden-mouse-amlibnj9`, endpoint `ep-curly-poetry-am5ua3ev`) and verified not to target Production before Prisma execution.
+- Preview started at the verified 41-migration baseline. The reviewed additive Loan Readiness completion migration was the only pending migration, was deployed only to Preview, and Preview is now current at 42/42.
+- Production `NEXT_PUBLIC_APP_URL` remains exactly `https://smemoneybook.com`. Production rollout controls retain their previously verified fail-closed configuration and were not changed.
+- Neon retains six hours of project history and point-in-time branch recovery capability. The final named checkpoint is correctly deferred until the exact Production scope and release window are approved.
+- Safety note: an initial read-only `prisma migrate status` attempt inherited the repository `.env`, identified the Production endpoint, and exited with a schema-engine error before returning migration status. No deploy or data mutation occurred. Every subsequent Prisma command used protected temporary URLs independently verified for Preview.
+
+### Provider Hardening
+
+- Paystack: exact `x-paystack-signature` HMAC SHA-512 verification with `PAYSTACK_SECRET_KEY`; malformed signed payloads fail safely; reference, amount, currency, provider, plan, user, business, and optional customer email are checked against the server-created subscription; duplicate references remain idempotent; payloads and secrets are not logged.
+- WhatsApp: verification-token comparison is timing safe; POST requires exact Meta `x-hub-signature-256` HMAC SHA-256 with `WHATSAPP_APP_SECRET` in every environment; absent secret fails closed; deterministic event IDs suppress duplicate inbound routing; an ambiguous phone shared by multiple businesses fails closed.
+- Resend: only exact `RESEND_API_KEY` and `EMAIL_FROM` are accepted; placeholders and malformed senders fail closed; Production requires an `@smemoneybook.com` sender; requests time out after ten seconds; provider response bodies and credentials are not surfaced.
+- OpenAI: API credentials remain server-side; model selection must be explicit; the shared Responses client has a 15-second timeout, at most two attempts, bounded outputs, generic errors, response-shape checks, and enforced `store: false`; the assistant uses deterministic local fallback while `PHASE3_AI_ENABLED` is off or provider configuration is absent; tools remain authorized and non-writing.
+
+Provider dashboards were not available through authenticated tooling. Their Production ownership/configuration gates remain manual and block only dependent functionality.
+
+### Executed Local Gates
+
+| Gate | Result |
+|---|---|
+| `npm ci` | PASS; lockfile install and Prisma generation completed |
+| `npx prisma validate` | PASS |
+| Preview `npx prisma migrate status` | PASS; 42/42, zero pending |
+| `npm run lint` | PASS; zero errors and three pre-existing navigation warnings |
+| `npm run typecheck` | PASS |
+| `npm run test` | PASS; 103 files, 409 tests after all hardening changes |
+| Loan Readiness Playwright | PASS; 6 executed, 0 skipped across desktop Chrome, mobile Chrome, and mobile Safari |
+| Complete Playwright | PASS; 69 passed, six intentional Payroll-disabled skips |
+| `npm run build -- --webpack` | PASS; TypeScript and 155 pages |
+| normal local `npm run build` | HOST BLOCKED; Turbopack internal worker could not bind a host port; fresh Vercel normal build remains mandatory |
+| `npm audit --omit=dev` | PASS; zero vulnerabilities |
+| credential scan | PASS; zero actionable credentials in changed source |
+| `git diff --check` | PASS before documentation; final pre-commit rerun required |
+
+### Candidate Scope
+
+| Module | Code ready | DB ready | QA ready | Provider ready | Production eligible | Required flags | Blocker |
+|---|---|---|---|---|---|---|---|
+| Core bookkeeping and Phase 2 | Yes | Yes | Yes | N/A | Yes, pending final authorization | Exact Phase 2 public flags in the environment manifest | None |
+| Staff Performance | Yes | Yes | Yes | N/A | Yes, pending final authorization | `PHASE3_STAFF_PERFORMANCE_ENABLED`, `NEXT_PUBLIC_PHASE3_STAFF_PERFORMANCE_ENABLED` | None |
+| Executive Dashboard | Yes | Yes | Yes | N/A | Yes, pending final authorization | `PHASE3_EXECUTIVE_DASHBOARD_ENABLED`, `NEXT_PUBLIC_PHASE3_EXECUTIVE_DASHBOARD_ENABLED` | None |
+| Bank Reconciliation | Yes | Yes | Yes | N/A | Yes, pending final authorization | `PHASE3_BANK_RECONCILIATION_ENABLED`, `NEXT_PUBLIC_PHASE3_BANK_RECONCILIATION_ENABLED` | None |
+| Predictive Alerts (deterministic) | Yes | Yes | Yes | N/A | Yes, with AI explanation disabled | `PHASE3_PREDICTIVE_ALERTS_ENABLED`, `NEXT_PUBLIC_PHASE3_PREDICTIVE_ALERTS_ENABLED`; keep AI explanation flag `false` | None |
+| Cooperatives | Yes | Yes | Yes | N/A | Yes, pending final authorization | `PHASE3_COOPERATIVES_ENABLED`, `NEXT_PUBLIC_PHASE3_COOPERATIVES_ENABLED` | None |
+| Loan Readiness | Yes | Preview 42/42; Production migration pending release | Local yes; deployed QA pending | N/A | Pending deployed Preview QA | `PHASE3_LOAN_READINESS_ENABLED`, `NEXT_PUBLIC_PHASE3_LOAN_READINESS_ENABLED` | Fresh Preview evidence |
+| Billing/Paystack | Yes | Yes | Yes | No | No | Billing runtime keys | Live webhook registration/delivery unverified |
+| Staff invitation/password-reset email | Yes | Yes | Yes | No | No | `RESEND_API_KEY`, `EMAIL_FROM` | Production domain/key isolation unverified |
+| WhatsApp Automation | Yes | Yes | Yes | No | No | WhatsApp credentials and public module flag | Production Meta app, secret, WABA subscription unverified |
+| Tax Assistant AI questions | Yes | Yes | Yes | No | No | Tax Assistant flags plus `PHASE3_AI_ENABLED` | OpenAI Production governance unverified |
+| AI Evaluation provider runs | Yes | Yes | Yes | No | No | AI Evaluation flags | OpenAI Production governance unverified |
+| AI Marketing drafting/sending | Yes | Yes | Yes | No | No | AI Marketing flags; keep sending flag `false` | OpenAI approval; outbound provider approval for sending |
+| Payroll | Yes | Yes | Disabled regression passed | N/A | No | Keep `PHASE3_PAYROLL_ENABLED=false`, `NEXT_PUBLIC_PHASE3_PAYROLL_ENABLED=false` | Awaiting authoritative approved statutory ruleset |
+
+`READY NOW`: Core bookkeeping/Phase 2, Staff Performance, Executive Dashboard, Bank Reconciliation, deterministic Predictive Alerts, and Cooperatives, subject to exact final scope authorization.
+
+`READY BUT PROVIDER-DEPENDENT`: Billing, email-dependent staff/auth flows, WhatsApp Automation, Tax Assistant AI questions, AI Evaluation provider runs, and AI Marketing.
+
+`KEEP DISABLED`: Payroll. Loan Readiness remains pending only until the fresh exact-deployment Preview gate is recorded.
+
 ## 2026-09-29 Preview Remediation Result
 
 This section supersedes the 2026-09-28 Preview migration and local validation findings below. Work remained on `phase-3-staging`; no merge, Production deployment, Production database command, Production feature activation, provider mutation, charge, message, or email occurred.

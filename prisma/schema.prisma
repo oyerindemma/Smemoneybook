@@ -9,50 +9,51 @@ datasource db {
 }
 
 model User {
-  id                        String                     @id @default(cuid())
-  name                      String
-  email                     String                     @unique
-  password                  String
-  pinHash                   String?
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
-  members                   BusinessMember[]
-  auditLogs                 AuditLog[]
-  sessions                  Session[]
-  passwordResets            PasswordResetToken[]
-  sentInvitations           BusinessInvitation[]       @relation("InvitationSender")
-  DebtEvent                 DebtEvent[]
-  ReportSnapshot            ReportSnapshot[]
-  subscriptions             Subscription[]
-  assistantThreads          AssistantThread[]
-  assistantMessages         AssistantMessage[]
-  predictiveAlertFeedback   PredictiveAlertFeedback[]
-  aiEvaluationEvents        AiEvaluationEvent[]
-  pendingAssistantActions   PendingAssistantAction[]
-  referralAttributions      ReferralAttribution[]      @relation("ReferredUser")
-  referralRewards           ReferralReward[]           @relation("ReferralRewardUser")
-  onboardingProgress        OnboardingProgress?
-  onboardingEvents          OnboardingEvent[]
-  inventoryMovements        InventoryMovement[]
-  offlineSyncOperations     OfflineSyncOperation[]
-  locationMemberships       BusinessLocationMember[]
-  stockTransfersCreated     StockTransfer[]            @relation("StockTransferCreatedBy")
-  stockTransfersApproved    StockTransfer[]            @relation("StockTransferApprovedBy")
-  stockTransfersSent        StockTransfer[]            @relation("StockTransferSentBy")
-  stockTransfersReceived    StockTransfer[]            @relation("StockTransferReceivedBy")
-  language                  String                     @default("en")
-  exportJobs                ExportJob[]                @relation("ExportJobActor")
-  issuedDocuments           IssuedDocument[]           @relation("IssuedDocumentActor")
-  announcementReads         AnnouncementRead[]
-  announcementsCreated      Announcement[]             @relation("AnnouncementCreator")
-  permissionOverrides       PermissionOverride[]
-  taxPeriodSnapshots        TaxPeriodSnapshot[]        @relation("TaxPeriodSnapshotGenerator")
-  taxReviewItemsReviewed    TaxReviewItem[]            @relation("TaxReviewItemReviewer")
-  taxAssistantConversations TaxAssistantConversation[]
-  taxAssistantMessages      TaxAssistantMessage[]
-  aiEvaluationSuitesCreated AiEvaluationSuite[]        @relation("AiEvaluationSuiteCreator")
-  aiEvaluationRunsInitiated AiEvaluationRun[]          @relation("AiEvaluationRunInitiator")
-  aiEvaluationBaselines     AiEvaluationBaseline[]     @relation("AiEvaluationBaselineAcceptor")
+  id                              String                     @id @default(cuid())
+  name                            String
+  email                           String                     @unique
+  password                        String
+  pinHash                         String?
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  members                         BusinessMember[]
+  auditLogs                       AuditLog[]
+  sessions                        Session[]
+  passwordResets                  PasswordResetToken[]
+  sentInvitations                 BusinessInvitation[]       @relation("InvitationSender")
+  DebtEvent                       DebtEvent[]
+  ReportSnapshot                  ReportSnapshot[]
+  subscriptions                   Subscription[]
+  assistantThreads                AssistantThread[]
+  assistantMessages               AssistantMessage[]
+  predictiveAlertFeedback         PredictiveAlertFeedback[]
+  aiEvaluationEvents              AiEvaluationEvent[]
+  pendingAssistantActions         PendingAssistantAction[]
+  referralAttributions            ReferralAttribution[]      @relation("ReferredUser")
+  referralRewards                 ReferralReward[]           @relation("ReferralRewardUser")
+  onboardingProgress              OnboardingProgress?
+  onboardingEvents                OnboardingEvent[]
+  inventoryMovements              InventoryMovement[]
+  offlineSyncOperations           OfflineSyncOperation[]
+  locationMemberships             BusinessLocationMember[]
+  stockTransfersCreated           StockTransfer[]            @relation("StockTransferCreatedBy")
+  stockTransfersApproved          StockTransfer[]            @relation("StockTransferApprovedBy")
+  stockTransfersSent              StockTransfer[]            @relation("StockTransferSentBy")
+  stockTransfersReceived          StockTransfer[]            @relation("StockTransferReceivedBy")
+  language                        String                     @default("en")
+  exportJobs                      ExportJob[]                @relation("ExportJobActor")
+  issuedDocuments                 IssuedDocument[]           @relation("IssuedDocumentActor")
+  announcementReads               AnnouncementRead[]
+  announcementsCreated            Announcement[]             @relation("AnnouncementCreator")
+  permissionOverrides             PermissionOverride[]
+  taxPeriodSnapshots              TaxPeriodSnapshot[]        @relation("TaxPeriodSnapshotGenerator")
+  taxReviewItemsReviewed          TaxReviewItem[]            @relation("TaxReviewItemReviewer")
+  taxAssistantConversations       TaxAssistantConversation[]
+  taxAssistantMessages            TaxAssistantMessage[]
+  aiEvaluationSuitesCreated       AiEvaluationSuite[]        @relation("AiEvaluationSuiteCreator")
+  aiEvaluationRunsInitiated       AiEvaluationRun[]          @relation("AiEvaluationRunInitiator")
+  aiEvaluationBaselines           AiEvaluationBaseline[]     @relation("AiEvaluationBaselineAcceptor")
+  loanReadinessSnapshotsGenerated LoanReadinessSnapshot[]    @relation("LoanReadinessSnapshotGenerator")
 }
 
 model PasswordResetToken {
@@ -172,6 +173,8 @@ model Business {
   bankReconciliationActions     BankReconciliationAction[]
   loanReadinessSnapshots        LoanReadinessSnapshot[]
   loanReadinessSharingLogs      LoanReadinessSharingLog[]
+  loanReadinessProfile          LoanReadinessProfile?
+  loanReadinessDocuments        LoanReadinessDocument[]
   cooperativeGroups             CooperativeGroup[]
   cooperativeApprovalActions    CooperativeApprovalAction[]
   cooperativeLedgerAccounts     CooperativeLedgerAccount[]
@@ -2372,14 +2375,55 @@ model LoanReadinessSnapshot {
   dataWarnings       Json
   sourceMetrics      Json
   recalculatedFromId String?
+  overallStatus      String?
+  categoryResults    Json?
+  evidenceSummary    Json?
+  generatedByUserId  String?
+  expiresAt          DateTime?
   createdAt          DateTime                  @default(now())
   business           Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   location           BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  generatedBy        User?                     @relation("LoanReadinessSnapshotGenerator", fields: [generatedByUserId], references: [id], onDelete: SetNull)
   sharingLogs        LoanReadinessSharingLog[]
 
   @@index([businessId, generatedAt])
   @@index([businessId, formulaVersion, generatedAt])
   @@index([businessId, locationId, generatedAt])
+  @@index([generatedByUserId, generatedAt])
+}
+
+model LoanReadinessProfile {
+  id                 String    @id @default(cuid())
+  businessId         String    @unique
+  industry           String?
+  operatingStartDate DateTime?
+  fundingPurpose     String?
+  requestedAmount    Decimal?
+  preferredCurrency  String    @default("NGN")
+  consentToShare     Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  business           Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, updatedAt])
+}
+
+model LoanReadinessDocument {
+  id           String    @id @default(cuid())
+  businessId   String
+  documentType String
+  label        String
+  status       String    @default("MISSING")
+  reference    String?
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, documentType])
+  @@index([businessId, status, updatedAt])
 }
 
 model LoanReadinessSharingLog {

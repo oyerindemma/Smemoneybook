@@ -16,8 +16,16 @@ const whatsappEnvSchema = z.object({
 });
 
 const openAIEnvSchema = z.object({
-  OPENAI_API_KEY: safeEnvString(z.string().min(1, "OPENAI_API_KEY is required.")),
-  OPENAI_MODEL: safeEnvString(z.string().min(1)).default("gpt-4.1-mini"),
+  OPENAI_API_KEY: safeEnvString(
+    z.string()
+      .min(1, "OPENAI_API_KEY is required.")
+      .refine((value) => !isPlaceholder(value), "OPENAI_API_KEY must be a real server-side credential."),
+  ),
+  OPENAI_MODEL: safeEnvString(
+    z.string()
+      .min(1, "OPENAI_MODEL is required.")
+      .refine((value) => !isPlaceholder(value), "OPENAI_MODEL must be explicitly approved."),
+  ),
 });
 
 const cronEnvSchema = z.object({
@@ -81,4 +89,8 @@ export function getCronSecret() {
 function formatEnvError(scope: string, error: z.ZodError) {
   const details = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
   return `Invalid ${scope} environment configuration. ${details}`;
+}
+
+function isPlaceholder(value: string) {
+  return value === "[SENSITIVE]" || /\[redacted\]|placeholder|xxx/i.test(value);
 }
