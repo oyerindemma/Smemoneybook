@@ -35,17 +35,29 @@ This section supersedes the 2026-09-28 Preview migration and local validation fi
 | `npm run typecheck` | PASS |
 | `npm run test` | PASS: 95 files, 376 tests |
 | `npm run build -- --webpack` | PASS: 148 pages generated |
-| `npm run build` | Environment-limited locally: Turbopack worker port binding is denied by the managed sandbox; fresh Vercel build remains the authoritative normal-build gate |
+| `npm run build` | PASS on Vercel: Next 16.3.6 Turbopack compiled, TypeScript passed, and 148 pages generated |
 | `npx prisma validate` | PASS |
 | `npx prisma migrate status` | PASS: Preview 41/41, zero pending |
 | `npm audit --omit=dev` | PASS: zero vulnerabilities |
-| `git diff --check` | PASS before report update; rerun required before commit |
+| `git diff --check` | PASS |
 
 The mobile offline scenario verified visible queuing but did not prove restored-network replay; development logs showed a rejected replay request after reconnection. Treat replay synchronization as residual risk, not as a completed release assertion.
 
-### Remaining Preview Gate
+### Preview Deployment And QA
 
-A fresh Git-triggered Vercel Preview deployment, commit match, Ready status, and QA against that exact deployment are still required. The provider, Payroll ruleset, and Loan Readiness blockers recorded below remain independent Production blockers.
+- Environment: Vercel `Preview`.
+- Branch: `phase-3-staging`.
+- Source commit: `3a1d628029301f937c8783facb71d935dadbb841`.
+- Deployment ID: `dpl_CoxSEUXUQYZrggNQYnGwis1LfmxK`.
+- Immutable URL: `https://smemoneybook-g8cxf8o6p-emmanuel-oyerindes-projects.vercel.app`.
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
+- Status: Ready. The Vercel log independently records branch `phase-3-staging`, commit `3a1d628`, successful normal `npm run build`, TypeScript, and 148 generated pages.
+- Exact-deployment Staff Playwright: 6 passed, 0 skipped across desktop Chrome, Pixel 5, and iPhone 13.
+- Live authenticated Staff QA using synthetic Preview-only businesses: owner summary `200`; date filter `200`; empty/no-activity period `200`; staff detail `200`; CSV export `200`; non-granted staff `403`; cross-business request `403`.
+- Live unauthenticated summary and compatibility reads returned `401`; `POST`, `PUT`, `PATCH`, and `DELETE` returned `405`.
+- `/more` and `/more/staff-performance` returned `200`. Authenticated UI QA showed `Preview`, loaded summary metrics, changed date range, opened staff detail, downloaded CSV, and exposed no write control, native 404, or unexpected 500.
+
+Staff Performance is Preview operational. The provider, Payroll ruleset, and Loan Readiness blockers recorded below remain independent Production blockers.
 
 ## 2026-09-28 Controlled Remediation Result
 
@@ -116,7 +128,7 @@ Production has 42 exact source-derived Phase 2/3 rollout controls in a fail-clos
 
 ### Required Human Provider Action
 
-Provider administrators must verify the Paystack live webhook, add and isolate the required Production WhatsApp app secret/credentials, isolate and verify Resend Production credentials and sender domain, and approve the OpenAI Production project/model/governance settings. After those attestations, resume with Preview migration remediation, the complete release gate suite, and a fresh release decision. Production remains unchanged except for the authorized environment configuration; no new build consumes it yet.
+Provider administrators must verify the Paystack live webhook, add and isolate the required Production WhatsApp app secret/credentials, isolate and verify Resend Production credentials and sender domain, and approve the OpenAI Production project/model/governance settings. After those attestations, resume with the blocked module decisions, final Production authorization, recovery checkpoint, and controlled release workflow. Production remains unchanged except for the authorized fail-closed environment configuration; no new Production build consumes it yet.
 
 ## Release
 

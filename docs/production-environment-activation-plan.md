@@ -4,9 +4,9 @@ Plan date: 2026-09-28; Preview remediation updated 2026-09-29
 
 Source branch: `phase-3-staging`
 
-Audited source commit: `b1fc1b4d54771e7e849c34aa3cdeb1aacfb9db6b`
+Audited application source commit: `3a1d628029301f937c8783facb71d935dadbb841`
 
-Status: core database mappings, canonical URL, and fail-closed rollout controls applied under authorization. Preview migrations and local release testing are complete. Provider verification, fresh Preview deployment/QA, Production deployment, and activation remain blocked.
+Status: core database mappings, canonical URL, and fail-closed rollout controls applied under authorization. Preview migrations, local release testing, fresh Preview deployment, and exact-deployment Staff QA are complete. Provider verification, Production deployment, and activation remain blocked.
 
 ## Conventions
 
@@ -15,7 +15,7 @@ Status: core database mappings, canonical URL, and fail-closed rollout controls 
 - Public flags are embedded at build time. Configure them before creating the approved Production deployment.
 - Server flags should be configured before the same immutable deployment.
 - Production and Preview provider credentials must be isolated.
-- The controlled Vercel remediation recorded below was authorized and completed. No Neon write, DNS change, provider mutation, deployment, or feature activation was performed.
+- The controlled Vercel remediation recorded below was authorized and completed. Preview migration/deployment/QA occurred only on `phase-3-staging`; no Production database write, DNS change, provider mutation, Production deployment, or Production feature activation was performed.
 
 ## Core
 
@@ -160,7 +160,7 @@ Keep both Payroll flags false. Payroll's absence does not require enabling or bl
 3. Completed: configure the canonical URL and all Phase 2/3 rollout controls fail-closed.
 4. Correct provider secret scope and complete manual provider verification.
 5. Completed: inspect and apply the seven Preview migrations only to the verified `phase-3-staging` Neon branch.
-6. Local gate suite completed; finish the fresh Vercel Preview build and exact-deployment QA.
+6. Completed: local gate suite, fresh Vercel Preview build, commit match, Ready status, and exact-deployment Staff QA.
 7. If all gates pass, create the final recovery checkpoint and follow the approved merge/deploy workflow.
 8. Validate core behavior with all modules disabled, then activate approved waves one at a time.
 9. Keep external-action and financial workflow modules disabled until their dedicated gates pass.

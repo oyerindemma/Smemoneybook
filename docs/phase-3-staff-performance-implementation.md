@@ -2,6 +2,8 @@
 
 Branch: `phase-3-staging`
 
+Preview classification: `PREVIEW OPERATIONAL`
+
 ## Data Sources Used
 
 - Staff identity and role: `BusinessMember`, `User`.
@@ -174,7 +176,15 @@ Preview QA used dedicated seeded Preview QA data in the phase-3-staging database
 - Focused unit/integration result: 4 files and 21 tests passed with both flags enabled.
 - Staff Playwright result: 6 passed, 0 skipped across desktop Chrome, Pixel 5, and iPhone 13; the feature test executed with both flags enabled.
 - Executed coverage includes owner access, unauthorized-user rejection, business isolation, date filtering, staff detail, empty state, CSV export, flag-off and flag-on states, and explicit `405` assertions for `POST`, `PUT`, `PATCH`, and `DELETE`.
-- A fresh Vercel Preview deployment, commit match, Ready status, URL, and exact-deployment QA remain pending at this checkpoint. Do not classify this revalidation as operational until those checks execute.
+- Vercel environment/branch: `Preview` / `phase-3-staging`.
+- Deployment commit: `3a1d628029301f937c8783facb71d935dadbb841`.
+- Deployment ID: `dpl_CoxSEUXUQYZrggNQYnGwis1LfmxK`.
+- Immutable Preview URL: `https://smemoneybook-g8cxf8o6p-emmanuel-oyerindes-projects.vercel.app`.
+- Branch alias: `https://smemoneybook-git-phase-3-staging-emmanuel-oyerindes-projects.vercel.app`.
+- Vercel result: Ready. Build logs match branch/commit and show successful Turbopack compile, TypeScript, and 148 generated pages.
+- Exact-deployment Playwright: 6 passed, 0 skipped across desktop Chrome, Pixel 5, and iPhone 13.
+- Live Preview API/UI QA: owner summary, date filter, empty period, staff detail, and CSV export returned `200`; non-granted staff and cross-business access returned `403`; unauthenticated reads returned `401`; all four write methods returned `405`.
+- `/more` showed Staff Performance as Preview; `/more/staff-performance` loaded authenticated summary/detail/filter/export workflows. No write control, native 404, or unexpected 500 was observed.
 
 ## Known Limitations
 
@@ -192,6 +202,7 @@ Preview QA used dedicated seeded Preview QA data in the phase-3-staging database
 - Preview trigger commit hash: `912e2ca00177642ae1756d3ab4752f18c8e9688a`.
 - Preview env-alignment trigger commit hash: `903dc93741a487bd9badd9030b3e5032fa15984a`.
 - Preview QA fix commit hash: `996085109020d642613565ae14bf5326cd5cce68`.
+- 2026-09-29 Preview remediation commit hash: `3a1d628029301f937c8783facb71d935dadbb841`.
 - Production deployment: unchanged by this Preview-only validation.
 - Production database: unchanged by this Preview-only validation.
 - Production Staff Performance flags: not enabled by this validation.

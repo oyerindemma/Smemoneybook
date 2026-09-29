@@ -20,11 +20,13 @@ This section supersedes the 2026-09-28 Preview migration and release-suite findi
 - Preview runtime connection: branch-scoped `DATABASE_URL` was refreshed with bounded connect/pool timeouts after intermittent Preview cold-connect failures. `DIRECT_URL` and `NEXT_PUBLIC_APP_URL` remain present and branch-scoped.
 - Focused Staff tests: 4 files and 21 tests passed. Staff Playwright executed 6 tests with 0 skipped across desktop Chrome, Pixel 5, and iPhone 13.
 - Full local gates: lint passed with zero errors and three existing warnings; typecheck passed; Vitest passed 95 files and 376 tests; Prisma validation/status passed; Production dependency audit returned zero vulnerabilities; `git diff --check` passed before this report edit.
-- Build evidence: `npm run build -- --webpack` passed and generated 148 pages. The normal Turbopack command could not bind its internal worker port in the managed local sandbox, so the fresh Vercel Preview build is the outstanding normal-build gate.
+- Build evidence: `npm run build -- --webpack` passed locally and generated 148 pages. The normal Next 16.3.6 Turbopack build then passed on Vercel, including TypeScript and 148 generated pages.
 - Browser evidence: 45 Phase 3 feature checks and 18 Preview-backed mobile workflow checks passed across configured desktop/mobile projects. Offline visible queuing passed, but restored-network replay was not asserted and emitted a rejected development request; replay synchronization remains residual risk.
 - Source hardening: Prisma interactive transactions now use bounded 10-second queue and 15-second execution limits; Staff read-only route tests explicitly cover `POST`, `PUT`, `PATCH`, and `DELETE` as `405`.
 
-A fresh Git-triggered Preview deployment and exact-deployment QA are still pending. Provider verification, Payroll statutory configuration, and Loan Readiness evidence remain Production blockers. Production was not queried, migrated, deployed, promoted, or enabled during this Preview remediation.
+Git-triggered Preview deployment `dpl_CoxSEUXUQYZrggNQYnGwis1LfmxK` for branch `phase-3-staging` and commit `3a1d628029301f937c8783facb71d935dadbb841` reached Ready at `https://smemoneybook-g8cxf8o6p-emmanuel-oyerindes-projects.vercel.app`. Exact-deployment Staff Playwright passed 6/6 with no skips. Live synthetic QA passed owner summary, date filtering, empty-period handling, staff detail, CSV export, authenticated non-granted rejection, business isolation, unauthenticated rejection, read-only method enforcement, and authenticated UI workflow checks without a native 404 or unexpected 500.
+
+Provider verification, Payroll statutory configuration, and Loan Readiness evidence remain Production blockers. Production was not queried, migrated, deployed, promoted, or enabled during this Preview remediation.
 
 ## Controlled Remediation Evidence - 2026-09-28
 
@@ -362,7 +364,7 @@ Current module classifications:
 | Cooperatives | `MANUAL_CONFIGURATION_REQUIRED` | Financial write workflow requires migration and operational approval |
 | Payroll | `BLOCKED` | No authoritative, validated, approved Production statutory ruleset |
 
-No module is currently `READY_TO_ENABLE` because the shared Production database gate is unresolved.
+No Production module is currently authorized for activation. The shared database mapping/status gate is resolved, but provider and module-specific gates plus controlled rollout authorization remain open.
 
 ## Release Blockers
 
@@ -370,10 +372,8 @@ No module is currently `READY_TO_ENABLE` because the shared Production database 
 2. `WHATSAPP_APP_SECRET` is absent, while the other WhatsApp credentials have over-broad Preview/Production scope.
 3. Resend credentials/sender configuration have over-broad scope and require Production account/domain verification.
 4. OpenAI provider project, approved model, privacy/retention, and spend governance remain unverified. Runtime AI controls are safely disabled.
-5. Fresh Vercel Preview deployment and exact-deployment QA remain pending after the now-complete 41/41 Preview migration remediation.
-6. The local post-remediation suite passed except for the normal Turbopack build being sandbox-limited; the fresh Vercel build is the outstanding normal-build evidence.
-7. No reproducible, verified Production `PHASE3_PAYROLL_STATUTORY_RULES_JSON` exists; Payroll remains independently blocked.
-8. Loan Readiness lacks the implementation and QA completion evidence required by its readiness specification and remains independently blocked.
+5. No reproducible, verified Production `PHASE3_PAYROLL_STATUTORY_RULES_JSON` exists; Payroll remains independently blocked.
+6. Loan Readiness lacks the implementation and QA completion evidence required by its readiness specification and remains independently blocked.
 
 ## Phase 2 Gate Matrix
 
