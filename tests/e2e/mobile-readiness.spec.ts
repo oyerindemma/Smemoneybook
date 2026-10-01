@@ -169,7 +169,7 @@ test.describe("mobile readiness flows", () => {
 
     await page.goto("/reports");
     await expect(page.getByText("This month", { exact: true })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText("You made")).toBeVisible();
+    await expect(page.getByText("You made", { exact: true })).toBeVisible();
     await expect(page.getByText("You spent")).toBeVisible();
     await expect(page.getByText("Profit")).toBeVisible();
   });
