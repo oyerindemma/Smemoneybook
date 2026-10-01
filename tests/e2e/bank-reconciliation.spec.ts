@@ -162,8 +162,14 @@ test.describe("Bank Reconciliation Preview workflow", () => {
     await page.getByLabel("Search").fill("");
 
     await page.getByText("Ada payment").first().click();
-    await page.getByRole("button", { name: /Confirm/i }).click();
-    await expect(page.getByText("Bank reconciliation match confirmed.")).toBeVisible();
+    const [confirmationResponse] = await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith("/api/bank-reconciliation/matches/match_1/confirm")
+        && response.request().method() === "POST"),
+      expect(page.getByRole("status")).toContainText("Bank reconciliation match confirmed."),
+      page.getByRole("button", { name: /Confirm/i }).click(),
+    ]);
+    expect(confirmationResponse.status()).toBe(200);
 
     await page.getByRole("button", { name: /^Matched queue/i }).click();
     await expect(page.getByText("Ada payment").first()).toBeVisible();
