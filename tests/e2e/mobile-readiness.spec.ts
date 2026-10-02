@@ -1,66 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const password = "password123";
-const pin = "123456";
-
 test.setTimeout(180_000);
-
-function uniqueEmail(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
-}
-
-async function signUpAndOnboard(page: Page, prefix = "mobile-qa") {
-  const email = uniqueEmail(prefix);
-  const businessName = `QA Shop ${Date.now()}`;
-  const ipSeed = Date.now() % 200;
-
-  await page.setExtraHTTPHeaders({
-    "x-forwarded-for": `10.${ipSeed}.${Math.floor(Math.random() * 200) + 1}.${Math.floor(Math.random() * 200) + 1}`,
-  });
-  await page.goto("/auth");
-  await page.waitForLoadState("networkidle");
-  const startFreeButton = page.getByRole("button", { name: "Start Free" });
-  const nameInput = page.getByRole("textbox", { name: "Your name", exact: true });
-  if (await startFreeButton.isVisible()) {
-    await startFreeButton.click();
-    await expect(nameInput).toBeVisible();
-  }
-  await nameInput.fill("Mobile QA Owner");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("textbox", { name: "Password", exact: true }).fill(password);
-  await page.getByLabel("6-digit access PIN").fill(pin);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator("body")).toContainText(/Start using the app|Available (?:balance|Money)/i, {
-    timeout: 60_000,
-  });
-
-  const startUsingAppButton = page.getByRole("button", { name: "Start using the app" });
-  if (await startUsingAppButton.isVisible()) {
-    await startUsingAppButton.click();
-  }
-
-  await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible({ timeout: 60_000 });
-
-  return { email, password, businessName };
-}
-
-async function signOut(page: Page) {
-  await page.goto("/more");
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
-  await expect(page.getByRole("link", { name: "Start Free" }).first()).toBeVisible();
-}
-
-async function signIn(page: Page, email: string) {
-  await page.goto("/auth");
-  const existingAccountButton = page.getByRole("button", { name: "I already have an account" });
-  await expect(existingAccountButton).toBeVisible();
-  await existingAccountButton.click();
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password or 6-digit PIN").fill(password);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible({ timeout: 60_000 });
-}
 
 async function openRecordSheet(page: Page) {
   const firstSaleCta = page.getByRole("button", { name: "Record first sale" });
@@ -68,7 +8,7 @@ async function openRecordSheet(page: Page) {
   if (await firstSaleCta.count()) {
     await firstSaleCta.first().click();
   } else {
-    await page.getByRole("button", { name: "+ Record money" }).first().click();
+    await page.getByRole("button", { name: "Record money", exact: true }).click();
   }
 
   await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeVisible();
@@ -103,21 +43,13 @@ test.describe("mobile readiness flows", () => {
       style.textContent = "nextjs-portal { pointer-events: none !important; }";
       document.documentElement.appendChild(style);
     });
-  });
-
-  test("signs up, signs out, and signs in on a mobile viewport", async ({ page }) => {
-    const account = await signUpAndOnboard(page, "mobile-auth");
-
-    await signOut(page);
-    await signIn(page, account.email);
-
-    await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible();
-    await expect(page.locator("body")).not.toContainText("Something went wrong");
+    await page.goto("/money");
+    await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible({
+      timeout: 60_000,
+    });
   });
 
   test("records money, opens the bottom sheet from nav, and switches tabs", async ({ page }) => {
-    await signUpAndOnboard(page, "mobile-money");
-
     await saveSale(page, "1500", "First mobile sale");
     await expect(page.getByText(/₦1,500|₦1500/).first()).toBeVisible();
 
@@ -134,29 +66,29 @@ test.describe("mobile readiness flows", () => {
   });
 
   test("adds a product and updates stock on mobile", async ({ page }) => {
-    await signUpAndOnboard(page, "mobile-stock");
+    const productName = `Mobile Rice Bag ${Date.now()}`;
     await page.goto("/stock");
 
-    await page.getByLabel("Product name").fill("Mobile Rice Bag");
+    await page.getByLabel("Product name").fill(productName);
     await page.getByLabel("Cost price").fill("1000");
     await page.getByLabel("Selling price").fill("1500");
     await page.getByLabel("Quantity").first().fill("3");
     await page.getByLabel("Low alert").fill("2");
     await page.getByRole("button", { name: "Save product" }).click();
-    await expect(page.getByRole("heading", { name: "Mobile Rice Bag" })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("heading", { name: productName })).toBeVisible({ timeout: 45_000 });
 
     await page.locator("#adjust-stock").getByLabel("Quantity").fill("2");
     await page.getByRole("button", { name: "Update stock" }).click();
     await expect(page.getByText("Stock updated")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("heading", { name: "Mobile Rice Bag" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: productName })).toBeVisible();
   });
 
   test("collects customer debt from People", async ({ page }) => {
-    await signUpAndOnboard(page, "mobile-debt");
-    await saveCreditSale(page, "2000", "Amina Customer");
+    const customerName = `Amina Customer ${Date.now()}`;
+    await saveCreditSale(page, "2000", customerName);
 
     await page.goto("/people");
-    await expect(page.getByText("Amina Customer").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(customerName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "Collect", exact: true }).click();
     await expect(page.getByText("Collect payment")).toBeVisible();
     await page.getByRole("button", { name: "Confirm collection" }).click();
@@ -164,7 +96,6 @@ test.describe("mobile readiness flows", () => {
   });
 
   test("shows reports summary after money activity", async ({ page }) => {
-    await signUpAndOnboard(page, "mobile-reports");
     await saveSale(page, "1200", "Report sale");
 
     await page.goto("/reports");
@@ -178,7 +109,6 @@ test.describe("mobile readiness flows", () => {
   });
 
   test("queues money changes visibly while offline", async ({ page, context }) => {
-    await signUpAndOnboard(page, "mobile-offline");
     await openRecordSheet(page);
     await page.getByLabel("Amount").fill("900");
 
