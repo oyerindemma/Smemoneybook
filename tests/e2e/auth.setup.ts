@@ -1,7 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { assertSafeAuthSetupTarget } from "./support/auth-setup";
+import {
+  assertSafeAuthSetupTarget,
+  verifiedPreviewOriginEnv,
+} from "./support/auth-setup";
 
 const password = "password123";
 const pin = "123456";
@@ -66,7 +69,10 @@ async function signIn(page: Page, email: string) {
 }
 
 test("signs up, signs out, and signs in on a mobile viewport", async ({ page }, testInfo) => {
-  assertSafeAuthSetupTarget(testInfo.project.use.baseURL);
+  assertSafeAuthSetupTarget(
+    testInfo.project.use.baseURL,
+    process.env[verifiedPreviewOriginEnv],
+  );
 
   const storageStatePath = testInfo.project.metadata.storageStatePath;
   if (typeof storageStatePath !== "string" || !storageStatePath) {
