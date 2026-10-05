@@ -27,6 +27,10 @@ export type PaystackVerifyData = {
     planId?: string;
     businessId?: string;
   };
+  customer?: {
+    email?: string;
+    customer_code?: string;
+  };
 };
 
 async function parsePaystackResponse<T>(response: Response) {

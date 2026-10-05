@@ -5,7 +5,7 @@ import { parseJsonBody, staffInvitationRequestSchema } from "@/lib/api/validatio
 import { requireFeatureAccess } from "@/lib/billing/subscriptions";
 import { isStaffInvitationEmailConfigured, sendStaffInvitationEmail } from "@/lib/email/staff-invitation";
 import { requireBusinessAccess } from "@/lib/operations/access";
-import { inviteStaff } from "@/lib/operations/service";
+import { getStaffInvitationOverview, inviteStaff } from "@/lib/operations/service";
 import { logApiFailure } from "@/lib/operations/monitoring";
 
 export const runtime = "nodejs";
@@ -14,6 +14,36 @@ function getInviteUrl(request: Request, token: string) {
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   const origin = configuredOrigin || new URL(request.url).origin;
   return `${origin}/invite/${encodeURIComponent(token)}`;
+}
+
+export async function GET(request: Request) {
+  let userId: string | undefined;
+
+  try {
+    const user = await requireUser();
+    userId = user.id;
+    const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
+    const access = await requireBusinessAccess(user.id, "admin", businessId);
+    const gated = await requireFeatureAccess(user.id, access.businessId, "team_management");
+
+    if (gated) {
+      return gated;
+    }
+
+    const overview = await getStaffInvitationOverview(user.id, access.businessId);
+    return Response.json({
+      ...overview,
+      emailConfigured: isStaffInvitationEmailConfigured(),
+    });
+  } catch (error) {
+    if (error instanceof Response) {
+      return jsonError("Sign in to continue.", error.status);
+    }
+
+    console.error(error);
+    await logApiFailure({ request, error, actorId: userId });
+    return jsonErrorFromUnknown(error, "Could not load staff invitations.");
+  }
 }
 
 export async function POST(request: Request) {

@@ -76,18 +76,19 @@ The app includes:
 - Theme color and standalone Apple web app metadata in `src/app/layout.tsx`.
 - `viewport-fit=cover` and safe-area CSS support for mobile browser and WebView edges.
 
-## Offline Caching Decision
+## Offline Queue Decision
 
-Do not add a service worker or full offline transaction queue for v1.
+Do not add a broad service worker cache for financial data.
 
 Reason: SME Moneybook handles financial records, HTTP-only auth cookies, and server-backed business state. A broad offline cache could show stale balances or leak sensitive data if not designed carefully.
 
-For v1, keep the app online-first:
+For core writes, use the narrow local operation queue:
 
 - The dashboard shell shows visible offline/refresh status.
 - Users can retry refresh after reconnecting.
-- Money-changing actions are blocked while offline.
-- The client removes the legacy `offlineTransactions` key and does not store transaction payloads in `localStorage`.
-- `localStorage` is limited to non-financial UI selection state such as `selectedBusinessId`.
+- Sales, expenses, and stock movements receive client operation ids and queue locally if the connection drops.
+- Server endpoints use idempotency keys so replay does not duplicate money or stock records.
+- The UI shows pending-sync count and retry state.
+- Do not cache full dashboard responses in a service worker.
 
-Full offline transaction queues can be revisited later with encrypted storage, explicit sync conflict rules, visible pending entries, and a financial-data retention policy.
+Future work: move queued payloads from `localStorage` to encrypted device storage in native wrappers, add admin review for conflicts, and expose failed sync operations from `OfflineSyncOperation`.

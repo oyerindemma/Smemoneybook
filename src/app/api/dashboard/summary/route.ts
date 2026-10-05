@@ -7,8 +7,10 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const businessId = new URL(request.url).searchParams.get("businessId") ?? undefined;
-    const state = await getDashboardStateForUser(user.id, businessId);
+    const searchParams = new URL(request.url).searchParams;
+    const businessId = searchParams.get("businessId") ?? undefined;
+    const locationId = searchParams.get("locationId") ?? undefined;
+    const state = await getDashboardStateForUser(user.id, businessId, locationId);
 
     if (!state) {
       return jsonError("Create a business to start tracking money.", 404);

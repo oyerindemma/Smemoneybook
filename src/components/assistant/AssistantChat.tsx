@@ -11,6 +11,8 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  messageId?: string;
+  feedback?: "helpful" | "not_helpful";
 };
 
 export function AssistantChat() {
@@ -48,6 +50,7 @@ export function AssistantChat() {
       });
       const payload = (await response.json().catch(() => null)) as {
         threadId?: string;
+        assistantMessageId?: string;
         reply?: string;
         error?: string;
       } | null;
@@ -64,6 +67,7 @@ export function AssistantChat() {
           id: `assistant-${Date.now()}`,
           role: "assistant",
           content: payload.reply ?? "I could not find enough data to answer that.",
+          messageId: payload.assistantMessageId,
         },
       ]);
       window.setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
@@ -74,12 +78,46 @@ export function AssistantChat() {
     }
   }
 
+  async function rateMessage(messageId: string, rating: "helpful" | "not_helpful") {
+    if (!state.businessId) {
+      return;
+    }
+
+    setMessages((current) =>
+      current.map((message) =>
+        message.messageId === messageId ? { ...message, feedback: rating } : message,
+      ),
+    );
+
+    try {
+      const response = await fetch("/api/assistant/feedback", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessId: state.businessId, messageId, rating }),
+      });
+
+      if (!response.ok) {
+        setNotice("Could not save assistant feedback.");
+      }
+    } catch {
+      setNotice("Could not save assistant feedback.");
+    }
+  }
+
   return (
     <section className="flex min-h-[calc(100vh-12rem)] flex-col gap-4">
       <AssistantSuggestedPrompts disabled={isLoading} onSelect={(prompt) => void sendMessage(prompt)} />
       <div className="flex-1 space-y-4 rounded-2xl border border-gray-100 bg-background/60 p-4">
         {messages.map((message) => (
-          <AssistantMessage key={message.id} role={message.role} content={message.content} />
+          <AssistantMessage
+            key={message.id}
+            role={message.role}
+            content={message.content}
+            messageId={message.messageId}
+            feedback={message.feedback}
+            onFeedback={rateMessage}
+          />
         ))}
         {isLoading ? (
           <div className="flex items-center gap-2 rounded-2xl bg-card px-4 py-3 text-sm font-medium text-textSecondary shadow-sm">

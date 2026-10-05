@@ -17,6 +17,12 @@ export function reportToPdf(report: MonthlyReport) {
     `Customers owing: ${formatNaira(report.customerDebtTotal)}`,
     `Supplier bills: ${formatNaira(report.supplierDebtTotal)}`,
     "",
+    "Category sales",
+    ...formatBreakdownLines(report.categoryBreakdown),
+    "",
+    "Brand sales",
+    ...formatBreakdownLines(report.brandBreakdown),
+    "",
     "Insights",
     ...report.insights.map((insight) => `- ${insight}`),
     "",
@@ -59,6 +65,16 @@ export function reportToPdf(report: MonthlyReport) {
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
 
   return Buffer.from(pdf);
+}
+
+function formatBreakdownLines(rows: MonthlyReport["categoryBreakdown"]) {
+  if (rows.length === 0) {
+    return ["No product sales yet."];
+  }
+
+  return rows.slice(0, 5).map((row) => (
+    `- ${row.name}: ${formatNaira(row.salesTotal)} sales, ${formatNaira(row.profitTotal)} profit`
+  ));
 }
 
 function escapePdfText(text: string) {

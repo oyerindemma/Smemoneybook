@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       businessId: body.businessId,
       input: {
         idempotencyKey: body.idempotencyKey || crypto.randomUUID(),
+        locationId: body.locationId,
         type: body.type,
         amount: body.amount,
         accountId: body.accountId,

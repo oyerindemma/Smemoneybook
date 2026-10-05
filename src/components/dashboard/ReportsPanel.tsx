@@ -11,15 +11,20 @@ import {
   getReferralLink,
   getWhatsAppShareUrl,
 } from "@/lib/viral/referral-engine";
+import { phase2FeatureFlags } from "@/lib/phase2/feature-flags";
 
 type ReportPeriod = "day" | "week" | "month";
 
 export function ReportsPanel({
   businessId,
+  locationId,
+  locationName,
   onNotice,
   onUpgradePrompt,
 }: {
   businessId?: string;
+  locationId?: string;
+  locationName?: string;
   onNotice: (message: string) => void;
   onUpgradePrompt?: (prompt: { title: string; description: string }) => void;
 }) {
@@ -31,7 +36,7 @@ export function ReportsPanel({
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const query = buildReportQuery({ period, date, month, year, businessId });
+  const query = buildReportQuery({ period, date, month, year, businessId, locationId });
 
   useEffect(() => {
     let isActive = true;
@@ -116,11 +121,57 @@ export function ReportsPanel({
     );
   }
 
-  const showExportPrompt = () =>
-    onUpgradePrompt?.({
-      title: "Unlock reports export",
-      description: "Download CSV/PDF reports and share them with your accountant.",
+  async function exportReport(format: "csv" | "pdf") {
+    if (!businessId) {
+      onNotice("Choose a business before exporting.");
+      return;
+    }
+
+    if (phase2FeatureFlags.reportingCentre) {
+      await fetch("/api/reports/exports", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId,
+          locationId,
+          reportId: "sales_summary",
+          format,
+          period,
+          date,
+          month,
+          year,
+        }),
+      }).catch(() => undefined);
+    }
+
+    const response = await fetch(`/api/reports/monthly/export?${query}&format=${format}`, {
+      credentials: "include",
     });
+
+    if (response.status === 402) {
+      onUpgradePrompt?.({
+        title: "Unlock reports export",
+        description: "Download CSV/PDF reports and share them with your accountant.",
+      });
+      return;
+    }
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      onNotice(payload?.error ?? "Could not export report.");
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `moneybook-${period}-${report?.periodLabel ?? "report"}.${format}`;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
+    onNotice(`${format.toUpperCase()} export ready.`);
+  }
 
   function shareReport() {
     if (!report) {
@@ -192,7 +243,10 @@ export function ReportsPanel({
 
       {report ? (
         <>
-          <p className="mt-5 text-sm font-semibold text-textSecondary">{report.periodLabel}</p>
+          <p className="mt-5 text-sm font-semibold text-textSecondary">
+            {report.periodLabel}
+            {locationName ? ` · ${locationName}` : ""}
+          </p>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <ReportTile label="Money in" value={formatNaira(report.salesTotal)} />
             <ReportTile label="Cash received" value={formatNaira(report.cashReceivedTotal)} />
@@ -238,6 +292,11 @@ export function ReportsPanel({
             </p>
           ) : null}
 
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <BreakdownPanel title="Category sales" rows={report.categoryBreakdown} />
+            <BreakdownPanel title="Brand sales" rows={report.brandBreakdown} />
+          </div>
+
           <div className="mt-5 rounded-2xl bg-background p-5">
             <p className="text-sm font-semibold">Plain notes</p>
             <div className="mt-2 grid gap-2">
@@ -267,14 +326,14 @@ export function ReportsPanel({
             <button
               className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-textPrimary hover:bg-background"
               type="button"
-              onClick={showExportPrompt}
+              onClick={() => exportReport("csv")}
             >
               Export CSV
             </button>
             <button
               className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-semibold text-textPrimary hover:bg-background"
               type="button"
-              onClick={showExportPrompt}
+              onClick={() => exportReport("pdf")}
             >
               Export PDF
             </button>
@@ -333,22 +392,67 @@ function AgingPanel({
   );
 }
 
+function BreakdownPanel({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: MonthlyReport["categoryBreakdown"];
+}) {
+  return (
+    <div className="rounded-2xl bg-background p-5">
+      <p className="text-sm font-semibold">{title}</p>
+      {rows.length === 0 ? (
+        <p className="mt-3 text-sm text-textSecondary">No product sales yet.</p>
+      ) : (
+        <div className="mt-3 grid gap-3">
+          {rows.slice(0, 5).map((row) => (
+            <div key={row.name} className="grid gap-1 border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 truncate text-sm font-semibold text-textPrimary">
+                  {row.name}
+                </p>
+                <strong className="text-sm text-textPrimary">{formatNaira(row.salesTotal)}</strong>
+              </div>
+              <p className="text-xs text-textSecondary">
+                {formatReportQuantity(row.quantity)} sold · {formatNaira(row.profitTotal)} profit
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatReportQuantity(value: number) {
+  return new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function buildReportQuery({
   period,
   date,
   month,
   year,
   businessId,
+  locationId,
 }: {
   period: ReportPeriod;
   date: string;
   month: number;
   year: number;
   businessId?: string;
+  locationId?: string;
 }) {
   const params = new URLSearchParams({ period });
   if (businessId) {
     params.set("businessId", businessId);
+  }
+
+  if (locationId) {
+    params.set("locationId", locationId);
   }
 
   if (period === "month") {

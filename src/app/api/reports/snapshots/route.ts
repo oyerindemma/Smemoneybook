@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       return limited;
     }
 
-    const { businessId, month, year, period, date } = getReportPeriod(request);
+    const { businessId, locationId, month, year, period, date } = getReportPeriod(request);
     const access = await requireBusinessAccess(user.id, "reports:write", businessId);
     const gated = await requireFeatureAccess(user.id, access.businessId, "basic_exports");
 
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const report = await saveReportSnapshotForUser({
       userId: user.id,
       businessId: access.businessId,
+      locationId,
       month,
       year,
       period,

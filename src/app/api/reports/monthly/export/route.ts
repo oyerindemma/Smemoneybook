@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       return limited;
     }
 
-    const { businessId, month, year, period, date } = getReportPeriod(request);
+    const { businessId, locationId, month, year, period, date } = getReportPeriod(request);
     const access = await requireBusinessAccess(user.id, undefined, businessId);
     const gated = await requireFeatureAccess(user.id, access.businessId, "basic_exports");
 
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     const report = await getMonthlyReportForUser({
       userId: user.id,
       businessId: access.businessId,
+      locationId,
       month,
       year,
       period,

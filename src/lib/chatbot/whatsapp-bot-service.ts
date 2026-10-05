@@ -58,11 +58,15 @@ async function findBusinessByPhone(phone: string) {
     }),
   ]);
 
-  for (const contact of [...customers, ...suppliers]) {
-    if (contact.phone && normalizeNigerianPhoneNumber(contact.phone) === phone) {
-      return { businessId: contact.businessId };
-    }
+  const businessIds = new Set(
+    [...customers, ...suppliers]
+      .filter((contact) => contact.phone && normalizeNigerianPhoneNumber(contact.phone) === phone)
+      .map((contact) => contact.businessId),
+  );
+
+  if (businessIds.size !== 1) {
+    return null;
   }
 
-  return null;
+  return { businessId: [...businessIds][0] };
 }

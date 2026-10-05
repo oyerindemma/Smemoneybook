@@ -14,6 +14,13 @@ import type { PaymentStatus } from "@/lib/bookkeeping/transaction-engine";
 import { formatNaira } from "@/lib/bookkeeping/transaction-engine";
 import { getBusinessTemplate } from "@/lib/bookkeeping/business-templates";
 import { trackProductEvent } from "@/lib/analytics/product-analytics";
+import {
+  formatSaleQuantity,
+  formatStockQuantity,
+  getSellingUnitLabel,
+  getStockQuantity,
+  saleQuantityToStockQuantity,
+} from "@/lib/inventory/unit-conversion";
 
 type InvoiceDraftLine = {
   inventoryItemId: string;
@@ -23,6 +30,7 @@ type InvoiceDraftLine = {
 type InvoiceMessageLine = {
   name: string;
   quantity: number;
+  quantityLabel: string;
   unitPrice: number;
   total: number;
 };
@@ -80,13 +88,16 @@ export function RecordMoneySheet({
   const selectedInvoiceItems = invoiceLines
     .map((line) => {
       const item = items.find((stockItem) => stockItem.id === line.inventoryItemId);
-      const quantity = Math.max(Number(line.quantity) || 1, 1);
+      const quantity = Math.max(Number(line.quantity) || 1, 0.01);
+      const stockQuantity = item ? saleQuantityToStockQuantity(item, quantity) : quantity;
 
       return item
         ? {
             inventoryItemId: item.id,
             name: item.name,
             quantity,
+            quantityLabel: formatSaleQuantity(item, quantity),
+            stockQuantity,
             unitPrice: item.sellingPrice,
             costPrice: item.costPrice,
             total: item.sellingPrice * quantity,
@@ -204,12 +215,12 @@ export function RecordMoneySheet({
     for (const item of selectedInvoiceItems) {
       productQuantities.set(
         item.inventoryItemId,
-        (productQuantities.get(item.inventoryItemId) ?? 0) + item.quantity,
+        (productQuantities.get(item.inventoryItemId) ?? 0) + item.stockQuantity,
       );
     }
 
     const outOfStockItem = items.find(
-      (item) => (productQuantities.get(item.id) ?? 0) > item.quantityOnHand,
+      (item) => (productQuantities.get(item.id) ?? 0) > getStockQuantity(item),
     );
 
     if (outOfStockItem) {
@@ -226,7 +237,7 @@ export function RecordMoneySheet({
     const fallbackDescription =
       type === "sale" ? "Sale" : "Expense";
     const productDescription = selectedInvoiceItems
-      .map((item) => `${item.name} x ${item.quantity}`)
+      .map((item) => `${item.name} x ${item.quantityLabel}`)
       .join(", ");
     const invoiceMessage = isInvoiceMode
       ? buildInvoiceMessage({
@@ -398,8 +409,12 @@ export function RecordMoneySheet({
               <div className="grid gap-3">
                 {invoiceLines.map((line, index) => {
                   const rowItem = items.find((item) => item.id === line.inventoryItemId);
+                  const saleQuantity = Math.max(Number(line.quantity) || 1, 0.01);
+                  const stockQuantity = rowItem
+                    ? saleQuantityToStockQuantity(rowItem, saleQuantity)
+                    : saleQuantity;
                   const rowTotal = rowItem
-                    ? rowItem.sellingPrice * Math.max(Number(line.quantity) || 1, 1)
+                    ? rowItem.sellingPrice * saleQuantity
                     : 0;
 
                   return (
@@ -423,7 +438,7 @@ export function RecordMoneySheet({
                           <option value="">No stock item</option>
                           {items.map((item) => (
                             <option key={item.id} value={item.id}>
-                              {item.name} ({item.quantityOnHand} left)
+                              {item.name} ({formatStockQuantity(item)} left)
                             </option>
                           ))}
                         </select>
@@ -433,7 +448,9 @@ export function RecordMoneySheet({
                         <input
                           className="h-12 rounded-xl border border-gray-200 bg-white px-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                           id={`record-product-quantity-${index}`}
-                          min="1"
+                          min="0.01"
+                          inputMode="decimal"
+                          step="any"
                           type="number"
                           value={line.quantity}
                           onChange={(event) =>
@@ -454,8 +471,9 @@ export function RecordMoneySheet({
                       </button>
                       {rowItem ? (
                         <p className="text-xs text-textSecondary sm:col-span-3">
-                          {formatNaira(rowTotal)} · stock will reduce by{" "}
-                          {Math.max(Number(line.quantity) || 1, 1)}
+                          {formatNaira(rowTotal)} @ {formatNaira(rowItem.sellingPrice)} per{" "}
+                          {getSellingUnitLabel(rowItem, 1)} · stock will reduce by{" "}
+                          {formatStockQuantity(rowItem, stockQuantity)}
                         </p>
                       ) : null}
                     </div>
@@ -669,7 +687,7 @@ function buildInvoiceMessage({
     lines.push(
       ...items.map(
         (item, index) =>
-          `${index + 1}. ${item.name} x ${item.quantity} @ ${formatNaira(item.unitPrice)} = ${formatNaira(item.total)}`,
+          `${index + 1}. ${item.name} x ${item.quantityLabel} @ ${formatNaira(item.unitPrice)} = ${formatNaira(item.total)}`,
       ),
     );
   }

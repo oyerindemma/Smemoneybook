@@ -227,7 +227,7 @@ The Stock page shows product count, quantity, low stock count, stock cost value,
 
 ### What The User Sees
 
-Reports show a simple business summary for daily, weekly, or monthly periods. The app includes money in, cash received, pay-later sales, profit, money out, VAT estimate, receivables aging, payables aging, customer debt, supplier bills, transaction count, top product, and plain-language notes.
+Reports show a simple business summary for daily, weekly, or monthly periods. The app includes money in, cash received, pay-later sales, profit, money out, VAT estimate, receivables aging, payables aging, customer debt, supplier bills, transaction count, top product, category and brand sales, and plain-language notes.
 
 ### Manual Steps
 
@@ -337,11 +337,13 @@ Owners can invite staff and accountants. Staff have sales access only. Accountan
 2. Watch for the offline banner near the bottom of the screen.
 3. Reconnect to the internet.
 4. Tap **Retry** if the app does not sync automatically.
-5. Wait for the confirmation message that offline changes have synced.
+5. If the banner says a change needs review, tap **Review** and open the Offline sync review card in More.
+6. Mark the item resolved only after the sale or stock change has been handled.
+7. Wait for the confirmation message that offline changes have synced.
 
 ### Video Script
 
-"If your internet drops, SME MoneyBook can save some changes offline and sync them later. Watch the banner at the bottom of the screen. When your internet returns, the app will try to sync. You can also tap Retry."
+"If your internet drops, SME MoneyBook can save some changes offline and sync them later. Watch the banner at the bottom of the screen. When your internet returns, the app will try to sync. You can also tap Retry. If a change needs review, open Review and mark it resolved only after checking the sale or stock change."
 
 ## 16. Best Practices For Daily Use
 

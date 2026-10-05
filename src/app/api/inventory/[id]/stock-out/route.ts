@@ -27,7 +27,12 @@ export async function POST(
       itemId: id,
       quantity: body.quantity,
       direction: "out",
+      locationId: body.locationId,
+      adjustmentType: body.adjustmentType,
+      reason: body.reason,
       note: body.note,
+      attachmentUrl: body.attachmentUrl,
+      idempotencyKey: body.idempotencyKey,
     });
 
     return Response.json({ state });

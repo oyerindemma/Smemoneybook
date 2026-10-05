@@ -1,10 +1,43 @@
 "use client";
 
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { Building2, Repeat2 } from "lucide-react";
 import { ProductList } from "@/components/stock/ProductList";
+import { InventoryForecastCard } from "@/components/stock/InventoryForecastCard";
 import { useDashboard } from "@/components/dashboard/DashboardProvider";
+import { SupplierReturnPanel } from "@/components/returns/SupplierReturnPanel";
+import { StockTransferPanel } from "@/components/stock/StockTransferPanel";
+import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
+import {
+  getPhase2NavigationAccess,
+  type Phase2NavigationAccess,
+} from "@/lib/phase2/client-access";
+import { phase3FeatureFlags } from "@/lib/phase3/feature-flags";
 
 export default function StockPage() {
-  const { state, createInventoryItem, moveInventory, sendStockAlert, openRecordModal } = useDashboard();
+  const {
+    state,
+    createInventoryItem,
+    moveInventory,
+    sendStockAlert,
+    openRecordModal,
+    submitSupplierReturn,
+    setNotice,
+  } = useDashboard();
+  const warehousesAccess = getPhase2NavigationAccess({
+    state,
+    flag: "locations",
+    entitlement: "multi_location",
+    permission: "canManageLocations",
+  });
+  const transfersAccess = getPhase2NavigationAccess({
+    state,
+    flag: "transfers",
+    entitlement: "warehouse_transfers",
+    permission: "canManageTransfers",
+  });
+  const canManageTransfers = transfersAccess.enabled;
 
   return (
     <main className="space-y-8 md:space-y-10">
@@ -12,6 +45,31 @@ export default function StockPage() {
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Stock</h1>
         <p className="mt-1 text-sm text-textSecondary md:text-base">Products and stock levels.</p>
       </header>
+      <section className="grid gap-3 md:grid-cols-2">
+        <StockLink
+          href="/stock/warehouses"
+          icon={<Building2 size={18} aria-hidden="true" />}
+          label="Warehouses"
+          meta={
+            warehousesAccess.enabled
+              ? `${state.locations?.filter((location) => location.type === "warehouse").length ?? 0} active`
+              : phase2Meta(warehousesAccess)
+          }
+        />
+        <StockLink
+          href="/stock/transfers"
+          icon={<Repeat2 size={18} aria-hidden="true" />}
+          label="Transfers"
+          meta={transfersAccess.enabled ? "Move stock" : phase2Meta(transfersAccess)}
+        />
+      </section>
+      {phase3FeatureFlags.inventoryForecasting && state.businessId ? (
+        <InventoryForecastCard
+          businessId={state.businessId}
+          locationId={state.selectedLocationId}
+          onNotice={setNotice}
+        />
+      ) : null}
       <ProductList
         items={state.items}
         onCreate={createInventoryItem}
@@ -19,6 +77,57 @@ export default function StockPage() {
         onNotifyOwner={sendStockAlert}
         onCreateInvoice={() => openRecordModal("invoice")}
       />
+      {phase1FeatureFlags.returns ? (
+        <SupplierReturnPanel
+          items={state.items}
+          accounts={state.accounts}
+          onSubmit={submitSupplierReturn}
+        />
+      ) : null}
+      {canManageTransfers ? (
+        <StockTransferPanel
+          businessId={state.businessId}
+          locations={state.locations ?? []}
+          items={state.items}
+          onNotice={setNotice}
+        />
+      ) : null}
     </main>
   );
+}
+
+function StockLink({
+  href,
+  icon,
+  label,
+  meta,
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  meta: string;
+}) {
+  return (
+    <Link
+      className="flex min-h-14 items-center justify-between rounded-2xl border border-gray-100 bg-card px-5 py-4 text-sm font-semibold shadow-sm transition-all duration-150 hover:shadow-md active:scale-[0.99]"
+      href={href}
+    >
+      <span className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-background text-primary">
+          {icon}
+        </span>
+        {label}
+      </span>
+      <span className="text-xs text-textMuted">{meta}</span>
+    </Link>
+  );
+}
+
+function phase2Meta(access: Phase2NavigationAccess) {
+  return {
+    available: "Available",
+    "flag-disabled": "Unavailable",
+    upgrade: "Upgrade",
+    permission: "No access",
+  }[access.reason];
 }

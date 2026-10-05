@@ -1,15 +1,41 @@
+import type { BillingFeature, BillingPlanId } from "@/lib/billing/plans";
+
 export type AccountType = "cash" | "bank" | "pos" | "mobile_money";
 export type TransactionType = "sale" | "expense" | "transfer" | "adjustment";
 export type PaymentStatus = "paid" | "credit" | "unpaid";
 export type DebtType = "customer_owes_business" | "business_owes_supplier";
+export type PaymentMethod =
+  | "cash"
+  | "bank_transfer"
+  | "pos_terminal"
+  | "card"
+  | "wallet"
+  | "credit"
+  | "other";
+export type StockAdjustmentType =
+  | "stock_in"
+  | "stock_out"
+  | "damaged"
+  | "expired"
+  | "lost"
+  | "theft"
+  | "count_correction"
+  | "personal_use"
+  | "promotional_giveaway"
+  | "supplier_return"
+  | "customer_return"
+  | "other";
 
 export type InvoiceLineItemInput = {
   inventoryItemId: string;
   quantity: number;
+  discount?: number;
 };
 
 export type InvoiceLineItem = InvoiceLineItemInput & {
   name: string;
+  stockQuantity?: number;
+  unitLabel?: string;
   unitPrice: number;
   total: number;
 };
@@ -24,6 +50,7 @@ export type Account = {
 
 export type TransactionInput = {
   idempotencyKey: string;
+  locationId?: string;
   type: TransactionType;
   amount: number;
   accountId: string;
@@ -39,10 +66,21 @@ export type TransactionInput = {
   costOfGoods?: number;
   occurredAt?: string;
   dueAt?: string;
+  paymentAllocations?: PaymentAllocationInput[];
 };
 
-export type Transaction = TransactionInput & {
+export type PaymentAllocationInput = {
+  method: PaymentMethod;
+  amount: number;
+  accountId?: string;
+  note?: string;
+};
+
+export type Transaction = Omit<TransactionInput, "invoiceItems"> & {
   id: string;
+  locationName?: string;
+  invoiceItems?: InvoiceLineItem[];
+  payments?: PaymentAllocationInput[];
   profit: number;
   occurredAt: string;
   isReversal?: boolean;
@@ -79,10 +117,36 @@ export type InventoryItem = {
   id: string;
   name: string;
   sku?: string;
+  barcode?: string;
+  internalCode?: string;
+  unitId?: string;
+  unitName?: string;
+  unitSingular?: string;
+  unitPlural?: string;
+  allowsDecimalQuantity?: boolean;
+  baseUnitId?: string;
+  baseUnitName?: string;
+  baseUnitSingular?: string;
+  baseUnitPlural?: string;
+  baseUnitAllowsDecimal?: boolean;
+  sellingUnitId?: string;
+  sellingUnitName?: string;
+  sellingUnitSingular?: string;
+  sellingUnitPlural?: string;
+  sellingUnitAllowsDecimal?: boolean;
+  conversionFactor?: number;
+  categoryId?: string;
+  categoryName?: string;
+  brandId?: string;
+  brandName?: string;
   sellingPrice: number;
   costPrice: number;
   quantityOnHand: number;
+  quantityOnHandDecimal?: number;
+  locationId?: string;
+  locationName?: string;
   lowStockLevel: number;
+  lowStockLevelDecimal?: number;
   profitPerItem: number;
   isLowStock: boolean;
   movements: InventoryMovement[];
@@ -90,14 +154,34 @@ export type InventoryItem = {
 
 export type InventoryMovement = {
   id: string;
+  locationId?: string;
+  locationName?: string;
   type: "stock_in" | "stock_out" | "adjustment";
   quantity: number;
+  quantityDecimal?: number;
+  beforeQuantity?: number;
+  afterQuantity?: number;
+  adjustmentType?: StockAdjustmentType;
+  reason?: string;
   note?: string;
   createdAt: string;
 };
 
+export type ReceiptConfig = {
+  logoUrl?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  taxId?: string;
+  footerMessage?: string;
+  includePoweredBy: boolean;
+  defaultPaperSize: "58mm" | "80mm" | "pdf";
+};
+
 export type MonthlyReport = {
   businessName: string;
+  locationId?: string;
+  locationName?: string;
   period: "day" | "week" | "month";
   periodLabel: string;
   periodStart: string;
@@ -123,9 +207,18 @@ export type MonthlyReport = {
     salesTotal: number;
     profitTotal: number;
   };
+  categoryBreakdown: ReportBreakdown[];
+  brandBreakdown: ReportBreakdown[];
   insights: string[];
   transactionCount: number;
   generatedAt: string;
+};
+
+export type ReportBreakdown = {
+  name: string;
+  quantity: number;
+  salesTotal: number;
+  profitTotal: number;
 };
 
 export type AgingBuckets = {
@@ -145,24 +238,90 @@ export type AuditLog = {
 export type MoneybookState = {
   businessId?: string;
   businessName: string;
+  businessCategory?: string;
   businessType?: string;
+  country?: string;
+  currency?: string;
   onboardingCompleted?: boolean;
   businesses?: Array<{
     id: string;
     name: string;
     role: "owner" | "accountant" | "staff";
   }>;
+  locations?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    isDefault: boolean;
+  }>;
+  selectedLocationId?: string;
+  selectedLocationName?: string;
   businessRole?: "owner" | "accountant" | "staff";
   permissions?: {
     canManageStaff: boolean;
     canManageAccounts: boolean;
     canSaveReports: boolean;
     canExportBackup: boolean;
+    canViewLocations?: boolean;
+    canManageLocations?: boolean;
+    canViewTransfers?: boolean;
+    canManageTransfers?: boolean;
+    canApproveTransfers?: boolean;
+    canReceiveTransfers?: boolean;
+    canManageTax?: boolean;
+    canViewStaffPerformance?: boolean;
+    canExportStaffPerformance?: boolean;
+    canViewBankReconciliation?: boolean;
+    canImportBankReconciliation?: boolean;
+    canReviewBankReconciliation?: boolean;
+    canExportBankReconciliation?: boolean;
+    canViewTaxAssistant?: boolean;
+    canAskTaxAssistant?: boolean;
+    canReviewTaxAssistant?: boolean;
+    canExportTaxAssistant?: boolean;
+    canManageTaxAssistantSettings?: boolean;
+    canViewExecutiveDashboard?: boolean;
+    canExportExecutiveDashboard?: boolean;
+    canViewExecutiveDashboardSensitive?: boolean;
+    canViewExecutiveDashboardStaffSummary?: boolean;
+    canViewPredictiveAlerts?: boolean;
+    canManagePredictiveAlerts?: boolean;
+    canAcknowledgePredictiveAlerts?: boolean;
+    canExportPredictiveAlerts?: boolean;
+    canViewPayroll?: boolean;
+    canManagePayrollEmployees?: boolean;
+    canPreparePayroll?: boolean;
+    canReviewPayroll?: boolean;
+    canApprovePayroll?: boolean;
+    canExportPayroll?: boolean;
+    canPostPayrollExpense?: boolean;
+    canViewPayrollSensitive?: boolean;
+    canViewAiMarketing?: boolean;
+    canCreateAiMarketingCampaigns?: boolean;
+    canApproveAiMarketingCampaigns?: boolean;
+    canSendAiMarketingCampaigns?: boolean;
+    canExportAiMarketing?: boolean;
+    canManageAiMarketingConsent?: boolean;
+    canViewAiEvaluation?: boolean;
+    canRunAiEvaluation?: boolean;
+    canManageAiEvaluationCases?: boolean;
+    canExportAiEvaluation?: boolean;
+    canCompareAiEvaluationModels?: boolean;
+    canViewLoanReadiness?: boolean;
+    canGenerateLoanReadiness?: boolean;
+    canExportLoanReadiness?: boolean;
+    canManageLoanReadinessProfile?: boolean;
+  };
+  billing?: {
+    planId: BillingPlanId | "free";
+    planName: string;
+    features: BillingFeature[];
   };
   accounts: Account[];
   transactions: Transaction[];
   debts: Debt[];
   items: InventoryItem[];
+  receiptConfig?: ReceiptConfig;
   auditLogs: AuditLog[];
 };
 
@@ -170,7 +329,10 @@ export function createDefaultBusiness(name: string): MoneybookState {
   return {
     businessId: "demo",
     businessName: name,
+    businessCategory: "Retail",
     businessType: "Retail",
+    country: "NG",
+    currency: "NGN",
     onboardingCompleted: true,
     businesses: [{ id: "demo", name, role: "owner" }],
     businessRole: "owner",
@@ -179,6 +341,77 @@ export function createDefaultBusiness(name: string): MoneybookState {
       canManageAccounts: true,
       canSaveReports: true,
       canExportBackup: true,
+      canViewLocations: true,
+      canManageLocations: true,
+      canViewTransfers: true,
+      canManageTransfers: true,
+      canApproveTransfers: true,
+      canReceiveTransfers: true,
+      canManageTax: true,
+      canViewStaffPerformance: true,
+      canExportStaffPerformance: true,
+      canViewBankReconciliation: true,
+      canImportBankReconciliation: true,
+      canReviewBankReconciliation: true,
+      canExportBankReconciliation: true,
+      canViewTaxAssistant: true,
+      canAskTaxAssistant: true,
+      canReviewTaxAssistant: true,
+      canExportTaxAssistant: true,
+      canManageTaxAssistantSettings: true,
+      canViewExecutiveDashboard: true,
+      canExportExecutiveDashboard: true,
+      canViewExecutiveDashboardSensitive: true,
+      canViewExecutiveDashboardStaffSummary: true,
+      canViewPredictiveAlerts: true,
+      canManagePredictiveAlerts: true,
+      canAcknowledgePredictiveAlerts: true,
+      canExportPredictiveAlerts: true,
+      canViewPayroll: true,
+      canManagePayrollEmployees: true,
+      canPreparePayroll: true,
+      canReviewPayroll: true,
+      canApprovePayroll: true,
+      canExportPayroll: true,
+      canPostPayrollExpense: true,
+      canViewPayrollSensitive: true,
+      canViewAiMarketing: true,
+      canCreateAiMarketingCampaigns: true,
+      canApproveAiMarketingCampaigns: true,
+      canSendAiMarketingCampaigns: true,
+      canExportAiMarketing: true,
+      canManageAiMarketingConsent: true,
+      canViewAiEvaluation: true,
+      canRunAiEvaluation: true,
+      canManageAiEvaluationCases: true,
+      canExportAiEvaluation: true,
+      canCompareAiEvaluationModels: true,
+      canViewLoanReadiness: true,
+      canGenerateLoanReadiness: true,
+      canExportLoanReadiness: true,
+      canManageLoanReadinessProfile: true,
+    },
+    billing: {
+      planId: "pro",
+      planName: "Pro",
+      features: [
+        "basic_exports",
+        "advanced_reports",
+        "multi_location",
+        "warehouse_transfers",
+        "professional_pdf_exports",
+        "invoice_branding",
+        "tax_management",
+        "tax_assistant",
+        "executive_dashboard",
+        "predictive_alerts",
+        "ai_marketing",
+        "ai_evaluation",
+        "loan_readiness",
+        "granular_permissions",
+        "team_management",
+        "audit_tools",
+      ],
     },
     accounts: [
       { id: "cash", name: "Cash", type: "cash", openingBalance: 125000, balance: 125000 },
@@ -233,6 +466,12 @@ export function recordTransaction(
   const transaction: Transaction = {
     ...input,
     id: cryptoId("txn"),
+    invoiceItems: input.invoiceItems?.map((item) => ({
+      ...item,
+      name: "Product",
+      unitPrice: 0,
+      total: 0,
+    })),
     profit: input.type === "sale" ? input.amount - (input.costOfGoods ?? 0) : 0,
     occurredAt: input.occurredAt ?? new Date().toISOString(),
   };

@@ -25,15 +25,35 @@ describe("Paystack billing", () => {
     expect(featureIds).toEqual([
       "advanced_reports",
       "ai_category_assist",
+      "ai_evaluation",
+      "ai_marketing",
       "audit_tools",
+      "bank_reconciliation",
       "basic_exports",
+      "business_switching",
+      "cooperatives",
+      "executive_dashboard",
+      "granular_permissions",
+      "invoice_branding",
+      "loan_readiness",
+      "multi_location",
+      "payroll",
+      "predictive_alerts",
+      "professional_pdf_exports",
       "receipt_extraction",
+      "tax_assistant",
+      "tax_management",
       "team_management",
+      "warehouse_transfers",
     ]);
     expect(getPlanFeatureDetails(billingPlans[1]).map((feature) => feature.name)).toEqual([
       "Accountant exports",
       "AI category assist",
       "Receipt extraction",
+      "Bank reconciliation",
+      "Tax assistant",
+      "AI marketing",
+      "Loan readiness",
     ]);
   });
 

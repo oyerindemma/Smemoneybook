@@ -10,6 +10,7 @@ import {
   getDashboardState,
   getFirstBusinessForUser,
 } from "@/lib/bookkeeping/persistence";
+import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
 import { getPrisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -18,16 +19,51 @@ export async function POST(request: Request) {
   try {
     assertSameOriginRequest(request);
     const user = await requireUser();
-    const { businessName, businessType } = await parseJsonBody(
+    const { businessName, businessType, businessCategory, country, currency, mainGoal } = await parseJsonBody(
       request,
       onboardingSetupRequestSchema,
     );
     const existingBusiness = await getFirstBusinessForUser(user.id);
+    const useProgressiveOnboarding = phase1FeatureFlags.onboarding;
 
     if (!existingBusiness) {
       const business = await createBusinessForUser(user.id, businessName, {
         businessType,
-        onboardingCompleted: true,
+        businessCategory,
+        country,
+        currency,
+        onboardingCompleted: !useProgressiveOnboarding,
+      });
+      if (!useProgressiveOnboarding) {
+        return Response.json({
+          state: await getDashboardState(business.id, "OWNER", user.id),
+        });
+      }
+
+      await getPrisma().onboardingProgress.upsert({
+        where: { userId: user.id },
+        create: {
+          userId: user.id,
+          businessId: business.id,
+          currentStep: "business_profile",
+          goal: mainGoal,
+          data: { businessCategory, country, currency, businessType },
+        },
+        update: {
+          businessId: business.id,
+          currentStep: "business_profile",
+          goal: mainGoal,
+          data: { businessCategory, country, currency, businessType },
+        },
+      });
+      await getPrisma().onboardingEvent.create({
+        data: {
+          userId: user.id,
+          businessId: business.id,
+          name: "business_profile_completed",
+          step: "business_profile",
+          metadata: { businessCategory, country, currency, businessType, mainGoal },
+        },
       });
       return Response.json({
         state: await getDashboardState(business.id, "OWNER", user.id),
@@ -38,8 +74,46 @@ export async function POST(request: Request) {
       where: { id: existingBusiness.id },
       data: {
         name: businessName,
+        businessCategory,
         businessType,
-        onboardingCompleted: true,
+        country,
+        currency,
+        onboardingCompleted: !useProgressiveOnboarding,
+      },
+    });
+    if (!useProgressiveOnboarding) {
+      return Response.json({
+        state: await getDashboardState(
+          existingBusiness.id,
+          existingBusiness.role,
+          user.id,
+        ),
+      });
+    }
+
+    await getPrisma().onboardingProgress.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        businessId: existingBusiness.id,
+        currentStep: "business_profile",
+        goal: mainGoal,
+        data: { businessCategory, country, currency, businessType },
+      },
+      update: {
+        businessId: existingBusiness.id,
+        currentStep: "business_profile",
+        goal: mainGoal,
+        data: { businessCategory, country, currency, businessType },
+      },
+    });
+    await getPrisma().onboardingEvent.create({
+      data: {
+        userId: user.id,
+        businessId: existingBusiness.id,
+        name: "business_profile_completed",
+        step: "business_profile",
+        metadata: { businessCategory, country, currency, businessType, mainGoal },
       },
     });
 

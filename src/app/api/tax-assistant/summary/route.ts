@@ -1,0 +1,56 @@
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
+import { requireUser } from "@/lib/auth/session";
+import {
+  parseTaxAssistantRequest,
+  taxAssistantErrorResponse,
+  taxAssistantMethodNotAllowed,
+} from "@/lib/tax-assistant/api";
+import { requireTaxAssistantAccess } from "@/lib/tax-assistant/authorization";
+import { calculateTaxAssistantForBusiness } from "@/lib/tax-assistant/service";
+
+export const runtime = "nodejs";
+
+export async function GET(request: Request) {
+  try {
+    const user = await requireUser();
+    const limited = await enforceRateLimit(request, "tax_assistant.summary", 80, 15 * 60 * 1000);
+
+    if (limited) {
+      return limited;
+    }
+
+    const filters = parseTaxAssistantRequest(request.url);
+    const access = await requireTaxAssistantAccess({
+      userId: user.id,
+      businessId: filters.businessId,
+      locationId: filters.locationId,
+      permission: "tax_assistant:read",
+    });
+    const summary = await calculateTaxAssistantForBusiness({
+      businessId: access.businessId,
+      locationId: access.locationId,
+      periodStart: filters.periodStart,
+      periodEnd: filters.periodEnd,
+    });
+
+    return Response.json({ summary });
+  } catch (error) {
+    return taxAssistantErrorResponse(error, "Could not load Tax Assistant summary.");
+  }
+}
+
+export function POST() {
+  return taxAssistantMethodNotAllowed();
+}
+
+export function PUT() {
+  return taxAssistantMethodNotAllowed();
+}
+
+export function PATCH() {
+  return taxAssistantMethodNotAllowed();
+}
+
+export function DELETE() {
+  return taxAssistantMethodNotAllowed();
+}

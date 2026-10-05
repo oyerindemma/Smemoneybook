@@ -11,8 +11,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "tsx scripts/run-playwright-release-gate.ts",
+    "test:e2e:release-gate": "tsx scripts/run-playwright-release-gate.ts",
+    "test:e2e:release-scope": "tsx scripts/run-playwright-release-gate.ts --scope-only",
+    "test:e2e:raw": "playwright test",
     "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "i18n:check": "tsx scripts/check-translations.ts",
     "mobile:assets": "capacitor-assets generate --android --assetPath assets --iconBackgroundColor '#0B1F3A' --iconBackgroundColorDark '#0B1F3A' --splashBackgroundColor '#F5F3EF' --splashBackgroundColorDark '#0B1F3A'",
     "mobile:sync": "cap sync android",
     "mobile:android": "cap open android",
@@ -21,7 +25,9 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "beta:seed": "tsx scripts/seed-beta-accounts.ts"
+    "beta:seed": "tsx scripts/seed-beta-accounts.ts",
+    "preview:seed-entitlements": "tsx scripts/seed-phase2-preview-entitlement.ts",
+    "phase2:seed-preview": "tsx scripts/seed-phase2-preview-entitlement.ts"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.2",
@@ -31,8 +37,8 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.468.0",
-    "next": "^16.2.6",
-    "posthog-js": "^1.374.3",
+    "next": "^16.3.3",
+    "posthog-js": "^1.434.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^4.4.0"
@@ -45,19 +51,19 @@
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.16.0",
-    "eslint-config-next": "^16.2.6",
-    "postcss": "^8.5.12",
+    "eslint-config-next": "^16.3.3",
+    "postcss": "^8.5.23",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.16",
     "tsx": "^4.21.0",
-    "typescript": "^5.7.2",
+    "typescript": "5.7.2",
     "vitest": "^3.0.9"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
-    "postcss": "^8.5.12",
+    "postcss": "^8.5.23",
     "tar": "^7.5.13",
     "@capacitor/cli": "^7.6.2",
     "uuid": "^11.1.1",

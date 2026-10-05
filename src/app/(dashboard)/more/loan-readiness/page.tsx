@@ -1,0 +1,28 @@
+import { FeatureUnavailablePanel } from "@/components/dashboard/FeatureUnavailablePanel";
+import { LoanReadinessPanel } from "@/components/loan-readiness/LoanReadinessPanel";
+import { isLoanReadinessFeatureEnabledForServer } from "@/lib/loan-readiness/authorization";
+
+export default function LoanReadinessPage() {
+  const enabled = isLoanReadinessFeatureEnabledForServer();
+
+  return (
+    <main className="space-y-6 md:space-y-8">
+      <header>
+        <p className="text-sm font-semibold text-primary">Loan readiness</p>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight md:text-2xl">Prepare your business records</h1>
+        <p className="mt-1 text-sm text-textSecondary md:text-base">
+          Review readiness evidence before speaking with a financing partner.
+        </p>
+      </header>
+      {enabled ? (
+        <LoanReadinessPanel />
+      ) : (
+        <FeatureUnavailablePanel
+          title="Loan Readiness is not available"
+          description="This module is disabled for the current environment."
+          billingLink={false}
+        />
+      )}
+    </main>
+  );
+}

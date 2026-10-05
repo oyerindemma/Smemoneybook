@@ -3,31 +3,57 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id              String               @id @default(cuid())
-  name            String
-  email           String               @unique
-  password        String
-  pinHash         String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  members         BusinessMember[]
-  auditLogs       AuditLog[]
-  sessions        Session[]
-  passwordResets  PasswordResetToken[]
-  sentInvitations BusinessInvitation[] @relation("InvitationSender")
-  DebtEvent       DebtEvent[]
-  ReportSnapshot  ReportSnapshot[]
-  subscriptions   Subscription[]
-  assistantThreads AssistantThread[]
-  assistantMessages AssistantMessage[]
-  pendingAssistantActions PendingAssistantAction[]
-  referralAttributions ReferralAttribution[] @relation("ReferredUser")
-  referralRewards ReferralReward[] @relation("ReferralRewardUser")
+  id                              String                     @id @default(cuid())
+  name                            String
+  email                           String                     @unique
+  password                        String
+  pinHash                         String?
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  members                         BusinessMember[]
+  auditLogs                       AuditLog[]
+  sessions                        Session[]
+  passwordResets                  PasswordResetToken[]
+  sentInvitations                 BusinessInvitation[]       @relation("InvitationSender")
+  DebtEvent                       DebtEvent[]
+  ReportSnapshot                  ReportSnapshot[]
+  subscriptions                   Subscription[]
+  assistantThreads                AssistantThread[]
+  assistantMessages               AssistantMessage[]
+  predictiveAlertFeedback         PredictiveAlertFeedback[]
+  aiEvaluationEvents              AiEvaluationEvent[]
+  pendingAssistantActions         PendingAssistantAction[]
+  referralAttributions            ReferralAttribution[]      @relation("ReferredUser")
+  referralRewards                 ReferralReward[]           @relation("ReferralRewardUser")
+  onboardingProgress              OnboardingProgress?
+  onboardingEvents                OnboardingEvent[]
+  inventoryMovements              InventoryMovement[]
+  offlineSyncOperations           OfflineSyncOperation[]
+  locationMemberships             BusinessLocationMember[]
+  stockTransfersCreated           StockTransfer[]            @relation("StockTransferCreatedBy")
+  stockTransfersApproved          StockTransfer[]            @relation("StockTransferApprovedBy")
+  stockTransfersSent              StockTransfer[]            @relation("StockTransferSentBy")
+  stockTransfersReceived          StockTransfer[]            @relation("StockTransferReceivedBy")
+  language                        String                     @default("en")
+  exportJobs                      ExportJob[]                @relation("ExportJobActor")
+  issuedDocuments                 IssuedDocument[]           @relation("IssuedDocumentActor")
+  announcementReads               AnnouncementRead[]
+  announcementsCreated            Announcement[]             @relation("AnnouncementCreator")
+  permissionOverrides             PermissionOverride[]
+  taxPeriodSnapshots              TaxPeriodSnapshot[]        @relation("TaxPeriodSnapshotGenerator")
+  taxReviewItemsReviewed          TaxReviewItem[]            @relation("TaxReviewItemReviewer")
+  taxAssistantConversations       TaxAssistantConversation[]
+  taxAssistantMessages            TaxAssistantMessage[]
+  aiEvaluationSuitesCreated       AiEvaluationSuite[]        @relation("AiEvaluationSuiteCreator")
+  aiEvaluationRunsInitiated       AiEvaluationRun[]          @relation("AiEvaluationRunInitiator")
+  aiEvaluationBaselines           AiEvaluationBaseline[]     @relation("AiEvaluationBaselineAcceptor")
+  loanReadinessSnapshotsGenerated LoanReadinessSnapshot[]    @relation("LoanReadinessSnapshotGenerator")
 }
 
 model PasswordResetToken {
@@ -58,40 +84,117 @@ model Session {
 }
 
 model Business {
-  id                  String               @id @default(cuid())
-  name                String
-  businessType        String?
-  onboardingCompleted Boolean              @default(false)
-  country             String               @default("NG")
-  currency            String               @default("NGN")
-  vatRate             Decimal              @default(7.5)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  members             BusinessMember[]
-  accounts            Account[]
-  customers           Customer[]
-  suppliers           Supplier[]
-  transactions        Transaction[]
-  debts               Debt[]
-  items               InventoryItem[]
-  taxRuns             TaxRun[]
-  reportSnapshots     ReportSnapshot[]
-  auditLogs           AuditLog[]
-  invitations         BusinessInvitation[]
-  apiErrors           ApiErrorLog[]
-  receipts            Receipt[]
-  subscriptions       Subscription[]
-  offlineCaptures     OfflineCapture[]
-  whatsappMessages    WhatsAppMessage[]
-  whatsappEvents      WhatsAppEvent[]
-  messagePreferences  MessagePreference?
-  assistantThreads    AssistantThread[]
-  automationPreference AutomationPreference?
-  automationLogs      AutomationLog[]
-  pendingAssistantActions PendingAssistantAction[]
-  referralAttributions ReferralAttribution[] @relation("ReferrerBusiness")
-  referredAttributions ReferralAttribution[] @relation("ReferredBusiness")
-  referralRewards      ReferralReward[]
+  id                            String                         @id @default(cuid())
+  name                          String
+  businessCategory              String?
+  businessType                  String?
+  onboardingCompleted           Boolean                        @default(false)
+  country                       String                         @default("NG")
+  currency                      String                         @default("NGN")
+  defaultLanguage               String                         @default("en")
+  vatRate                       Decimal                        @default(7.5)
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  members                       BusinessMember[]
+  accounts                      Account[]
+  customers                     Customer[]
+  suppliers                     Supplier[]
+  transactions                  Transaction[]
+  debts                         Debt[]
+  items                         InventoryItem[]
+  taxRuns                       TaxRun[]
+  reportSnapshots               ReportSnapshot[]
+  auditLogs                     AuditLog[]
+  inventoryMovements            InventoryMovement[]
+  invitations                   BusinessInvitation[]
+  apiErrors                     ApiErrorLog[]
+  receipts                      Receipt[]
+  subscriptions                 Subscription[]
+  offlineCaptures               OfflineCapture[]
+  whatsappMessages              WhatsAppMessage[]
+  whatsappEvents                WhatsAppEvent[]
+  whatsappAutomationContacts    WhatsAppAutomationContact[]
+  whatsappAutomationTemplates   WhatsAppAutomationTemplate[]
+  whatsappAutomationJobs        WhatsAppAutomationJob[]
+  marketingDrafts               MarketingDraft[]
+  marketingDraftFeedback        MarketingDraftFeedback[]
+  marketingCampaigns            MarketingCampaign[]
+  marketingCampaignRecipients   MarketingCampaignRecipient[]
+  marketingMessageDrafts        MarketingMessageDraft[]
+  marketingDeliveries           MarketingDelivery[]
+  marketingOptOuts              MarketingOptOut[]
+  executiveDashboardSnapshots   ExecutiveDashboardSnapshot[]
+  predictiveAlerts              PredictiveAlert[]
+  predictiveAlertFeedback       PredictiveAlertFeedback[]
+  alertPreferences              BusinessAlertPreference[]
+  predictiveAlertDeliveries     PredictiveAlertDelivery[]
+  aiEvaluationEvents            AiEvaluationEvent[]
+  aiEvaluationDatasets          AiEvaluationDataset[]
+  aiEvaluationRuns              AiEvaluationRun[]
+  aiEvaluationSuites            AiEvaluationSuite[]
+  aiEvaluationBaselines         AiEvaluationBaseline[]
+  messagePreferences            MessagePreference?
+  assistantThreads              AssistantThread[]
+  automationPreference          AutomationPreference?
+  automationLogs                AutomationLog[]
+  pendingAssistantActions       PendingAssistantAction[]
+  referralAttributions          ReferralAttribution[]          @relation("ReferrerBusiness")
+  referredAttributions          ReferralAttribution[]          @relation("ReferredBusiness")
+  referralRewards               ReferralReward[]
+  onboardingProgress            OnboardingProgress?
+  onboardingEvents              OnboardingEvent[]
+  productUnits                  ProductUnit[]
+  productCategories             ProductCategory[]
+  productBrands                 ProductBrand[]
+  transactionPayments           TransactionPayment[]
+  receiptConfig                 ReceiptConfig?
+  customerReturns               CustomerReturn[]
+  supplierReturns               SupplierReturn[]
+  offlineSyncOperations         OfflineSyncOperation[]
+  locations                     BusinessLocation[]
+  locationMemberships           BusinessLocationMember[]
+  inventoryBalances             InventoryBalance[]
+  stockTransfers                StockTransfer[]
+  exportJobs                    ExportJob[]
+  taxConfig                     TaxConfig?
+  taxRates                      TaxRate[]
+  taxAssistantSnapshots         TaxAssistantSnapshot[]
+  taxProfiles                   BusinessTaxProfile[]
+  taxPeriodSnapshots            TaxPeriodSnapshot[]
+  taxReviewItems                TaxReviewItem[]
+  taxAssistantConversations     TaxAssistantConversation[]
+  taxAssistantMessages          TaxAssistantMessage[]
+  documentBranding              DocumentBrandingConfig?
+  issuedDocuments               IssuedDocument[]
+  documentTaxSnapshots          DocumentTaxSnapshot[]
+  bankAccountProfiles           BankAccountProfile[]
+  bankStatementImports          BankStatementImport[]
+  bankReconciliationMatches     BankReconciliationMatch[]
+  bankReconciliationActions     BankReconciliationAction[]
+  loanReadinessSnapshots        LoanReadinessSnapshot[]
+  loanReadinessSharingLogs      LoanReadinessSharingLog[]
+  loanReadinessProfile          LoanReadinessProfile?
+  loanReadinessDocuments        LoanReadinessDocument[]
+  cooperativeGroups             CooperativeGroup[]
+  cooperativeApprovalActions    CooperativeApprovalAction[]
+  cooperativeLedgerAccounts     CooperativeLedgerAccount[]
+  cooperativeLedgerBatches      CooperativeLedgerBatch[]
+  cooperativeLedgerTransfers    CooperativeLedgerTransfer[]
+  cooperativeRepaymentSchedules CooperativeRepaymentSchedule[]
+  payrollEmployees              PayrollEmployee[]
+  payrollRuns                   PayrollRun[]
+  payrollComponentDefinitions   PayrollComponentDefinition[]
+  payrollApprovalActions        PayrollApprovalAction[]
+  payrollPayslips               PayrollPayslip[]
+  staffPerformanceGoals         StaffPerformanceGoal[]
+  staffPerformanceSnapshots     StaffPerformanceSnapshot[]
+  permissionPolicies            PermissionPolicy[]
+  permissionOverrides           PermissionOverride[]
+  healthScoreSnapshots          BusinessHealthScoreSnapshot[]
+  cashflowForecasts             CashflowForecastSnapshot[]
+  inventoryForecasts            InventoryForecastSnapshot[]
+  PayrollCompensation           PayrollCompensation[]
+  PayrollEmployeeComponent      PayrollEmployeeComponent[]
 }
 
 model ReferralAttribution {
@@ -114,19 +217,19 @@ model ReferralAttribution {
 }
 
 model ReferralReward {
-  id            String               @id @default(cuid())
-  attributionId String?
-  beneficiaryUserId String?
+  id                    String               @id @default(cuid())
+  attributionId         String?
+  beneficiaryUserId     String?
   beneficiaryBusinessId String?
-  type          String
-  status        String               @default("PENDING")
-  description   String
-  value         Int?
-  createdAt     DateTime             @default(now())
-  redeemedAt    DateTime?
-  attribution   ReferralAttribution? @relation(fields: [attributionId], references: [id], onDelete: Cascade)
-  beneficiaryUser User?              @relation("ReferralRewardUser", fields: [beneficiaryUserId], references: [id], onDelete: SetNull)
-  beneficiaryBusiness Business?      @relation(fields: [beneficiaryBusinessId], references: [id], onDelete: SetNull)
+  type                  String
+  status                String               @default("PENDING")
+  description           String
+  value                 Int?
+  createdAt             DateTime             @default(now())
+  redeemedAt            DateTime?
+  attribution           ReferralAttribution? @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+  beneficiaryUser       User?                @relation("ReferralRewardUser", fields: [beneficiaryUserId], references: [id], onDelete: SetNull)
+  beneficiaryBusiness   Business?            @relation(fields: [beneficiaryBusinessId], references: [id], onDelete: SetNull)
 
   @@index([beneficiaryUserId, status])
   @@index([beneficiaryBusinessId, status])
@@ -163,86 +266,240 @@ model BusinessInvitation {
   @@index([businessId, email])
 }
 
+model BusinessLocation {
+  id                          String                        @id @default(cuid())
+  name                        String
+  type                        BusinessLocationType          @default(MAIN_SHOP)
+  address                     String?
+  phone                       String?
+  email                       String?
+  isDefault                   Boolean                       @default(false)
+  archivedAt                  DateTime?
+  businessId                  String
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  business                    Business                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  members                     BusinessLocationMember[]
+  inventoryBalances           InventoryBalance[]
+  transactions                Transaction[]
+  transactionPayments         TransactionPayment[]
+  movements                   InventoryMovement[]           @relation("MovementLocation")
+  sourceMovements             InventoryMovement[]           @relation("MovementSourceLocation")
+  destinationMovements        InventoryMovement[]           @relation("MovementDestinationLocation")
+  customerReturns             CustomerReturn[]
+  supplierReturns             SupplierReturn[]
+  reportSnapshots             ReportSnapshot[]
+  receiptConfigs              ReceiptConfig[]
+  sourceTransfers             StockTransfer[]               @relation("TransferSourceLocation")
+  destinationTransfers        StockTransfer[]               @relation("TransferDestinationLocation")
+  exportJobs                  ExportJob[]
+  taxConfigs                  TaxConfig[]
+  taxRates                    TaxRate[]
+  taxAssistantSnapshots       TaxAssistantSnapshot[]
+  documentBranding            DocumentBrandingConfig[]
+  issuedDocuments             IssuedDocument[]
+  bankStatementImports        BankStatementImport[]
+  loanReadinessSnapshots      LoanReadinessSnapshot[]
+  cooperativeGroups           CooperativeGroup[]
+  payrollEmployees            PayrollEmployee[]
+  payrollRuns                 PayrollRun[]
+  staffPerformanceGoals       StaffPerformanceGoal[]
+  staffPerformanceSnapshots   StaffPerformanceSnapshot[]
+  marketingDrafts             MarketingDraft[]
+  executiveDashboardSnapshots ExecutiveDashboardSnapshot[]
+  predictiveAlerts            PredictiveAlert[]
+  permissionOverrides         PermissionOverride[]
+  healthScoreSnapshots        BusinessHealthScoreSnapshot[]
+  cashflowForecasts           CashflowForecastSnapshot[]
+  inventoryForecasts          InventoryForecastSnapshot[]
+
+  @@unique([businessId, name])
+  @@index([businessId, isDefault])
+  @@index([businessId, archivedAt])
+  @@index([type])
+}
+
+model BusinessLocationMember {
+  id         String           @id @default(cuid())
+  role       Role             @default(STAFF)
+  userId     String
+  businessId String
+  locationId String
+  createdAt  DateTime         @default(now())
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location   BusinessLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([locationId, userId])
+  @@index([businessId, userId])
+  @@index([businessId, locationId])
+}
+
 model Account {
-  id                String              @id @default(cuid())
-  name              String
-  type              AccountType
-  openingBalance    Decimal             @default(0)
-  balance           Decimal             @default(0)
-  businessId        String
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  transactions      Transaction[]       @relation("TransactionAccount")
-  transferReceipts  Transaction[]       @relation("TransferDestination")
-  inventoryMovement InventoryMovement[]
+  id                    String                    @id @default(cuid())
+  name                  String
+  type                  AccountType
+  openingBalance        Decimal                   @default(0)
+  balance               Decimal                   @default(0)
+  businessId            String
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  business              Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]             @relation("TransactionAccount")
+  transferReceipts      Transaction[]             @relation("TransferDestination")
+  inventoryMovement     InventoryMovement[]
+  transactionPayments   TransactionPayment[]
+  bankStatementImports  BankStatementImport[]
+  reconciliationMatches BankReconciliationMatch[]
 
   @@index([businessId, createdAt])
 }
 
 model Transaction {
-  id                    String              @id @default(cuid())
-  idempotencyKey        String
-  duplicateFingerprint  String?
-  type                  TransactionType
-  amount                Decimal
-  costOfGoods           Decimal             @default(0)
-  profit                Decimal             @default(0)
-  description           String
-  category              String?
-  paymentStatus         PaymentStatus       @default(PAID)
-  occurredAt            DateTime            @default(now())
-  businessId            String
-  accountId             String
-  destinationAccountId  String?
-  customerId            String?
-  supplierId            String?
-  inventoryItemId       String?
-  inventoryQuantity     Int?
-  invoiceItems          Json?
-  reversesTransactionId String?             @unique
-  business              Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  account               Account             @relation("TransactionAccount", fields: [accountId], references: [id])
-  destinationAccount    Account?            @relation("TransferDestination", fields: [destinationAccountId], references: [id])
-  customer              Customer?           @relation(fields: [customerId], references: [id])
-  supplier              Supplier?           @relation(fields: [supplierId], references: [id])
-  inventoryItem         InventoryItem?      @relation(fields: [inventoryItemId], references: [id])
-  reversesTransaction   Transaction?        @relation("TransactionReversal", fields: [reversesTransactionId], references: [id])
-  reversalTransaction   Transaction?        @relation("TransactionReversal")
-  debts                 Debt[]
-  inventoryMovements    InventoryMovement[]
+  id                          String                      @id @default(cuid())
+  idempotencyKey              String
+  duplicateFingerprint        String?
+  type                        TransactionType
+  amount                      Decimal
+  costOfGoods                 Decimal                     @default(0)
+  profit                      Decimal                     @default(0)
+  description                 String
+  category                    String?
+  taxTreatment                String?
+  taxMetadata                 Json?
+  vatInclusive                Boolean?
+  withholdingTaxRate          Decimal?
+  withholdingTaxAmount        Decimal?
+  receiptId                   String?
+  paymentStatus               PaymentStatus               @default(PAID)
+  occurredAt                  DateTime                    @default(now())
+  businessId                  String
+  accountId                   String
+  destinationAccountId        String?
+  locationId                  String?
+  customerId                  String?
+  supplierId                  String?
+  inventoryItemId             String?
+  inventoryQuantity           Int?
+  invoiceItems                Json?
+  reversesTransactionId       String?                     @unique
+  business                    Business                    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account                     Account                     @relation("TransactionAccount", fields: [accountId], references: [id])
+  destinationAccount          Account?                    @relation("TransferDestination", fields: [destinationAccountId], references: [id])
+  location                    BusinessLocation?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  customer                    Customer?                   @relation(fields: [customerId], references: [id])
+  supplier                    Supplier?                   @relation(fields: [supplierId], references: [id])
+  inventoryItem               InventoryItem?              @relation(fields: [inventoryItemId], references: [id])
+  reversesTransaction         Transaction?                @relation("TransactionReversal", fields: [reversesTransactionId], references: [id])
+  reversalTransaction         Transaction?                @relation("TransactionReversal")
+  debts                       Debt[]
+  inventoryMovements          InventoryMovement[]
+  payments                    TransactionPayment[]
+  customerReturnsAsOriginal   CustomerReturn[]            @relation("CustomerReturnOriginal")
+  customerReturnsAsRefund     CustomerReturn[]            @relation("CustomerReturnRefund")
+  supplierReturnsAsOriginal   SupplierReturn[]            @relation("SupplierReturnOriginal")
+  supplierReturnsAsSettlement SupplierReturn[]            @relation("SupplierReturnSettlement")
+  taxSnapshots                DocumentTaxSnapshot[]
+  taxReviewItems              TaxReviewItem[]
+  reconciliationMatches       BankReconciliationMatch[]
+  payrollExpenseRuns          PayrollRun[]                @relation("PayrollRunExpenseTransaction")
+  cooperativeLedgerTransfers  CooperativeLedgerTransfer[]
 
   @@unique([businessId, idempotencyKey])
   @@unique([businessId, duplicateFingerprint])
   @@index([businessId, occurredAt])
+  @@index([businessId, locationId, occurredAt])
+  @@index([businessId, taxTreatment, occurredAt])
 }
 
 model Customer {
-  id           String        @id @default(cuid())
+  id                     String                       @id @default(cuid())
+  name                   String
+  phone                  String?
+  marketingConsentStatus String                       @default("unknown")
+  marketingConsentSource String?
+  marketingConsentAt     DateTime?
+  marketingOptOutAt      DateTime?
+  preferredChannel       String                       @default("whatsapp")
+  doNotContact           Boolean                      @default(false)
+  consentNotes           String?
+  businessId             String
+  createdAt              DateTime                     @default(now())
+  business               Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions           Transaction[]
+  debts                  Debt[]
+  returns                CustomerReturn[]
+  issuedDocuments        IssuedDocument[]
+  marketingRecipients    MarketingCampaignRecipient[]
+  marketingOptOuts       MarketingOptOut[]
+
+  @@index([businessId, createdAt])
+  @@index([businessId, name])
+  @@index([businessId, marketingConsentStatus])
+  @@index([businessId, doNotContact])
+}
+
+model Supplier {
+  id           String           @id @default(cuid())
   name         String
   phone        String?
   businessId   String
-  createdAt    DateTime      @default(now())
-  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  business     Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   debts        Debt[]
+  returns      SupplierReturn[]
 
   @@index([businessId, createdAt])
   @@index([businessId, name])
 }
 
-model Supplier {
-  id           String        @id @default(cuid())
-  name         String
-  phone        String?
-  businessId   String
-  createdAt    DateTime      @default(now())
-  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  debts        Debt[]
+model ProductUnit {
+  id                    String          @id @default(cuid())
+  name                  String
+  singularLabel         String
+  pluralLabel           String
+  allowsDecimal         Boolean         @default(false)
+  isDefault             Boolean         @default(false)
+  archivedAt            DateTime?
+  businessId            String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  business              Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inventoryItems        InventoryItem[] @relation("InventoryUnit")
+  baseInventoryItems    InventoryItem[] @relation("InventoryBaseUnit")
+  sellingInventoryItems InventoryItem[] @relation("InventorySellingUnit")
 
-  @@index([businessId, createdAt])
-  @@index([businessId, name])
+  @@unique([businessId, name])
+  @@index([businessId, archivedAt])
+}
+
+model ProductCategory {
+  id         String          @id @default(cuid())
+  name       String
+  archivedAt DateTime?
+  businessId String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items      InventoryItem[]
+
+  @@unique([businessId, name])
+  @@index([businessId, archivedAt, name])
+}
+
+model ProductBrand {
+  id         String          @id @default(cuid())
+  name       String
+  archivedAt DateTime?
+  businessId String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items      InventoryItem[]
+
+  @@unique([businessId, name])
+  @@index([businessId, archivedAt, name])
 }
 
 model Debt {
@@ -285,40 +542,344 @@ model DebtEvent {
 }
 
 model InventoryItem {
-  id             String              @id @default(cuid())
-  name           String
-  sku            String?
-  sellingPrice   Decimal
-  costPrice      Decimal
-  quantityOnHand Int                 @default(0)
-  lowStockLevel  Int                 @default(5)
-  businessId     String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  movements      InventoryMovement[]
-  transactions   Transaction[]
+  id                    String                      @id @default(cuid())
+  name                  String
+  sku                   String?
+  barcode               String?
+  internalCode          String?
+  sellingPrice          Decimal
+  costPrice             Decimal
+  quantityOnHand        Int                         @default(0)
+  quantityOnHandDecimal Decimal                     @default(0)
+  lowStockLevel         Int                         @default(5)
+  lowStockLevelDecimal  Decimal                     @default(5)
+  unitId                String?
+  baseUnitId            String?
+  sellingUnitId         String?
+  conversionFactor      Decimal?
+  categoryId            String?
+  brandId               String?
+  archivedAt            DateTime?
+  businessId            String
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  business              Business                    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  unit                  ProductUnit?                @relation("InventoryUnit", fields: [unitId], references: [id], onDelete: SetNull)
+  baseUnit              ProductUnit?                @relation("InventoryBaseUnit", fields: [baseUnitId], references: [id], onDelete: SetNull)
+  sellingUnit           ProductUnit?                @relation("InventorySellingUnit", fields: [sellingUnitId], references: [id], onDelete: SetNull)
+  category              ProductCategory?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand                 ProductBrand?               @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  movements             InventoryMovement[]
+  transactions          Transaction[]
+  customerReturnItems   CustomerReturnItem[]
+  supplierReturnItems   SupplierReturnItem[]
+  locationBalances      InventoryBalance[]
+  transferItems         StockTransferItem[]
+  forecastSnapshots     InventoryForecastSnapshot[]
 
   @@unique([businessId, sku])
+  @@unique([businessId, barcode])
+  @@unique([businessId, internalCode])
   @@index([businessId, updatedAt])
   @@index([businessId, createdAt])
+  @@index([businessId, categoryId])
+  @@index([businessId, brandId])
+  @@index([businessId, archivedAt])
+}
+
+model InventoryBalance {
+  id                    String           @id @default(cuid())
+  quantityOnHandDecimal Decimal          @default(0)
+  lowStockLevelDecimal  Decimal          @default(5)
+  businessId            String
+  locationId            String
+  inventoryItemId       String
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  business              Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location              BusinessLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  inventoryItem         InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, locationId, inventoryItemId])
+  @@index([businessId, locationId])
+  @@index([inventoryItemId])
 }
 
 model InventoryMovement {
-  id            String                @id @default(cuid())
-  type          InventoryMovementType
-  quantity      Int
-  note          String?
-  itemId        String
-  accountId     String?
-  transactionId String?
-  createdAt     DateTime              @default(now())
-  item          InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  account       Account?              @relation(fields: [accountId], references: [id])
-  transaction   Transaction?          @relation(fields: [transactionId], references: [id])
+  id                    String                @id @default(cuid())
+  type                  InventoryMovementType
+  quantity              Int
+  quantityDecimal       Decimal               @default(0)
+  beforeQuantityDecimal Decimal?
+  afterQuantityDecimal  Decimal?
+  adjustmentType        StockAdjustmentType?
+  reason                String?
+  note                  String?
+  attachmentUrl         String?
+  idempotencyKey        String?
+  businessId            String?
+  actorId               String?
+  itemId                String
+  accountId             String?
+  locationId            String?
+  sourceLocationId      String?
+  destinationLocationId String?
+  transactionId         String?
+  createdAt             DateTime              @default(now())
+  item                  InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  account               Account?              @relation(fields: [accountId], references: [id])
+  transaction           Transaction?          @relation(fields: [transactionId], references: [id])
+  business              Business?             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor                 User?                 @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  location              BusinessLocation?     @relation("MovementLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  sourceLocation        BusinessLocation?     @relation("MovementSourceLocation", fields: [sourceLocationId], references: [id], onDelete: SetNull)
+  destinationLocation   BusinessLocation?     @relation("MovementDestinationLocation", fields: [destinationLocationId], references: [id], onDelete: SetNull)
 
+  @@unique([businessId, idempotencyKey])
   @@index([itemId, createdAt])
   @@index([accountId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([businessId, adjustmentType, createdAt])
+  @@index([businessId, locationId, createdAt])
+  @@index([businessId, sourceLocationId, createdAt])
+  @@index([businessId, destinationLocationId, createdAt])
+}
+
+model TransactionPayment {
+  id             String            @id @default(cuid())
+  method         PaymentMethod
+  amount         Decimal
+  note           String?
+  idempotencyKey String?
+  businessId     String
+  accountId      String?
+  locationId     String?
+  transactionId  String
+  createdAt      DateTime          @default(now())
+  business       Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account        Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  location       BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  transaction    Transaction       @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@index([transactionId])
+  @@index([accountId, createdAt])
+  @@index([businessId, locationId, createdAt])
+}
+
+model CustomerReturn {
+  id                    String                @id @default(cuid())
+  idempotencyKey        String
+  reason                String
+  disposition           ReturnDisposition
+  outcome               CustomerReturnOutcome
+  refundAmount          Decimal               @default(0)
+  note                  String?
+  businessId            String
+  locationId            String?
+  customerId            String?
+  originalTransactionId String
+  refundTransactionId   String?
+  actorId               String?
+  createdAt             DateTime              @default(now())
+  business              Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location              BusinessLocation?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  customer              Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  originalTransaction   Transaction           @relation("CustomerReturnOriginal", fields: [originalTransactionId], references: [id])
+  refundTransaction     Transaction?          @relation("CustomerReturnRefund", fields: [refundTransactionId], references: [id])
+  items                 CustomerReturnItem[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@index([businessId, locationId, createdAt])
+  @@index([originalTransactionId])
+  @@index([customerId, createdAt])
+}
+
+model CustomerReturnItem {
+  id               String         @id @default(cuid())
+  quantity         Decimal
+  unitPrice        Decimal
+  total            Decimal
+  inventoryItemId  String
+  customerReturnId String
+  inventoryItem    InventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  customerReturn   CustomerReturn @relation(fields: [customerReturnId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
+  @@index([customerReturnId])
+}
+
+model SupplierReturn {
+  id                      String                   @id @default(cuid())
+  idempotencyKey          String
+  reason                  String
+  settlement              SupplierReturnSettlement
+  settlementAmount        Decimal                  @default(0)
+  note                    String?
+  businessId              String
+  locationId              String?
+  supplierId              String?
+  originalTransactionId   String?
+  settlementTransactionId String?
+  actorId                 String?
+  createdAt               DateTime                 @default(now())
+  business                Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location                BusinessLocation?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  supplier                Supplier?                @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  originalTransaction     Transaction?             @relation("SupplierReturnOriginal", fields: [originalTransactionId], references: [id])
+  settlementTransaction   Transaction?             @relation("SupplierReturnSettlement", fields: [settlementTransactionId], references: [id])
+  items                   SupplierReturnItem[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdAt])
+  @@index([businessId, locationId, createdAt])
+  @@index([supplierId, createdAt])
+  @@index([originalTransactionId])
+}
+
+model SupplierReturnItem {
+  id               String         @id @default(cuid())
+  quantity         Decimal
+  unitCost         Decimal
+  total            Decimal
+  inventoryItemId  String
+  supplierReturnId String
+  inventoryItem    InventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  supplierReturn   SupplierReturn @relation(fields: [supplierReturnId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
+  @@index([supplierReturnId])
+}
+
+model StockTransfer {
+  id                    String              @id @default(cuid())
+  transferNumber        String
+  status                StockTransferStatus @default(DRAFT)
+  reason                String?
+  reference             String?
+  idempotencyKey        String?
+  businessId            String
+  sourceLocationId      String
+  destinationLocationId String
+  createdById           String?
+  approvedById          String?
+  sentById              String?
+  receivedById          String?
+  approvedAt            DateTime?
+  sentAt                DateTime?
+  receivedAt            DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  business              Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sourceLocation        BusinessLocation    @relation("TransferSourceLocation", fields: [sourceLocationId], references: [id])
+  destinationLocation   BusinessLocation    @relation("TransferDestinationLocation", fields: [destinationLocationId], references: [id])
+  createdBy             User?               @relation("StockTransferCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy            User?               @relation("StockTransferApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  sentBy                User?               @relation("StockTransferSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  receivedBy            User?               @relation("StockTransferReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  items                 StockTransferItem[]
+
+  @@unique([businessId, transferNumber])
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, status, createdAt])
+  @@index([businessId, sourceLocationId, createdAt])
+  @@index([businessId, destinationLocationId, createdAt])
+}
+
+model StockTransferItem {
+  id                String        @id @default(cuid())
+  requestedQuantity Decimal
+  sentQuantity      Decimal       @default(0)
+  receivedQuantity  Decimal       @default(0)
+  damagedQuantity   Decimal       @default(0)
+  shortageQuantity  Decimal       @default(0)
+  note              String?
+  transferId        String
+  inventoryItemId   String
+  transfer          StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  inventoryItem     InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@unique([transferId, inventoryItemId])
+  @@index([inventoryItemId])
+}
+
+model ReceiptConfig {
+  id               String            @id @default(cuid())
+  businessId       String            @unique
+  locationId       String?
+  logoUrl          String?
+  address          String?
+  phone            String?
+  email            String?
+  taxId            String?
+  footerMessage    String?
+  includePoweredBy Boolean           @default(true)
+  defaultPaperSize String            @default("80mm")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location         BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([locationId])
+}
+
+model OnboardingProgress {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  businessId  String?   @unique
+  currentStep String    @default("welcome")
+  goal        String?
+  data        Json?
+  skippedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([completedAt])
+}
+
+model OnboardingEvent {
+  id         String    @id @default(cuid())
+  name       String
+  step       String?
+  metadata   Json?
+  userId     String
+  businessId String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([name, createdAt])
+}
+
+model OfflineSyncOperation {
+  id            String            @id @default(cuid())
+  operationId   String
+  operationType String
+  payload       Json
+  status        OfflineSyncStatus @default(PENDING)
+  retryCount    Int               @default(0)
+  nextRetryAt   DateTime?
+  lastError     String?
+  businessId    String
+  actorId       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  syncedAt      DateTime?
+  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor         User?             @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, operationId])
+  @@index([businessId, status, createdAt])
+  @@index([nextRetryAt])
 }
 
 model TaxRun {
@@ -337,18 +898,21 @@ model TaxRun {
 }
 
 model ReportSnapshot {
-  id          String   @id @default(cuid())
+  id          String            @id @default(cuid())
   period      String
   periodStart DateTime
   periodEnd   DateTime
   data        Json
   businessId  String
+  locationId  String?
   actorId     String?
-  createdAt   DateTime @default(now())
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  actor       User?    @relation(fields: [actorId], references: [id])
+  createdAt   DateTime          @default(now())
+  business    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location    BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  actor       User?             @relation(fields: [actorId], references: [id])
 
   @@index([businessId, periodStart, periodEnd])
+  @@index([businessId, locationId, periodStart, periodEnd])
 }
 
 model AuditLog {
@@ -395,6 +959,399 @@ model Receipt {
   business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId, createdAt])
+}
+
+model ExportJob {
+  id          String            @id @default(cuid())
+  type        String
+  status      ExportJobStatus   @default(PENDING)
+  format      String            @default("csv")
+  payload     Json
+  fileKey     String?
+  downloadUrl String?
+  expiresAt   DateTime?
+  error       String?
+  businessId  String
+  actorId     String?
+  locationId  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  business    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor       User?             @relation("ExportJobActor", fields: [actorId], references: [id], onDelete: SetNull)
+  location    BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status, createdAt])
+  @@index([actorId, createdAt])
+  @@index([locationId, createdAt])
+}
+
+model TaxConfig {
+  id                 String            @id @default(cuid())
+  businessId         String            @unique
+  locationId         String?
+  country            String            @default("NG")
+  registrationNumber String?
+  enabled            Boolean           @default(false)
+  inclusiveByDefault Boolean           @default(false)
+  disclaimer         String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  business           Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([locationId])
+}
+
+model TaxRate {
+  id         String            @id @default(cuid())
+  label      String
+  rate       Decimal           @default(0)
+  type       TaxRateType       @default(VAT)
+  isDefault  Boolean           @default(false)
+  archivedAt DateTime?
+  businessId String
+  locationId String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  business   Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location   BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, label])
+  @@index([businessId, archivedAt])
+  @@index([locationId])
+}
+
+model TaxAssistantSnapshot {
+  id                 String            @id @default(cuid())
+  businessId         String
+  locationId         String?
+  country            String            @default("NG")
+  ruleVersion        String
+  confidence         String
+  periodStart        DateTime
+  periodEnd          DateTime
+  generatedAt        DateTime          @default(now())
+  taxableSales       Decimal           @default(0)
+  estimatedTax       Decimal           @default(0)
+  configuredRates    Json
+  missingSettings    Json
+  inconsistencies    Json
+  reminders          Json
+  exportSummary      Json
+  dataWarnings       Json
+  sourceMetrics      Json
+  recalculatedFromId String?
+  createdAt          DateTime          @default(now())
+  business           Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, ruleVersion, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+}
+
+model TaxRuleSet {
+  id                    String               @id @default(cuid())
+  jurisdiction          String
+  version               String
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  status                String               @default("draft")
+  sourceTitle           String
+  sourceAuthority       String
+  sourcePublicationDate DateTime?
+  sourceReference       String
+  lastVerifiedAt        DateTime?
+  verificationOwner     String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  rules                 TaxRule[]
+  profiles              BusinessTaxProfile[]
+  periodSnapshots       TaxPeriodSnapshot[]
+
+  @@unique([jurisdiction, version])
+  @@index([jurisdiction, status, effectiveFrom])
+}
+
+model TaxRule {
+  id                    String     @id @default(cuid())
+  ruleSetId             String
+  jurisdiction          String
+  taxType               String
+  transactionType       String
+  rate                  Decimal    @default(0)
+  threshold             Decimal?
+  formulaConfig         Json
+  applicabilityConfig   Json
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  status                String     @default("draft")
+  sourceTitle           String
+  sourceAuthority       String
+  sourcePublicationDate DateTime?
+  sourceReference       String
+  lastVerifiedAt        DateTime?
+  verificationOwner     String
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  ruleSet               TaxRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+
+  @@index([ruleSetId, taxType, transactionType])
+  @@index([jurisdiction, taxType, status, effectiveFrom])
+}
+
+model BusinessTaxProfile {
+  id                      String     @id @default(cuid())
+  businessId              String     @unique
+  jurisdiction            String     @default("NG-FED")
+  taxIdentificationNumber String?
+  vatRegistered           Boolean    @default(false)
+  vatRegistrationDate     DateTime?
+  filingFrequency         String     @default("MONTHLY")
+  fiscalYearStartMonth    Int        @default(1)
+  defaultCurrency         String     @default("NGN")
+  pricingMode             String     @default("tax_exclusive")
+  whtApplicable           Boolean    @default(false)
+  businessType            String?
+  industryCategory        String?
+  taxRuleSetId            String
+  accountantName          String?
+  accountantEmail         String?
+  accountantPhone         String?
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  business                Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  taxRuleSet              TaxRuleSet @relation(fields: [taxRuleSetId], references: [id])
+
+  @@index([businessId, jurisdiction])
+  @@index([taxRuleSetId])
+}
+
+model TaxPeriodSnapshot {
+  id                String      @id @default(cuid())
+  businessId        String
+  taxType           String
+  periodStart       DateTime
+  periodEnd         DateTime
+  ruleSetId         String?
+  ruleSetVersion    String
+  taxableBase       Decimal     @default(0)
+  estimatedTax      Decimal     @default(0)
+  adjustments       Json
+  status            String      @default("generated")
+  generatedByUserId String?
+  generatedAt       DateTime    @default(now())
+  metadata          Json
+  business          Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ruleSet           TaxRuleSet? @relation(fields: [ruleSetId], references: [id], onDelete: SetNull)
+  generatedBy       User?       @relation("TaxPeriodSnapshotGenerator", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, taxType, periodStart, periodEnd])
+  @@index([businessId, generatedAt])
+  @@index([ruleSetId])
+}
+
+model TaxReviewItem {
+  id                String       @id @default(cuid())
+  businessId        String
+  transactionId     String?
+  taxType           String
+  issueType         String
+  severity          String
+  explanation       String
+  recommendedAction String
+  status            String       @default("open")
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  business          Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transaction       Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  reviewedBy        User?        @relation("TaxReviewItemReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status, severity])
+  @@index([businessId, issueType, createdAt])
+  @@index([transactionId])
+}
+
+model TaxAssistantConversation {
+  id         String                @id @default(cuid())
+  businessId String
+  userId     String
+  title      String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   TaxAssistantMessage[]
+
+  @@index([businessId, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+model TaxAssistantMessage {
+  id             String                   @id @default(cuid())
+  conversationId String
+  businessId     String
+  userId         String?
+  role           String
+  content        String
+  model          String?
+  promptVersion  String?
+  toolCalls      Json?
+  citations      Json?
+  tokenUsage     Json?
+  estimatedCost  Decimal?
+  createdAt      DateTime                 @default(now())
+  conversation   TaxAssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  business       Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([businessId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model DocumentBrandingConfig {
+  id                  String            @id @default(cuid())
+  businessId          String            @unique
+  locationId          String?
+  tradingName         String?
+  logoUrl             String?
+  address             String?
+  phone               String?
+  email               String?
+  website             String?
+  taxId               String?
+  registrationNumber  String?
+  bankDetails         String?
+  paymentInstructions String?
+  footer              String?
+  terms               String?
+  accentColor         String            @default("#0B1F3A")
+  invoicePrefix       String            @default("INV")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  business            Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location            BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([locationId])
+}
+
+model IssuedDocument {
+  id             String                @id @default(cuid())
+  type           IssuedDocumentType
+  status         IssuedDocumentStatus  @default(DRAFT)
+  documentNumber String
+  currency       String                @default("NGN")
+  subtotal       Decimal               @default(0)
+  taxTotal       Decimal               @default(0)
+  total          Decimal               @default(0)
+  balanceDue     Decimal               @default(0)
+  issueDate      DateTime              @default(now())
+  dueDate        DateTime?
+  lines          Json                  @default("[]")
+  brandSnapshot  Json?
+  taxSnapshot    Json?
+  metadata       Json?
+  businessId     String
+  locationId     String?
+  customerId     String?
+  actorId        String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  business       Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location       BusinessLocation?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  customer       Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  actor          User?                 @relation("IssuedDocumentActor", fields: [actorId], references: [id], onDelete: SetNull)
+  taxSnapshots   DocumentTaxSnapshot[]
+
+  @@unique([businessId, documentNumber])
+  @@index([businessId, type, createdAt])
+  @@index([locationId, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model DocumentTaxSnapshot {
+  id               String          @id @default(cuid())
+  label            String
+  rate             Decimal         @default(0)
+  taxableAmount    Decimal         @default(0)
+  taxAmount        Decimal         @default(0)
+  inclusive        Boolean         @default(false)
+  businessId       String
+  issuedDocumentId String?
+  transactionId    String?
+  createdAt        DateTime        @default(now())
+  business         Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  issuedDocument   IssuedDocument? @relation(fields: [issuedDocumentId], references: [id], onDelete: Cascade)
+  transaction      Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([issuedDocumentId])
+  @@index([transactionId])
+}
+
+model PermissionPolicy {
+  id          String   @id @default(cuid())
+  businessId  String
+  role        Role
+  permissions String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, role])
+}
+
+model PermissionOverride {
+  id          String            @id @default(cuid())
+  businessId  String
+  userId      String
+  locationId  String?
+  permissions String[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  business    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location    BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId, locationId])
+  @@index([userId])
+  @@index([locationId])
+}
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  body        String
+  audience    String             @default("all")
+  priority    Int                @default(0)
+  status      AnnouncementStatus @default(DRAFT)
+  publishAt   DateTime?
+  expiresAt   DateTime?
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  createdBy   User?              @relation("AnnouncementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reads       AnnouncementRead[]
+
+  @@index([status, publishAt])
+  @@index([expiresAt])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime?
+  dismissedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, dismissedAt])
 }
 
 model Subscription {
@@ -496,16 +1453,561 @@ model WhatsAppEvent {
   @@index([externalId])
 }
 
+model WhatsAppAutomationContact {
+  id            String                  @id @default(cuid())
+  businessId    String
+  phone         String
+  name          String?
+  consentStatus String                  @default("PENDING")
+  consentSource String?
+  consentedAt   DateTime?
+  optedOutAt    DateTime?
+  tags          String[]
+  metadata      Json?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  business      Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  jobs          WhatsAppAutomationJob[]
+
+  @@unique([businessId, phone])
+  @@index([businessId, consentStatus])
+  @@index([businessId, updatedAt])
+}
+
+model WhatsAppAutomationTemplate {
+  id             String    @id @default(cuid())
+  businessId     String?
+  templateName   String
+  category       String
+  languageCode   String    @default("en")
+  status         String    @default("PENDING")
+  rejectedReason String?
+  approvedAt     DateTime?
+  lastSyncedAt   DateTime?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  business       Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, templateName, languageCode])
+  @@index([businessId, status])
+  @@index([templateName, languageCode])
+}
+
+model WhatsAppAutomationJob {
+  id                String                     @id @default(cuid())
+  businessId        String
+  contactId         String?
+  phone             String
+  automationType    String
+  templateName      String?
+  messagePreview    String
+  status            String                     @default("QUEUED")
+  scheduledFor      DateTime                   @default(now())
+  sentAt            DateTime?
+  failedAt          DateTime?
+  skippedAt         DateTime?
+  retryCount        Int                        @default(0)
+  nextRetryAt       DateTime?
+  costKobo          Int                        @default(0)
+  quietHoursSkipped Boolean                    @default(false)
+  optOutCheckedAt   DateTime?
+  metadata          Json?
+  createdById       String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  contact           WhatsAppAutomationContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status, scheduledFor])
+  @@index([businessId, automationType, createdAt])
+  @@index([businessId, phone, createdAt])
+  @@index([nextRetryAt])
+}
+
+model MarketingDraft {
+  id             String                   @id @default(cuid())
+  businessId     String
+  campaignId     String?
+  locationId     String?
+  channel        String
+  goal           String
+  audience       String
+  tone           String
+  productId      String?
+  productName    String?
+  offer          String?
+  status         String                   @default("DRAFT")
+  content        String
+  safetyWarnings Json
+  sourceInputs   Json
+  modelVersion   String
+  createdById    String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  business       Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign       MarketingCampaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  location       BusinessLocation?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  feedback       MarketingDraftFeedback[]
+
+  @@index([businessId, status, createdAt])
+  @@index([businessId, channel, createdAt])
+  @@index([businessId, locationId, createdAt])
+  @@index([campaignId])
+}
+
+model MarketingDraftFeedback {
+  id         String         @id @default(cuid())
+  businessId String
+  draftId    String
+  actorId    String?
+  rating     String
+  helpful    Boolean?
+  correction String?
+  createdAt  DateTime       @default(now())
+  business   Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  draft      MarketingDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([draftId, createdAt])
+  @@index([businessId, rating, createdAt])
+}
+
+model MarketingCampaign {
+  id                String                       @id @default(cuid())
+  businessId        String
+  name              String
+  objective         String
+  channel           String
+  segmentDefinition Json
+  status            String                       @default("draft")
+  createdByUserId   String
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  scheduledAt       DateTime?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  business          Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  recipients        MarketingCampaignRecipient[]
+  drafts            MarketingMessageDraft[]
+  deliveries        MarketingDelivery[]
+  legacyDrafts      MarketingDraft[]
+
+  @@index([businessId, status, createdAt])
+  @@index([businessId, channel, createdAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model MarketingCampaignRecipient {
+  id                String              @id @default(cuid())
+  businessId        String
+  campaignId        String
+  customerId        String
+  consentStatus     String
+  eligibilityStatus String
+  exclusionReason   String?
+  deliveryStatus    String              @default("not_sent")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign          MarketingCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  deliveries        MarketingDelivery[]
+
+  @@unique([campaignId, customerId])
+  @@index([businessId, eligibilityStatus, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model MarketingMessageDraft {
+  id                String            @id @default(cuid())
+  businessId        String
+  campaignId        String
+  channel           String
+  content           String
+  promptVersion     String?
+  model             String?
+  createdByUserId   String
+  approvedContentAt DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign          MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, campaignId, createdAt])
+  @@index([businessId, channel, createdAt])
+}
+
+model MarketingDelivery {
+  id                String                     @id @default(cuid())
+  businessId        String
+  campaignId        String
+  recipientId       String
+  provider          String
+  status            String
+  providerReference String?
+  attemptedAt       DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  failureReason     String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign          MarketingCampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipient         MarketingCampaignRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, status, createdAt])
+  @@index([campaignId, status, createdAt])
+  @@index([recipientId, createdAt])
+}
+
+model MarketingOptOut {
+  id         String   @id @default(cuid())
+  businessId String
+  customerId String
+  channel    String
+  source     String
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, channel, createdAt])
+  @@index([customerId, channel, createdAt])
+}
+
+model ExecutiveDashboardSnapshot {
+  id                 String            @id @default(cuid())
+  businessId         String
+  locationId         String?
+  formulaVersion     String
+  periodStart        DateTime
+  periodEnd          DateTime
+  generatedAt        DateTime          @default(now())
+  summary            Json
+  recommendedActions Json
+  sourceMetrics      Json
+  freshness          Json
+  createdAt          DateTime          @default(now())
+  business           Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+  @@index([businessId, formulaVersion, generatedAt])
+}
+
+model PredictiveAlert {
+  id                   String                    @id @default(cuid())
+  businessId           String
+  locationId           String?
+  alertKey             String
+  ruleKey              String?
+  category             String?
+  severityLevel        String?
+  type                 String
+  severity             String
+  status               String                    @default("active")
+  lifecycleStatus      String                    @default("active")
+  confidence           Decimal                   @default(0)
+  impactAmount         Decimal                   @default(0)
+  title                String
+  explanation          String
+  recommendedAction    String?
+  evidence             Json?
+  formulaReference     String?
+  dedupeKey            String?
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  sourcePeriodStart    DateTime
+  sourcePeriodEnd      DateTime
+  detectedAt           DateTime                  @default(now())
+  firstDetectedAt      DateTime?
+  lastDetectedAt       DateTime?
+  sourceMetrics        Json
+  dismissedAt          DateTime?
+  dismissedReason      String?
+  confirmedAt          DateTime?
+  markedIncorrectAt    DateTime?
+  resolvedAt           DateTime?
+  resolutionNote       String?
+  acknowledgedAt       DateTime?
+  acknowledgedByUserId String?
+  lastFeedbackAt       DateTime?
+  deliveryCount        Int                       @default(0)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  business             Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location             BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  feedback             PredictiveAlertFeedback[]
+  deliveries           PredictiveAlertDelivery[]
+
+  @@unique([businessId, alertKey])
+  @@index([businessId, status, detectedAt])
+  @@index([businessId, lifecycleStatus, lastDetectedAt])
+  @@index([businessId, ruleKey, lifecycleStatus])
+  @@index([businessId, category, lifecycleStatus])
+  @@index([businessId, type, detectedAt])
+  @@index([businessId, severity, detectedAt])
+  @@index([businessId, locationId, detectedAt])
+}
+
+model PredictiveAlertRule {
+  id                  String   @id @default(cuid())
+  key                 String   @unique
+  category            String
+  version             String
+  severity            String
+  thresholdConfig     Json
+  requiredHistoryDays Int
+  enabled             Boolean  @default(true)
+  description         String
+  formulaReference    String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([category, enabled])
+}
+
+model BusinessAlertPreference {
+  id                String   @id @default(cuid())
+  businessId        String
+  ruleKey           String
+  enabled           Boolean  @default(true)
+  severityOverride  String?
+  thresholdOverride Json?
+  inAppEnabled      Boolean  @default(true)
+  emailEnabled      Boolean  @default(false)
+  whatsappEnabled   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  business          Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, ruleKey])
+  @@index([businessId, enabled])
+}
+
+model PredictiveAlertDelivery {
+  id                String          @id @default(cuid())
+  businessId        String
+  alertId           String
+  channel           String
+  status            String          @default("disabled")
+  destinationMasked String?
+  attemptedAt       DateTime        @default(now())
+  deliveredAt       DateTime?
+  failureReason     String?
+  createdAt         DateTime        @default(now())
+  business          Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  alert             PredictiveAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, channel, attemptedAt])
+  @@index([alertId, attemptedAt])
+}
+
+model PredictiveAlertFeedback {
+  id         String          @id @default(cuid())
+  alertId    String
+  businessId String
+  actorId    String?
+  response   String
+  note       String?
+  metadata   Json?
+  createdAt  DateTime        @default(now())
+  alert      PredictiveAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor      User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, response, createdAt])
+  @@index([alertId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model AiEvaluationEvent {
+  id            String    @id @default(cuid())
+  businessId    String?
+  actorId       String?
+  feature       String
+  artifactType  String
+  artifactId    String?
+  eventType     String
+  rating        String?
+  accepted      Boolean?
+  correct       Boolean?
+  correction    String?
+  modelVersion  String?
+  promptVersion String?
+  toolName      String?
+  latencyMs     Int?
+  costKobo      Int?
+  safetyLabel   String?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  business      Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor         User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([feature, createdAt])
+  @@index([eventType, createdAt])
+  @@index([artifactType, artifactId])
+  @@index([toolName, createdAt])
+}
+
+model AiEvaluationDataset {
+  id              String            @id @default(cuid())
+  businessId      String?
+  name            String
+  description     String?
+  purpose         String
+  source          String
+  retentionPolicy String
+  piiRedacted     Boolean           @default(true)
+  consentRequired Boolean           @default(true)
+  sampleCount     Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  business        Business?         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  runs            AiEvaluationRun[]
+
+  @@index([businessId, createdAt])
+  @@index([purpose, createdAt])
+}
+
+model AiEvaluationSuite {
+  id              String             @id @default(cuid())
+  businessId      String?
+  name            String
+  description     String?
+  targetFeature   String
+  status          String             @default("draft")
+  datasetVersion  String             @default("phase3f-synthetic-v1")
+  createdByUserId String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  business        Business?          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy       User?              @relation("AiEvaluationSuiteCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  cases           AiEvaluationCase[]
+  runs            AiEvaluationRun[]
+
+  @@index([businessId, createdAt])
+  @@index([targetFeature, status, createdAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model AiEvaluationCase {
+  id                 String               @id @default(cuid())
+  suiteId            String
+  key                String
+  category           String
+  prompt             String
+  fixtureReference   String
+  expectedToolNames  String[]
+  forbiddenToolNames String[]
+  expectedFacts      Json?
+  expectedRefusal    Boolean              @default(false)
+  scoringConfig      Json
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  suite              AiEvaluationSuite    @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  results            AiEvaluationResult[]
+
+  @@unique([suiteId, key])
+  @@index([suiteId, category])
+}
+
+model AiEvaluationRun {
+  id                String                 @id @default(cuid())
+  datasetId         String?
+  businessId        String?
+  suiteId           String?
+  modelVersion      String
+  model             String?
+  promptVersion     String
+  toolVersion       String?
+  datasetVersion    String?
+  evaluatorVersion  String
+  status            String                 @default("completed")
+  startedAt         DateTime               @default(now())
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  initiatedByUserId String?
+  metrics           Json
+  summary           Json?
+  safetyFindings    Json?
+  totalCost         Decimal                @default(0)
+  totalTokens       Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  dataset           AiEvaluationDataset?   @relation(fields: [datasetId], references: [id], onDelete: SetNull)
+  business          Business?              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  suite             AiEvaluationSuite?     @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  initiatedBy       User?                  @relation("AiEvaluationRunInitiator", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
+  results           AiEvaluationResult[]
+  acceptedBaselines AiEvaluationBaseline[]
+
+  @@index([businessId, createdAt])
+  @@index([datasetId, createdAt])
+  @@index([suiteId, createdAt])
+  @@index([initiatedByUserId, createdAt])
+  @@index([modelVersion, promptVersion, createdAt])
+  @@index([status, createdAt])
+}
+
+model AiEvaluationResult {
+  id            String           @id @default(cuid())
+  runId         String
+  caseId        String
+  status        String
+  response      String
+  toolCalls     Json
+  citations     Json
+  scores        Json
+  latencyMs     Int
+  tokenUsage    Json
+  estimatedCost Decimal          @default(0)
+  failureReason String?
+  createdAt     DateTime         @default(now())
+  run           AiEvaluationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  case          AiEvaluationCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, caseId])
+  @@index([caseId, createdAt])
+  @@index([runId, status])
+}
+
+model AiEvaluationBaseline {
+  id               String          @id @default(cuid())
+  targetFeature    String
+  model            String
+  promptVersion    String
+  datasetVersion   String
+  acceptedRunId    String
+  acceptedByUserId String
+  acceptedAt       DateTime        @default(now())
+  notes            String?
+  businessId       String?
+  acceptedRun      AiEvaluationRun @relation(fields: [acceptedRunId], references: [id], onDelete: Restrict)
+  acceptedBy       User            @relation("AiEvaluationBaselineAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
+  business         Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, targetFeature, model, promptVersion, datasetVersion])
+  @@index([acceptedRunId])
+  @@index([acceptedByUserId, acceptedAt])
+  @@index([targetFeature, acceptedAt])
+}
+
 model MessagePreference {
-  id              String   @id @default(cuid())
-  businessId      String   @unique
-  remindersEnabled Boolean @default(true)
-  quietHoursStart String?
-  quietHoursEnd   String?
-  timezone        String   @default("Africa/Lagos")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  businessId       String   @unique
+  remindersEnabled Boolean  @default(true)
+  quietHoursStart  String?
+  quietHoursEnd    String?
+  timezone         String   @default("Africa/Lagos")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
 model AssistantThread {
@@ -539,20 +2041,20 @@ model AssistantMessage {
 }
 
 model AutomationPreference {
-  id                         String   @id @default(cuid())
-  businessId                 String   @unique
-  dailyReminderEnabled       Boolean  @default(false)
-  dailyReminderTime          String?
-  debtReminderEnabled        Boolean  @default(false)
-  lowStockAlertEnabled       Boolean  @default(true)
-  weeklySummaryEnabled       Boolean  @default(false)
-  whatsappAutomationEnabled  Boolean  @default(false)
-  quietHoursStart            String?
-  quietHoursEnd              String?
-  timezone                   String   @default("Africa/Lagos")
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
-  business                   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(cuid())
+  businessId                String   @unique
+  dailyReminderEnabled      Boolean  @default(false)
+  dailyReminderTime         String?
+  debtReminderEnabled       Boolean  @default(false)
+  lowStockAlertEnabled      Boolean  @default(true)
+  weeklySummaryEnabled      Boolean  @default(false)
+  whatsappAutomationEnabled Boolean  @default(false)
+  quietHoursStart           String?
+  quietHoursEnd             String?
+  timezone                  String   @default("Africa/Lagos")
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  business                  Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
 
 model AutomationLog {
@@ -589,6 +2091,1128 @@ model PendingAssistantAction {
   @@index([businessId, status, createdAt])
 }
 
+model BusinessHealthScoreSnapshot {
+  id                 String            @id @default(cuid())
+  businessId         String
+  locationId         String?
+  formulaVersion     String
+  score              Int
+  rating             String
+  confidence         String
+  periodStart        DateTime
+  periodEnd          DateTime
+  generatedAt        DateTime          @default(now())
+  components         Json
+  recommendations    Json
+  dataWarnings       Json
+  sourceMetrics      Json
+  recalculatedFromId String?
+  createdAt          DateTime          @default(now())
+  business           Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, formulaVersion, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+}
+
+model CashflowForecastSnapshot {
+  id                 String            @id @default(cuid())
+  businessId         String
+  locationId         String?
+  formulaVersion     String
+  horizonDays        Int
+  confidence         String
+  periodStart        DateTime
+  recordedThrough    DateTime
+  forecastStart      DateTime
+  forecastEnd        DateTime
+  generatedAt        DateTime          @default(now())
+  openingCash        Decimal           @default(0)
+  projectedInflows   Decimal           @default(0)
+  projectedOutflows  Decimal           @default(0)
+  projectedNetCash   Decimal           @default(0)
+  forecastEndingCash Decimal           @default(0)
+  lowerBound         Decimal           @default(0)
+  upperBound         Decimal           @default(0)
+  actualEndingCash   Decimal?
+  absoluteError      Decimal?
+  accuracyPercent    Decimal?
+  evaluatedAt        DateTime?
+  recordedMetrics    Json
+  forecastSeries     Json
+  assumptions        Json
+  alerts             Json
+  dataWarnings       Json
+  sourceMetrics      Json
+  backtestResults    Json
+  recalculatedFromId String?
+  createdAt          DateTime          @default(now())
+  business           Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, horizonDays, generatedAt])
+  @@index([businessId, formulaVersion, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+  @@index([businessId, forecastEnd])
+}
+
+model InventoryForecastSnapshot {
+  id                       String            @id @default(cuid())
+  businessId               String
+  locationId               String?
+  itemId                   String
+  formulaVersion           String
+  classification           String
+  confidence               String
+  periodStart              DateTime
+  recordedThrough          DateTime
+  forecastHorizonDays      Int               @default(30)
+  generatedAt              DateTime          @default(now())
+  currentQuantity          Decimal           @default(0)
+  lowStockLevel            Decimal           @default(0)
+  averageDailyDemand       Decimal           @default(0)
+  recentDailyDemand        Decimal           @default(0)
+  trendMultiplier          Decimal           @default(1)
+  daysOfStockRemaining     Decimal?
+  predictedStockoutAt      DateTime?
+  restockByDate            DateTime?
+  suggestedReorderQuantity Decimal           @default(0)
+  supplierLeadTimeDays     Int               @default(14)
+  safetyStockQuantity      Decimal           @default(0)
+  manualOverride           Json?
+  assumptions              Json
+  recommendation           Json
+  dataWarnings             Json
+  sourceMetrics            Json
+  accuracyMetrics          Json?
+  actualDemandQuantity     Decimal?
+  forecastErrorQuantity    Decimal?
+  evaluatedAt              DateTime?
+  createdAt                DateTime          @default(now())
+  business                 Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location                 BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  item                     InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, itemId, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+  @@index([businessId, classification, generatedAt])
+  @@index([businessId, predictedStockoutAt])
+}
+
+model BankStatementImport {
+  id                String                    @id @default(cuid())
+  businessId        String
+  accountId         String?
+  locationId        String?
+  bankProfileId     String?
+  uploadedById      String?
+  sourceType        String                    @default("csv")
+  fileName          String?
+  accountLabel      String?
+  bankName          String?
+  fileHash          String
+  fileSize          Int?
+  currency          String                    @default("NGN")
+  openingBalance    Decimal?
+  closingBalance    Decimal?
+  status            String                    @default("IMPORTED")
+  statementStart    DateTime?
+  statementEnd      DateTime?
+  rowCount          Int                       @default(0)
+  matchedCount      Int                       @default(0)
+  duplicateRowCount Int                       @default(0)
+  version           Int                       @default(1)
+  metadata          Json?
+  importedAt        DateTime                  @default(now())
+  lockedAt          DateTime?
+  reopenedAt        DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  business          Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account           Account?                  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  location          BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  bankProfile       BankAccountProfile?       @relation(fields: [bankProfileId], references: [id], onDelete: SetNull)
+  rows              BankStatementImportRow[]
+  matches           BankReconciliationMatch[]
+
+  @@unique([businessId, fileHash])
+  @@index([businessId, importedAt])
+  @@index([businessId, status, importedAt])
+  @@index([businessId, accountId, importedAt])
+  @@index([businessId, locationId, importedAt])
+  @@index([businessId, bankProfileId, importedAt])
+}
+
+model BankStatementImportRow {
+  id                    String                     @id @default(cuid())
+  importId              String
+  businessId            String
+  rowNumber             Int
+  postedAt              DateTime
+  valueDate             DateTime?
+  amount                Decimal
+  direction             String
+  description           String
+  normalizedDescription String?
+  reference             String?
+  externalReference     String?
+  debitAmount           Decimal                    @default(0)
+  creditAmount          Decimal                    @default(0)
+  signedAmount          Decimal?
+  balance               Decimal?
+  fingerprint           String
+  duplicateStatus       String                     @default("UNIQUE")
+  duplicateOfRowId      String?
+  status                String                     @default("UNMATCHED")
+  suggestedCategory     String?
+  raw                   Json
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  statementImport       BankStatementImport        @relation(fields: [importId], references: [id], onDelete: Cascade)
+  matches               BankReconciliationMatch[]
+  actions               BankReconciliationAction[]
+
+  @@unique([importId, rowNumber])
+  @@index([businessId, postedAt])
+  @@index([businessId, fingerprint])
+  @@index([businessId, duplicateStatus, postedAt])
+  @@index([businessId, status, postedAt])
+  @@index([importId, status])
+}
+
+model BankReconciliationMatch {
+  id                String                     @id @default(cuid())
+  businessId        String
+  importId          String
+  rowId             String
+  transactionId     String?
+  accountId         String?
+  status            String                     @default("SUGGESTED")
+  matchType         String
+  confidence        Int
+  signals           Json
+  confidenceReasons Json?
+  notes             String?
+  suggestedBy       String?
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  createdById       String?
+  confirmedById     String?
+  rejectedById      String?
+  confirmedAt       DateTime?
+  rejectedAt        DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  business          Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  statementImport   BankStatementImport        @relation(fields: [importId], references: [id], onDelete: Cascade)
+  row               BankStatementImportRow     @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  transaction       Transaction?               @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  account           Account?                   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  actions           BankReconciliationAction[]
+
+  @@index([businessId, status, createdAt])
+  @@index([businessId, transactionId])
+  @@index([importId, status])
+  @@index([rowId, confidence])
+}
+
+model BankAccountProfile {
+  id                  String                @id @default(cuid())
+  businessId          String
+  label               String
+  bankName            String?
+  maskedAccountNumber String?
+  currency            String                @default("NGN")
+  isActive            Boolean               @default(true)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  business            Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  imports             BankStatementImport[]
+
+  @@unique([businessId, label])
+  @@index([businessId, isActive])
+}
+
+model BankReconciliationAction {
+  id                String                   @id @default(cuid())
+  businessId        String
+  statementEntryId  String?
+  matchId           String?
+  action            String
+  reason            String?
+  performedByUserId String
+  metadata          Json?
+  createdAt         DateTime                 @default(now())
+  business          Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  statementEntry    BankStatementImportRow?  @relation(fields: [statementEntryId], references: [id], onDelete: SetNull)
+  match             BankReconciliationMatch? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, action, createdAt])
+  @@index([statementEntryId])
+  @@index([matchId])
+}
+
+model LoanReadinessSnapshot {
+  id                 String                    @id @default(cuid())
+  businessId         String
+  locationId         String?
+  formulaVersion     String
+  score              Int
+  rating             String
+  confidence         String
+  periodStart        DateTime
+  periodEnd          DateTime
+  generatedAt        DateTime                  @default(now())
+  components         Json
+  strengths          Json
+  weaknesses         Json
+  recommendations    Json
+  dataCompleteness   Json
+  dataWarnings       Json
+  sourceMetrics      Json
+  recalculatedFromId String?
+  overallStatus      String?
+  categoryResults    Json?
+  evidenceSummary    Json?
+  generatedByUserId  String?
+  expiresAt          DateTime?
+  createdAt          DateTime                  @default(now())
+  business           Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  generatedBy        User?                     @relation("LoanReadinessSnapshotGenerator", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+  sharingLogs        LoanReadinessSharingLog[]
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, formulaVersion, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+  @@index([generatedByUserId, generatedAt])
+}
+
+model LoanReadinessProfile {
+  id                 String    @id @default(cuid())
+  businessId         String    @unique
+  industry           String?
+  operatingStartDate DateTime?
+  fundingPurpose     String?
+  requestedAmount    Decimal?
+  preferredCurrency  String    @default("NGN")
+  consentToShare     Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  business           Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, updatedAt])
+}
+
+model LoanReadinessDocument {
+  id           String    @id @default(cuid())
+  businessId   String
+  documentType String
+  label        String
+  status       String    @default("MISSING")
+  reference    String?
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, documentType])
+  @@index([businessId, status, updatedAt])
+}
+
+model LoanReadinessSharingLog {
+  id          String                 @id @default(cuid())
+  businessId  String
+  snapshotId  String?
+  actorId     String?
+  partnerName String
+  purpose     String
+  consentText String
+  status      String                 @default("CONSENT_RECORDED")
+  sharedAt    DateTime               @default(now())
+  revokedAt   DateTime?
+  metadata    Json?
+  business    Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  snapshot    LoanReadinessSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, sharedAt])
+  @@index([businessId, partnerName, sharedAt])
+  @@index([snapshotId])
+}
+
+model CooperativeGroup {
+  id                    String                         @id @default(cuid())
+  businessId            String
+  locationId            String?
+  name                  String
+  description           String?
+  registrationReference String?
+  currency              String                         @default("NGN")
+  status                String                         @default("ACTIVE")
+  contributionCycle     String                         @default("MONTHLY")
+  loanApprovalMode      String                         @default("committee")
+  dividendRule          String                         @default("proportional_contributions")
+  fiscalYearStart       Int                            @default(1)
+  memberSelfViewEnabled Boolean                        @default(false)
+  requireGuarantors     Boolean                        @default(false)
+  minimumGuarantors     Int                            @default(0)
+  interestPolicy        Json?
+  transferPolicy        Json?
+  createdById           String?
+  archivedAt            DateTime?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+  business              Business                       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location              BusinessLocation?              @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  members               CooperativeMember[]
+  contributionPlans     CooperativeContributionPlan[]
+  contributions         CooperativeContribution[]
+  loans                 CooperativeLoan[]
+  meetings              CooperativeMeeting[]
+  resolutions           CooperativeResolution[]
+  expenses              CooperativeExpense[]
+  distributions         CooperativeDistribution[]
+  ledgerEntries         CooperativeLedgerEntry[]
+  ledgerAccounts        CooperativeLedgerAccount[]
+  ledgerBatches         CooperativeLedgerBatch[]
+  approvalActions       CooperativeApprovalAction[]
+  repaymentSchedules    CooperativeRepaymentSchedule[]
+  ledgerTransfers       CooperativeLedgerTransfer[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status, createdAt])
+  @@index([businessId, locationId, status])
+  @@index([businessId, registrationReference])
+}
+
+model CooperativeMember {
+  id                String                     @id @default(cuid())
+  businessId        String
+  groupId           String
+  userId            String?
+  memberNumber      String?
+  displayName       String
+  fullName          String?
+  phone             String?
+  email             String?
+  externalReference String?
+  sensitiveMetadata Json?
+  status            String                     @default("ACTIVE")
+  joinedAt          DateTime                   @default(now())
+  exitedAt          DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  group             CooperativeGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  contributions     CooperativeContribution[]
+  loans             CooperativeLoan[]
+  guarantorRecords  CooperativeLoanGuarantor[]
+  repayments        CooperativeLoanRepayment[]
+  distributions     CooperativeDistribution[]
+  ledgerEntries     CooperativeLedgerEntry[]
+
+  @@unique([groupId, externalReference])
+  @@unique([groupId, memberNumber])
+  @@index([businessId, groupId, status])
+  @@index([groupId, displayName])
+  @@index([groupId, phone])
+}
+
+model CooperativeContributionPlan {
+  id            String                    @id @default(cuid())
+  businessId    String
+  groupId       String
+  name          String
+  amount        Decimal                   @default(0)
+  frequency     String                    @default("MONTHLY")
+  startDate     DateTime                  @default(now())
+  endDate       DateTime?
+  graceDays     Int                       @default(0)
+  penaltyAmount Decimal                   @default(0)
+  mandatory     Boolean                   @default(true)
+  active        Boolean                   @default(true)
+  status        String                    @default("ACTIVE")
+  metadata      Json?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  group         CooperativeGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  contributions CooperativeContribution[]
+
+  @@index([businessId, groupId, status])
+  @@index([groupId, frequency, status])
+}
+
+model CooperativeContribution {
+  id               String                       @id @default(cuid())
+  businessId       String
+  groupId          String
+  memberId         String
+  planId           String?
+  dueDate          DateTime?
+  paidAt           DateTime                     @default(now())
+  amount           Decimal                      @default(0)
+  penaltyAmount    Decimal                      @default(0)
+  reference        String?
+  paymentReference String?
+  idempotencyKey   String?
+  status           String                       @default("RECORDED")
+  reversedAt       DateTime?
+  reversalReason   String?
+  reversalOfId     String?
+  recordedById     String?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  group            CooperativeGroup             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member           CooperativeMember            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  plan             CooperativeContributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  ledgerEntries    CooperativeLedgerEntry[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, groupId, paidAt])
+  @@index([groupId, memberId, paidAt])
+  @@index([groupId, planId, paidAt])
+  @@index([businessId, reference])
+}
+
+model CooperativeLoan {
+  id                        String                         @id @default(cuid())
+  businessId                String
+  groupId                   String
+  memberId                  String
+  principal                 Decimal                        @default(0)
+  approvedAmount            Decimal?
+  interestAmount            Decimal                        @default(0)
+  interestRate              Decimal                        @default(0)
+  interestMethod            String                         @default("zero")
+  termCount                 Int                            @default(1)
+  repaymentFrequency        String                         @default("MONTHLY")
+  purpose                   String?
+  penaltyAmount             Decimal                        @default(0)
+  totalDue                  Decimal                        @default(0)
+  disbursedAmount           Decimal                        @default(0)
+  status                    String                         @default("REQUESTED")
+  applicationDate           DateTime                       @default(now())
+  requestedAt               DateTime                       @default(now())
+  submittedAt               DateTime?
+  reviewedAt                DateTime?
+  reviewedByUserId          String?
+  approvedAt                DateTime?
+  approvedById              String?
+  rejectedAt                DateTime?
+  rejectionReason           String?
+  disbursedAt               DateTime?
+  disbursementReference     String?
+  disbursedRecordedByUserId String?
+  completedAt               DateTime?
+  cancelledAt               DateTime?
+  idempotencyKey            String?
+  dueAt                     DateTime?
+  metadata                  Json?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+  group                     CooperativeGroup               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member                    CooperativeMember              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guarantors                CooperativeLoanGuarantor[]
+  repayments                CooperativeLoanRepayment[]
+  repaymentSchedules        CooperativeRepaymentSchedule[]
+  ledgerEntries             CooperativeLedgerEntry[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, groupId, status])
+  @@index([groupId, memberId, status])
+  @@index([groupId, dueAt])
+}
+
+model CooperativeLoanGuarantor {
+  id              String            @id @default(cuid())
+  businessId      String
+  groupId         String
+  loanId          String
+  memberId        String
+  guaranteeAmount Decimal?
+  status          String            @default("PENDING")
+  confirmedAt     DateTime?
+  approvedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  loan            CooperativeLoan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  member          CooperativeMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([loanId, memberId])
+  @@index([businessId, groupId, status])
+  @@index([groupId, memberId])
+}
+
+model CooperativeLoanRepayment {
+  id               String                        @id @default(cuid())
+  businessId       String
+  groupId          String
+  loanId           String
+  memberId         String
+  scheduleId       String?
+  paidAt           DateTime                      @default(now())
+  repaymentDate    DateTime?
+  amount           Decimal                       @default(0)
+  principalPortion Decimal                       @default(0)
+  interestPortion  Decimal                       @default(0)
+  penaltyPortion   Decimal                       @default(0)
+  reference        String?
+  paymentReference String?
+  idempotencyKey   String?
+  status           String                        @default("RECORDED")
+  reversedAt       DateTime?
+  reversalReason   String?
+  recordedById     String?
+  createdAt        DateTime                      @default(now())
+  loan             CooperativeLoan               @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  member           CooperativeMember             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  schedule         CooperativeRepaymentSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  ledgerEntries    CooperativeLedgerEntry[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, groupId, paidAt])
+  @@index([groupId, loanId, paidAt])
+  @@index([groupId, memberId, paidAt])
+  @@index([scheduleId])
+}
+
+model CooperativeMeeting {
+  id          String                  @id @default(cuid())
+  businessId  String
+  groupId     String
+  title       String
+  scheduledAt DateTime
+  heldAt      DateTime?
+  notes       String?
+  status      String                  @default("SCHEDULED")
+  createdById String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  group       CooperativeGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  resolutions CooperativeResolution[]
+
+  @@index([businessId, groupId, scheduledAt])
+  @@index([groupId, status, scheduledAt])
+}
+
+model CooperativeResolution {
+  id           String              @id @default(cuid())
+  businessId   String
+  groupId      String
+  meetingId    String?
+  title        String
+  description  String?
+  status       String              @default("OPEN")
+  votesFor     Int                 @default(0)
+  votesAgainst Int                 @default(0)
+  passedAt     DateTime?
+  createdById  String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  group        CooperativeGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  meeting      CooperativeMeeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, groupId, status])
+  @@index([groupId, meetingId])
+}
+
+model CooperativeExpense {
+  id            String                   @id @default(cuid())
+  businessId    String
+  groupId       String
+  spentAt       DateTime                 @default(now())
+  amount        Decimal                  @default(0)
+  category      String
+  description   String
+  reference     String?
+  recordedById  String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  group         CooperativeGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  ledgerEntries CooperativeLedgerEntry[]
+
+  @@index([businessId, groupId, spentAt])
+  @@index([groupId, category, spentAt])
+}
+
+model CooperativeDistribution {
+  id            String                   @id @default(cuid())
+  businessId    String
+  groupId       String
+  memberId      String?
+  calculatedAt  DateTime                 @default(now())
+  amount        Decimal                  @default(0)
+  ruleVersion   String
+  basis         Json
+  status        String                   @default("DRAFT")
+  approvedAt    DateTime?
+  paidAt        DateTime?
+  createdById   String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  group         CooperativeGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member        CooperativeMember?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  ledgerEntries CooperativeLedgerEntry[]
+
+  @@index([businessId, groupId, status])
+  @@index([groupId, memberId, calculatedAt])
+}
+
+model CooperativeLedgerEntry {
+  id             String                    @id @default(cuid())
+  businessId     String
+  groupId        String
+  batchId        String?
+  accountId      String?
+  accountCode    String?
+  memberId       String?
+  contributionId String?
+  loanId         String?
+  repaymentId    String?
+  expenseId      String?
+  distributionId String?
+  entryDate      DateTime                  @default(now())
+  entryType      String
+  debit          Decimal                   @default(0)
+  credit         Decimal                   @default(0)
+  memo           String?
+  reference      String?
+  sourceType     String?
+  sourceId       String?
+  reversalOfId   String?
+  lockedAt       DateTime?
+  postedByUserId String?
+  postedAt       DateTime?
+  createdById    String?
+  createdAt      DateTime                  @default(now())
+  group          CooperativeGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  batch          CooperativeLedgerBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  account        CooperativeLedgerAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  member         CooperativeMember?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  contribution   CooperativeContribution?  @relation(fields: [contributionId], references: [id], onDelete: SetNull)
+  loan           CooperativeLoan?          @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  repayment      CooperativeLoanRepayment? @relation(fields: [repaymentId], references: [id], onDelete: SetNull)
+  expense        CooperativeExpense?       @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  distribution   CooperativeDistribution?  @relation(fields: [distributionId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, groupId, entryDate])
+  @@index([groupId, memberId, entryDate])
+  @@index([groupId, entryType, entryDate])
+  @@index([groupId, accountCode, entryDate])
+  @@index([batchId])
+  @@index([businessId, reference])
+}
+
+model CooperativeLedgerAccount {
+  id            String                   @id @default(cuid())
+  businessId    String
+  groupId       String
+  code          String
+  name          String
+  accountType   String
+  normalBalance String
+  active        Boolean                  @default(true)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  business      Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group         CooperativeGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entries       CooperativeLedgerEntry[]
+
+  @@unique([groupId, code])
+  @@index([businessId, groupId, active])
+}
+
+model CooperativeLedgerBatch {
+  id             String                      @id @default(cuid())
+  businessId     String
+  groupId        String
+  eventType      String
+  sourceType     String?
+  sourceId       String?
+  idempotencyKey String?
+  memo           String?
+  reversalOfId   String?
+  postedByUserId String?
+  postedAt       DateTime                    @default(now())
+  createdAt      DateTime                    @default(now())
+  business       Business                    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group          CooperativeGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entries        CooperativeLedgerEntry[]
+  transfers      CooperativeLedgerTransfer[]
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, groupId, postedAt])
+  @@index([groupId, eventType, postedAt])
+  @@index([businessId, sourceType, sourceId])
+}
+
+model CooperativeRepaymentSchedule {
+  id               String                     @id @default(cuid())
+  businessId       String
+  groupId          String
+  loanId           String
+  instalmentNumber Int
+  dueDate          DateTime
+  principalDue     Decimal                    @default(0)
+  interestDue      Decimal                    @default(0)
+  penaltyDue       Decimal                    @default(0)
+  totalDue         Decimal                    @default(0)
+  paidAmount       Decimal                    @default(0)
+  status           String                     @default("PENDING")
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  business         Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group            CooperativeGroup           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  loan             CooperativeLoan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  repayments       CooperativeLoanRepayment[]
+
+  @@unique([loanId, instalmentNumber])
+  @@index([businessId, groupId, dueDate, status])
+  @@index([groupId, loanId, dueDate])
+}
+
+model CooperativeApprovalAction {
+  id         String           @id @default(cuid())
+  businessId String
+  groupId    String
+  targetType String
+  targetId   String
+  action     String
+  actorId    String?
+  reason     String?
+  metadata   Json?
+  recordedAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group      CooperativeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, groupId, recordedAt])
+  @@index([groupId, targetType, targetId])
+  @@index([businessId, action, recordedAt])
+}
+
+model CooperativeLedgerTransfer {
+  id                       String                  @id @default(cuid())
+  businessId               String
+  groupId                  String
+  cooperativeLedgerBatchId String?
+  businessTransactionId    String?
+  direction                String
+  amount                   Decimal                 @default(0)
+  currency                 String                  @default("NGN")
+  status                   String                  @default("RECORDED")
+  memo                     String?
+  reference                String?
+  requestedByUserId        String?
+  approvedByUserId         String?
+  approvedAt               DateTime?
+  recordedAt               DateTime                @default(now())
+  reversedAt               DateTime?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  business                 Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  group                    CooperativeGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  cooperativeLedgerBatch   CooperativeLedgerBatch? @relation(fields: [cooperativeLedgerBatchId], references: [id], onDelete: SetNull)
+  businessTransaction      Transaction?            @relation(fields: [businessTransactionId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, groupId, recordedAt])
+  @@index([groupId, direction, status])
+  @@index([businessTransactionId])
+  @@index([cooperativeLedgerBatchId])
+}
+
+model PayrollEmployee {
+  id                 String                     @id @default(cuid())
+  businessId         String
+  locationId         String?
+  userId             String?
+  staffMembershipId  String?
+  employeeCode       String?
+  employeeNumber     String?
+  displayName        String
+  fullName           String?
+  roleTitle          String?
+  jobTitle           String?
+  email              String?
+  phone              String?
+  baseSalary         Decimal                    @default(0)
+  payFrequency       String                     @default("MONTHLY")
+  country            String                     @default("NG")
+  currency           String                     @default("NGN")
+  pensionNumber      String?
+  taxId              String?
+  paymentMethod      String                     @default("manual")
+  maskedBankAccount  String?
+  status             String                     @default("ACTIVE")
+  employmentStatus   String                     @default("active")
+  startDate          DateTime?
+  endDate            DateTime?
+  joinedAt           DateTime                   @default(now())
+  exitedAt           DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location           BusinessLocation?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  compensations      PayrollCompensation[]
+  employeeComponents PayrollEmployeeComponent[]
+  runItems           PayrollRunItem[]
+
+  @@unique([businessId, employeeCode])
+  @@unique([businessId, employeeNumber])
+  @@index([businessId, status])
+  @@index([businessId, employmentStatus])
+  @@index([businessId, locationId, status])
+  @@index([businessId, staffMembershipId])
+  @@index([businessId, displayName])
+}
+
+model PayrollRun {
+  id                    String                  @id @default(cuid())
+  businessId            String
+  locationId            String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  payDate               DateTime
+  country               String                  @default("NG")
+  ruleVersion           String
+  status                String                  @default("DRAFT")
+  grossPay              Decimal                 @default(0)
+  totalDeductions       Decimal                 @default(0)
+  netPay                Decimal                 @default(0)
+  employeeCount         Int                     @default(0)
+  sourceInputs          Json
+  warnings              Json
+  statutorySetupStatus  String                  @default("setup_required")
+  snapshotVersion       String                  @default("phase3i-payroll-snapshot-v1")
+  requiresDualApproval  Boolean                 @default(false)
+  createdById           String?
+  preparedByUserId      String?
+  submittedForReviewAt  DateTime?
+  reviewedByUserId      String?
+  reviewedAt            DateTime?
+  approvedById          String?
+  approvedAt            DateTime?
+  rejectedByUserId      String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
+  expenseTransactionId  String?
+  expensePostedAt       DateTime?
+  expensePostedByUserId String?
+  lockedAt              DateTime?
+  reversedAt            DateTime?
+  reversalReason        String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  business              Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location              BusinessLocation?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  expenseTransaction    Transaction?            @relation("PayrollRunExpenseTransaction", fields: [expenseTransactionId], references: [id], onDelete: SetNull)
+  items                 PayrollRunItem[]
+  journalEntries        PayrollJournalEntry[]
+  payslips              PayrollPayslip[]
+  approvalActions       PayrollApprovalAction[]
+
+  @@index([businessId, status, periodStart])
+  @@index([businessId, locationId, periodStart])
+  @@index([businessId, lockedAt])
+  @@index([businessId, expenseTransactionId])
+}
+
+model PayrollRunItem {
+  id                    String                @id @default(cuid())
+  businessId            String
+  runId                 String
+  employeeId            String
+  basePay               Decimal               @default(0)
+  allowances            Json
+  bonuses               Json
+  deductions            Json
+  loansAndAdvances      Json
+  componentSnapshot     Json?
+  calculationVersion    String                @default("phase3i-payroll-calculation-v1")
+  grossPay              Decimal               @default(0)
+  taxablePay            Decimal               @default(0)
+  totalDeductions       Decimal               @default(0)
+  pensionEmployeeAmount Decimal               @default(0)
+  pensionEmployerAmount Decimal               @default(0)
+  taxAmount             Decimal               @default(0)
+  netPay                Decimal               @default(0)
+  status                String                @default("draft")
+  paymentStatus         String                @default("UNPAID")
+  payslipAccessHash     String?
+  lockedAt              DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  run                   PayrollRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee              PayrollEmployee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  journalEntries        PayrollJournalEntry[]
+  payslip               PayrollPayslip?
+
+  @@index([businessId, runId])
+  @@index([businessId, employeeId])
+  @@index([runId, paymentStatus])
+  @@index([runId, status])
+}
+
+model PayrollJournalEntry {
+  id            String          @id @default(cuid())
+  businessId    String
+  runId         String
+  itemId        String?
+  transactionId String?
+  entryType     String
+  amount        Decimal         @default(0)
+  status        String          @default("PENDING")
+  createdById   String?
+  createdAt     DateTime        @default(now())
+  run           PayrollRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  item          PayrollRunItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, runId, status])
+  @@index([businessId, transactionId])
+  @@index([runId, entryType])
+}
+
+model PayrollCompensation {
+  id            String          @id @default(cuid())
+  businessId    String
+  employeeId    String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  baseSalary    Decimal         @default(0)
+  currency      String          @default("NGN")
+  payFrequency  String          @default("MONTHLY")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employee      PayrollEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, employeeId, effectiveFrom])
+  @@index([businessId, effectiveFrom, effectiveTo])
+}
+
+model PayrollComponentDefinition {
+  id                 String                     @id @default(cuid())
+  businessId         String
+  name               String
+  type               String
+  calculationMethod  String
+  taxable            Boolean                    @default(false)
+  pensionable        Boolean                    @default(false)
+  statutory          Boolean                    @default(false)
+  formulaConfig      Json?
+  active             Boolean                    @default(true)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  business           Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employeeComponents PayrollEmployeeComponent[]
+
+  @@unique([businessId, name])
+  @@index([businessId, type, active])
+}
+
+model PayrollEmployeeComponent {
+  id                    String                     @id @default(cuid())
+  businessId            String
+  employeeId            String
+  componentDefinitionId String
+  amount                Decimal?
+  rate                  Decimal?
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  business              Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  employee              PayrollEmployee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  componentDefinition   PayrollComponentDefinition @relation(fields: [componentDefinitionId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, employeeId, effectiveFrom])
+  @@index([businessId, componentDefinitionId])
+}
+
+model PayrollPayslip {
+  id                String         @id @default(cuid())
+  businessId        String
+  runId             String
+  runItemId         String         @unique
+  storageReference  String?
+  contentSnapshot   Json
+  generatedAt       DateTime       @default(now())
+  generatedByUserId String?
+  createdAt         DateTime       @default(now())
+  business          Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  run               PayrollRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  runItem           PayrollRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, runId])
+  @@index([businessId, generatedAt])
+}
+
+model PayrollApprovalAction {
+  id                String     @id @default(cuid())
+  businessId        String
+  periodId          String
+  action            String
+  reason            String?
+  performedByUserId String
+  createdAt         DateTime   @default(now())
+  business          Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  period            PayrollRun @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, periodId, createdAt])
+  @@index([businessId, action, createdAt])
+}
+
+model StaffPerformanceGoal {
+  id           String            @id @default(cuid())
+  businessId   String
+  locationId   String?
+  staffUserId  String?
+  label        String
+  metric       String
+  targetValue  Decimal           @default(0)
+  currentValue Decimal?
+  periodStart  DateTime
+  periodEnd    DateTime
+  status       String            @default("ACTIVE")
+  createdById  String?
+  achievedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  business     Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location     BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, status, periodStart])
+  @@index([businessId, staffUserId, periodStart])
+  @@index([businessId, locationId, periodStart])
+}
+
+model StaffPerformanceSnapshot {
+  id             String            @id @default(cuid())
+  businessId     String
+  locationId     String?
+  staffUserId    String?
+  formulaVersion String
+  periodStart    DateTime
+  periodEnd      DateTime
+  generatedAt    DateTime          @default(now())
+  metrics        Json
+  goals          Json
+  warnings       Json
+  sourceMetrics  Json
+  createdAt      DateTime          @default(now())
+  business       Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  location       BusinessLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, generatedAt])
+  @@index([businessId, staffUserId, generatedAt])
+  @@index([businessId, locationId, generatedAt])
+  @@index([businessId, formulaVersion, generatedAt])
+}
+
 model RateLimitBucket {
   key       String   @id
   count     Int      @default(0)
@@ -603,6 +3227,16 @@ enum Role {
   OWNER
   STAFF
   ACCOUNTANT
+}
+
+enum BusinessLocationType {
+  MAIN_SHOP
+  WAREHOUSE
+  BRANCH
+  STORAGE
+  VIRTUAL
+  DAMAGED_GOODS
+  TRANSIT
 }
 
 enum AccountType {
@@ -646,6 +3280,103 @@ enum InventoryMovementType {
   STOCK_IN
   STOCK_OUT
   ADJUSTMENT
+}
+
+enum StockAdjustmentType {
+  STOCK_IN
+  STOCK_OUT
+  DAMAGED
+  EXPIRED
+  LOST
+  THEFT
+  COUNT_CORRECTION
+  PERSONAL_USE
+  PROMOTIONAL_GIVEAWAY
+  SUPPLIER_RETURN
+  CUSTOMER_RETURN
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  POS_TERMINAL
+  CARD
+  WALLET
+  CREDIT
+  OTHER
+}
+
+enum ReturnDisposition {
+  SELLABLE_STOCK
+  DAMAGED_STOCK
+  NO_STOCK
+}
+
+enum CustomerReturnOutcome {
+  CASH_REFUND
+  TRANSFER_REFUND
+  STORE_CREDIT
+  EXCHANGE
+  REDUCE_CUSTOMER_BALANCE
+}
+
+enum SupplierReturnSettlement {
+  SUPPLIER_CREDIT
+  REFUND_RECEIVED
+  REPLACEMENT_EXPECTED
+  REDUCE_SUPPLIER_BILL
+}
+
+enum StockTransferStatus {
+  DRAFT
+  APPROVED
+  IN_TRANSIT
+  RECEIVED
+  PARTIALLY_RECEIVED
+  CANCELLED
+}
+
+enum ExportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum TaxRateType {
+  VAT
+  ZERO_RATED
+  EXEMPT
+  CUSTOM
+}
+
+enum IssuedDocumentType {
+  INVOICE
+  RECEIPT
+  QUOTE
+  STATEMENT
+}
+
+enum IssuedDocumentStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum OfflineSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  CONFLICT
 }
 
 enum TaxStatus {

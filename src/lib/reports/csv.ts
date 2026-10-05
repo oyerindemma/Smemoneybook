@@ -24,6 +24,16 @@ export function monthlyReportToCsv(report: MonthlyReport) {
     ["Payables 61-90", report.payablesAging.days61To90],
     ["Payables 90+", report.payablesAging.over90],
     ["Top product", report.topProduct?.name ?? ""],
+    ...report.categoryBreakdown.flatMap((row) => [
+      [`Category: ${row.name} sales`, row.salesTotal],
+      [`Category: ${row.name} quantity`, row.quantity],
+      [`Category: ${row.name} profit`, row.profitTotal],
+    ]),
+    ...report.brandBreakdown.flatMap((row) => [
+      [`Brand: ${row.name} sales`, row.salesTotal],
+      [`Brand: ${row.name} quantity`, row.quantity],
+      [`Brand: ${row.name} profit`, row.profitTotal],
+    ]),
     ["Insights", report.insights.join(" | ")],
     ["Transactions", report.transactionCount],
     ["Generated at", report.generatedAt],

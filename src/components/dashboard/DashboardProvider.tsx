@@ -15,11 +15,13 @@ import { getDailyDashboardSummary, getTodayActivities } from "@/lib/dashboard/da
 import {
   type InventoryItem,
   MoneybookState,
+  type ReceiptConfig,
   recordTransaction,
 } from "@/lib/bookkeeping/transaction-engine";
 import {
   enqueueOfflineItem,
-  readOfflineQueue,
+  getOfflineQueueSummary,
+  offlineQueueChangedEvent,
   replayOfflineQueue,
 } from "@/lib/offline/offline-queue";
 import {
@@ -30,11 +32,82 @@ import {
 import { sendDebtReminderAction } from "@/server/actions/whatsapp/send-debt-reminder";
 import { sendPaymentConfirmationAction } from "@/server/actions/whatsapp/send-payment-confirmation";
 import { sendStockAlertAction } from "@/server/actions/whatsapp/send-stock-alert";
+import { phase1FeatureFlags } from "@/lib/phase1/feature-flags";
 
 type DashboardPayload = {
   state?: MoneybookState;
   error?: string;
 };
+
+type PosReceipt = {
+  transactionId: string;
+  receiptNo: string;
+  total: number;
+  paidAmount: number;
+  balance: number;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitLabel?: string;
+    unitPrice: number;
+    discount: number;
+    total: number;
+  }>;
+  payments: Array<{
+    method: string;
+    amount: number;
+  }>;
+  createdAt: string;
+};
+
+type PosCheckoutInput = {
+  locationId?: string;
+  items: Array<{ inventoryItemId: string; quantity: number; discount?: number }>;
+  payments: Array<{
+    method: "cash" | "bank_transfer" | "pos_terminal" | "card" | "wallet" | "other";
+    amount: number;
+    accountId?: string;
+    note?: string;
+  }>;
+  orderDiscount: number;
+  customerName?: string;
+  customerPhone?: string;
+  note?: string;
+  createInvoice?: boolean;
+};
+
+type CustomerReturnInput = {
+  locationId?: string;
+  originalTransactionId: string;
+  reason: string;
+  disposition: "sellable_stock" | "damaged_stock" | "no_stock";
+  outcome:
+    | "cash_refund"
+    | "transfer_refund"
+    | "store_credit"
+    | "exchange"
+    | "reduce_customer_balance";
+  accountId?: string;
+  note?: string;
+  items: Array<{ inventoryItemId: string; quantity: number }>;
+};
+
+type SupplierReturnInput = {
+  locationId?: string;
+  reason: string;
+  settlement:
+    | "supplier_credit"
+    | "refund_received"
+    | "replacement_expected"
+    | "reduce_supplier_bill";
+  supplierId?: string;
+  originalTransactionId?: string;
+  accountId?: string;
+  note?: string;
+  items: Array<{ inventoryItemId: string; quantity: number }>;
+};
+
+type ReceiptConfigInput = ReceiptConfig;
 
 type SyncStatus = "online" | "offline" | "retrying" | "error";
 
@@ -53,8 +126,20 @@ type DashboardContextValue = {
   remindDebt: (debtId: string, channel: "manual" | "whatsapp" | "sms") => Promise<void>;
   sendPaymentConfirmation: (debtId: string, amount?: number) => Promise<void>;
   sendStockAlert: (itemId: string, ownerPhone: string) => Promise<{ whatsappUrl?: string } | void>;
+  checkoutPos: (input: PosCheckoutInput) => Promise<PosReceipt | null>;
+  submitCustomerReturn: (input: CustomerReturnInput) => Promise<boolean>;
+  submitSupplierReturn: (input: SupplierReturnInput) => Promise<boolean>;
+  saveReceiptConfig: (input: ReceiptConfigInput) => Promise<boolean>;
   createInventoryItem: (input: {
     name: string;
+    sku?: string;
+    barcode?: string;
+    unitName?: string;
+    baseUnitName?: string;
+    sellingUnitName?: string;
+    conversionFactor?: number;
+    categoryName?: string;
+    brandName?: string;
     sellingPrice: number;
     costPrice: number;
     quantityOnHand: number;
@@ -78,6 +163,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("online");
   const [queuedCount, setQueuedCount] = useState(0);
+  const [failedSyncCount, setFailedSyncCount] = useState(0);
+  const [conflictSyncCount, setConflictSyncCount] = useState(0);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
   const [recordMode, setRecordMode] = useState<RecordMoneyMode>("money");
   const [voiceDraft, setVoiceDraft] = useState<VoiceBookkeepingDraft | null>(null);
@@ -95,14 +182,34 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [state],
   );
 
+  const applyOfflineQueueSummary = useCallback(
+    (summary = getOfflineQueueSummary()) => {
+      setQueuedCount(summary.total);
+      setFailedSyncCount(summary.failed);
+      setConflictSyncCount(summary.conflicts);
+      return summary;
+    },
+    [],
+  );
+
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
     setSyncStatus((current) => (current === "offline" ? current : "retrying"));
     const selectedBusinessId =
       typeof window === "undefined" ? "" : localStorage.getItem("selectedBusinessId");
-    const query = selectedBusinessId
-      ? `?businessId=${encodeURIComponent(selectedBusinessId)}`
-      : "";
+    const selectedLocationId =
+      typeof window === "undefined" ? "" : getStoredLocationId(selectedBusinessId);
+    const params = new URLSearchParams();
+
+    if (selectedBusinessId) {
+      params.set("businessId", selectedBusinessId);
+    }
+
+    if (selectedLocationId) {
+      params.set("locationId", selectedLocationId);
+    }
+
+    const query = params.size > 0 ? `?${params.toString()}` : "";
 
     try {
       const response = await fetch(`/api/dashboard/summary${query}`, {
@@ -121,6 +228,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setSyncStatus("online");
         if (payload.state.businessId) {
           localStorage.setItem("selectedBusinessId", payload.state.businessId);
+        }
+        if (payload.state.businessId && payload.state.selectedLocationId) {
+          localStorage.setItem(
+            getLocationStorageKey(payload.state.businessId),
+            payload.state.selectedLocationId,
+          );
         }
         setIsLoading(false);
         return;
@@ -142,13 +255,34 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const syncOfflineQueue = useCallback(async () => {
+    if (!phase1FeatureFlags.offlineQueue) {
+      setQueuedCount(0);
+      setSyncStatus(navigator.onLine ? "online" : "offline");
+      return;
+    }
+
     setSyncStatus("retrying");
     const result = await replayOfflineQueue();
-    setQueuedCount(result.remaining);
+    applyOfflineQueueSummary({
+      total: result.remaining,
+      failed: result.failed,
+      conflicts: result.conflicts,
+    });
 
     if (result.remaining > 0) {
       setSyncStatus("error");
-      setNotice("Some saved changes still need internet.");
+      if (result.conflicts > 0) {
+        setNotice(
+          `${result.conflicts} offline change${result.conflicts === 1 ? "" : "s"} need review before syncing.`,
+        );
+        return;
+      }
+
+      setNotice(
+        result.failed > 0
+          ? `${result.failed} offline change${result.failed === 1 ? "" : "s"} could not sync. Retry or review it.`
+          : "Some saved changes still need internet.",
+      );
       return;
     }
 
@@ -156,7 +290,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     if (result.synced > 0) {
       setNotice("Offline changes synced.");
     }
-  }, [loadDashboard]);
+  }, [applyOfflineQueueSummary, loadDashboard]);
 
   useEffect(() => {
     initProductAnalytics();
@@ -171,34 +305,49 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setIsOnline(navigator.onLine);
-      const pendingCount = readOfflineQueue().length;
-      setQueuedCount(pendingCount);
-      setSyncStatus(navigator.onLine ? (pendingCount > 0 ? "retrying" : "online") : "offline");
-      if (navigator.onLine && pendingCount > 0) {
+      const queueSummary = phase1FeatureFlags.offlineQueue
+        ? applyOfflineQueueSummary()
+        : { total: 0, failed: 0, conflicts: 0 };
+      setSyncStatus(navigator.onLine ? (queueSummary.total > 0 ? "retrying" : "online") : "offline");
+      if (navigator.onLine && queueSummary.total > 0) {
         void syncOfflineQueue();
       }
     }, 0);
 
     const handleOnline = () => {
       setIsOnline(true);
-      setNotice("You’re back online. Syncing saved changes.");
-      void syncOfflineQueue();
+      const queueSummary = phase1FeatureFlags.offlineQueue
+        ? applyOfflineQueueSummary()
+        : { total: 0, failed: 0, conflicts: 0 };
+      if (queueSummary.total > 0) {
+        setNotice("You’re back online. Syncing saved changes.");
+        void syncOfflineQueue();
+        return;
+      }
+
+      setSyncStatus("online");
+      setNotice("You’re back online.");
     };
     const handleOffline = () => {
       setIsOnline(false);
       setSyncStatus("offline");
       setNotice("You’re offline. Reconnect before saving money changes.");
     };
+    const handleOfflineQueueChanged = () => {
+      applyOfflineQueueSummary();
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener(offlineQueueChangedEvent, handleOfflineQueueChanged);
 
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener(offlineQueueChangedEvent, handleOfflineQueueChanged);
     };
-  }, [loadDashboard, syncOfflineQueue]);
+  }, [applyOfflineQueueSummary, loadDashboard, syncOfflineQueue]);
 
   const retryNow = useCallback(() => {
     if (!navigator.onLine) {
@@ -207,13 +356,16 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (readOfflineQueue().length > 0) {
+    const queueSummary = phase1FeatureFlags.offlineQueue
+      ? applyOfflineQueueSummary()
+      : { total: 0, failed: 0, conflicts: 0 };
+    if (queueSummary.total > 0) {
       void syncOfflineQueue();
       return;
     }
 
     void loadDashboard();
-  }, [loadDashboard, syncOfflineQueue]);
+  }, [applyOfflineQueueSummary, loadDashboard, syncOfflineQueue]);
 
   function requireOnline() {
     if (navigator.onLine) {
@@ -222,7 +374,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
     setIsOnline(false);
     setSyncStatus("offline");
-    setNotice("You’re offline. Changes will sync when internet returns.");
+    setNotice(
+      phase1FeatureFlags.offlineQueue
+        ? "You’re offline. Changes will sync when internet returns."
+        : "You’re offline. Reconnect before saving changes.",
+    );
     return false;
   }
 
@@ -240,18 +396,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (!requireOnline()) {
+      if (!phase1FeatureFlags.offlineQueue) {
+        setNotice("You’re offline. Reconnect before saving money changes.");
+        return false;
+      }
+
       setState(optimisticState);
-      const count = enqueueOfflineItem({
+      enqueueOfflineItem({
         id: idempotencyKey,
         type: "transaction",
         url: "/api/transactions",
         body: {
           ...formData,
           businessId,
+          locationId: state.selectedLocationId,
           idempotencyKey,
         },
       });
-      setQueuedCount(count);
+      applyOfflineQueueSummary();
       setNotice("Saved offline. MoneyBook will sync it later.");
       trackProductEvent("transaction_saved", {
         type: formData.type,
@@ -279,6 +441,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           ...formData,
           businessId,
+          locationId: state.selectedLocationId,
           idempotencyKey,
         }),
       });
@@ -429,6 +592,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   async function createInventoryItem(input: {
     name: string;
+    sku?: string;
+    barcode?: string;
+    unitName?: string;
+    baseUnitName?: string;
+    sellingUnitName?: string;
+    conversionFactor?: number;
+    categoryName?: string;
+    brandName?: string;
     sellingPrice: number;
     costPrice: number;
     quantityOnHand: number;
@@ -442,7 +613,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...input, businessId: state?.businessId }),
+      body: JSON.stringify({
+        ...input,
+        businessId: state?.businessId,
+        locationId: state?.selectedLocationId,
+      }),
     });
     await refreshFromResponse(response, "Product added");
   }
@@ -458,25 +633,44 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!requireOnline()) {
+      if (!phase1FeatureFlags.offlineQueue) {
+        setNotice("You’re offline. Reconnect before saving stock changes.");
+        return;
+      }
+
+      const idempotencyKey = createClientIdempotencyKey("stock");
       setState(applyLocalStockMove(state, itemId, direction, quantity, note));
-      const count = enqueueOfflineItem({
-        id: createClientIdempotencyKey("stock"),
+      enqueueOfflineItem({
+        id: idempotencyKey,
         type: "stock",
         url: `/api/inventory/${itemId}/${direction === "in" ? "stock-in" : "stock-out"}`,
-        body: { quantity, note, businessId: state.businessId },
+        body: {
+          quantity,
+          note,
+          businessId: state.businessId,
+          locationId: state.selectedLocationId,
+          idempotencyKey,
+        },
       });
-      setQueuedCount(count);
+      applyOfflineQueueSummary();
       setNotice("Stock saved offline. MoneyBook will sync it later.");
       return;
     }
 
+    const idempotencyKey = createClientIdempotencyKey("stock");
     const response = await fetch(
       `/api/inventory/${itemId}/${direction === "in" ? "stock-in" : "stock-out"}`,
       {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity, note, businessId: state?.businessId }),
+        body: JSON.stringify({
+          quantity,
+          note,
+          businessId: state?.businessId,
+          locationId: state.selectedLocationId,
+          idempotencyKey,
+        }),
       },
     );
     await refreshFromResponse(response, "Stock updated");
@@ -494,6 +688,141 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     });
     setNotice(result.message);
     return result.whatsappUrl ? { whatsappUrl: result.whatsappUrl } : undefined;
+  }
+
+  async function checkoutPos(input: PosCheckoutInput) {
+    if (!phase1FeatureFlags.pos) {
+      setNotice("POS is turned off for this rollout.");
+      return null;
+    }
+
+    if (!state?.businessId || !requireOnline()) {
+      return null;
+    }
+
+    const response = await fetch("/api/pos/checkout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...input,
+        businessId: state.businessId,
+        locationId: input.locationId ?? state.selectedLocationId,
+        idempotencyKey: createClientIdempotencyKey("pos"),
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | (DashboardPayload & { receipt?: PosReceipt })
+      | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setSyncStatus("online");
+      setNotice("Checkout saved.");
+      return payload.receipt ?? null;
+    }
+
+    setNotice(payload?.error ?? "Could not save checkout.");
+    setSyncStatus("error");
+    return null;
+  }
+
+  async function submitCustomerReturn(input: CustomerReturnInput) {
+    if (!phase1FeatureFlags.returns) {
+      setNotice("Customer returns are turned off for this rollout.");
+      return false;
+    }
+
+    if (!state?.businessId || !requireOnline()) {
+      return false;
+    }
+
+    const response = await fetch("/api/returns/customer", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...input,
+        businessId: state.businessId,
+        locationId: input.locationId ?? state.selectedLocationId,
+        idempotencyKey: createClientIdempotencyKey("customer-return"),
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as DashboardPayload | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setSyncStatus("online");
+      setNotice("Customer return saved.");
+      return true;
+    }
+
+    setNotice(payload?.error ?? "Could not save customer return.");
+    setSyncStatus("error");
+    return false;
+  }
+
+  async function submitSupplierReturn(input: SupplierReturnInput) {
+    if (!phase1FeatureFlags.returns) {
+      setNotice("Supplier returns are turned off for this rollout.");
+      return false;
+    }
+
+    if (!state?.businessId || !requireOnline()) {
+      return false;
+    }
+
+    const response = await fetch("/api/returns/supplier", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...input,
+        businessId: state.businessId,
+        locationId: input.locationId ?? state.selectedLocationId,
+        idempotencyKey: createClientIdempotencyKey("supplier-return"),
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as DashboardPayload | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setSyncStatus("online");
+      setNotice("Supplier return saved.");
+      return true;
+    }
+
+    setNotice(payload?.error ?? "Could not save supplier return.");
+    setSyncStatus("error");
+    return false;
+  }
+
+  async function saveReceiptConfig(input: ReceiptConfigInput) {
+    if (!state?.businessId || !requireOnline()) {
+      return false;
+    }
+
+    const response = await fetch("/api/receipt-config", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...input,
+        businessId: state.businessId,
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as DashboardPayload | null;
+
+    if (response.ok && payload?.state) {
+      setState(payload.state);
+      setSyncStatus("online");
+      setNotice("Receipt settings saved.");
+      return true;
+    }
+
+    setNotice(payload?.error ?? "Could not save receipt settings.");
+    setSyncStatus("error");
+    return false;
   }
 
   async function refreshFromResponse(response: Response, successMessage: string) {
@@ -557,6 +886,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         createInventoryItem,
         moveInventory,
         sendStockAlert,
+        checkoutPos,
+        submitCustomerReturn,
+        submitSupplierReturn,
+        saveReceiptConfig,
         showUpgradePrompt: setUpgradePrompt,
       }}
     >
@@ -590,7 +923,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         isOnline={isOnline}
         status={syncStatus}
         queuedCount={queuedCount}
+        failedCount={failedSyncCount}
+        conflictCount={conflictSyncCount}
         onRetry={retryNow}
+        onReview={() => window.location.assign("/more#offline-sync")}
       />
       <NoticeToast message={notice} />
     </DashboardContext.Provider>
@@ -599,6 +935,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
 function handleSessionExpired() {
   localStorage.removeItem("selectedBusinessId");
+  localStorage.removeItem("selectedLocationId");
   window.location.replace("/?session=expired");
 }
 
@@ -618,6 +955,22 @@ function createClientIdempotencyKey(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getLocationStorageKey(businessId?: string | null) {
+  return businessId ? `selectedLocationId:${businessId}` : "selectedLocationId";
+}
+
+function getStoredLocationId(businessId?: string | null) {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  if (businessId) {
+    return localStorage.getItem(getLocationStorageKey(businessId)) ?? "";
+  }
+
+  return localStorage.getItem("selectedLocationId") ?? "";
 }
 
 function buildSavedMoneyNotice(
@@ -668,25 +1021,32 @@ function SyncStatusBanner({
   isOnline,
   status,
   queuedCount,
+  failedCount,
+  conflictCount,
   onRetry,
+  onReview,
 }: {
   isOnline: boolean;
   status: SyncStatus;
   queuedCount: number;
+  failedCount: number;
+  conflictCount: number;
   onRetry: () => void;
+  onReview: () => void;
 }) {
   if (isOnline && status === "online") {
     return null;
   }
 
   const isRetrying = status === "retrying";
-  const message = !isOnline
-    ? queuedCount > 0
-      ? `${queuedCount} change${queuedCount === 1 ? "" : "s"} saved offline.`
-      : "Offline. New changes will sync later."
-    : isRetrying
-      ? "Syncing your latest money records..."
-      : "Couldn’t refresh. Check your connection and retry.";
+  const hasReviewItems = conflictCount > 0 || failedCount > 0;
+  const message = getSyncStatusMessage({
+    conflictCount,
+    failedCount,
+    isOnline,
+    isRetrying,
+    queuedCount,
+  });
 
   return (
     <div className="fixed inset-x-4 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-accent/30 bg-card px-4 py-3 text-sm font-semibold text-textPrimary shadow-xl">
@@ -698,16 +1058,63 @@ function SyncStatusBanner({
         )}
       </span>
       <span className="flex-1 leading-5">{message}</span>
-      <button
-        className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-white transition-all duration-150 hover:bg-primaryHover hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-        type="button"
-        disabled={isRetrying}
-        onClick={onRetry}
-      >
-        Retry
-      </button>
+      <div className="flex shrink-0 gap-2">
+        {hasReviewItems ? (
+          <button
+            className="min-h-11 rounded-xl border border-gray-200 bg-white px-4 text-xs font-semibold text-textPrimary transition-all duration-150 hover:bg-background hover:shadow-md active:scale-[0.98]"
+            type="button"
+            onClick={onReview}
+          >
+            Review
+          </button>
+        ) : null}
+        <button
+          className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-white transition-all duration-150 hover:bg-primaryHover hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          type="button"
+          disabled={isRetrying}
+          onClick={onRetry}
+        >
+          Retry
+        </button>
+      </div>
     </div>
   );
+}
+
+function getSyncStatusMessage({
+  conflictCount,
+  failedCount,
+  isOnline,
+  isRetrying,
+  queuedCount,
+}: {
+  conflictCount: number;
+  failedCount: number;
+  isOnline: boolean;
+  isRetrying: boolean;
+  queuedCount: number;
+}) {
+  if (conflictCount > 0) {
+    return `${conflictCount} offline change${conflictCount === 1 ? "" : "s"} need review.`;
+  }
+
+  if (failedCount > 0) {
+    return `${failedCount} offline change${failedCount === 1 ? "" : "s"} failed to sync.`;
+  }
+
+  if (!isOnline) {
+    if (!phase1FeatureFlags.offlineQueue) {
+      return "Offline. Reconnect before saving changes.";
+    }
+
+    return queuedCount > 0
+      ? `${queuedCount} change${queuedCount === 1 ? "" : "s"} saved offline.`
+      : "Offline. New changes will sync later.";
+  }
+
+  return isRetrying
+    ? "Syncing your latest money records..."
+    : "Couldn’t refresh. Check your connection and retry.";
 }
 
 function applyLocalStockMove(
@@ -725,18 +1132,20 @@ function applyLocalStockMove(
 
     const quantityOnHand =
       direction === "in"
-        ? item.quantityOnHand + quantity
-        : Math.max(0, item.quantityOnHand - quantity);
+        ? (item.quantityOnHandDecimal ?? item.quantityOnHand) + quantity
+        : Math.max(0, (item.quantityOnHandDecimal ?? item.quantityOnHand) - quantity);
 
     return {
       ...item,
-      quantityOnHand,
-      isLowStock: quantityOnHand <= item.lowStockLevel,
+      quantityOnHand: Math.trunc(quantityOnHand),
+      quantityOnHandDecimal: quantityOnHand,
+      isLowStock: quantityOnHand <= (item.lowStockLevelDecimal ?? item.lowStockLevel),
       movements: [
         {
           id: createClientIdempotencyKey("offline-stock"),
           type: direction === "in" ? "stock_in" : "stock_out",
           quantity,
+          quantityDecimal: quantity,
           note,
           createdAt,
         },

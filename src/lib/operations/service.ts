@@ -46,6 +46,131 @@ export async function inviteStaff({
   return mapInvitation(invitation, { includeToken: true });
 }
 
+export async function getStaffInvitationOverview(userId: string, businessId?: string) {
+  const access = await requireBusinessAccess(userId, "admin", businessId);
+  const [members, invitations] = await Promise.all([
+    getPrisma().businessMember.findMany({
+      where: { businessId: access.businessId },
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    getPrisma().businessInvitation.findMany({
+      where: { businessId: access.businessId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+  ]);
+
+  return {
+    business: {
+      id: access.businessId,
+      name: access.businessName,
+      role: mapRole(access.role),
+      canManageStaff: access.role === Role.OWNER,
+    },
+    members: members.map((member) => ({
+      id: member.id,
+      name: member.user.name,
+      email: member.user.email,
+      role: mapRole(member.role),
+      joinedAt: member.createdAt.toISOString(),
+    })),
+    invitations: invitations.map((invitation) => mapInvitation(invitation, { includeToken: true })),
+  };
+}
+
+export async function resendStaffInvitationForUser({
+  userId,
+  businessId,
+  invitationId,
+}: {
+  userId: string;
+  businessId?: string;
+  invitationId: string;
+}) {
+  const access = await requireBusinessAccess(userId, "admin", businessId);
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + inviteDays * 24 * 60 * 60 * 1000);
+
+  const invitation = await getPrisma().businessInvitation.findFirst({
+    where: {
+      id: invitationId,
+      businessId: access.businessId,
+    },
+  });
+
+  if (!invitation || invitation.acceptedAt) {
+    throw new Error("Choose a pending invitation.");
+  }
+
+  const updated = await getPrisma().$transaction(async (tx) => {
+    const result = await tx.businessInvitation.update({
+      where: { id: invitation.id },
+      data: {
+        token,
+        expiresAt,
+        revokedAt: null,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        businessId: access.businessId,
+        actorId: userId,
+        action: "staff.invitation_resent",
+        message: `${invitation.email} invitation was resent.`,
+      },
+    });
+
+    return result;
+  });
+
+  return {
+    invitation: mapInvitation(updated, { includeToken: true }),
+    businessName: access.businessName,
+  };
+}
+
+export async function revokeStaffInvitationForUser({
+  userId,
+  businessId,
+  invitationId,
+}: {
+  userId: string;
+  businessId?: string;
+  invitationId: string;
+}) {
+  const access = await requireBusinessAccess(userId, "admin", businessId);
+  const invitation = await getPrisma().businessInvitation.findFirst({
+    where: {
+      id: invitationId,
+      businessId: access.businessId,
+    },
+  });
+
+  if (!invitation || invitation.acceptedAt) {
+    throw new Error("Choose a pending invitation.");
+  }
+
+  const updated = await getPrisma().$transaction(async (tx) => {
+    const result = await tx.businessInvitation.update({
+      where: { id: invitation.id },
+      data: { revokedAt: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        businessId: access.businessId,
+        actorId: userId,
+        action: "staff.invitation_revoked",
+        message: `${invitation.email} invitation was revoked.`,
+      },
+    });
+
+    return result;
+  });
+
+  return mapInvitation(updated, { includeToken: true });
+}
+
 export async function acceptInvitation({
   token,
   userId,

@@ -38,7 +38,11 @@ export function buildReferralShareText(input: {
 }
 
 export function buildReportShareText(report: MonthlyReport, referralLink: string) {
-  return `${report.periodLabel} business update:\nSales: ${formatNaira(report.salesTotal)}\nExpenses: ${formatNaira(report.expensesTotal)}\nProfit: ${formatNaira(report.profitTotal)}\n\nTracked using ${appName}.\n${referralLink}`;
+  const topCategory = report.categoryBreakdown[0]
+    ? `\nTop category: ${report.categoryBreakdown[0].name}`
+    : "";
+
+  return `${report.periodLabel} business update:\nSales: ${formatNaira(report.salesTotal)}\nExpenses: ${formatNaira(report.expensesTotal)}\nProfit: ${formatNaira(report.profitTotal)}${topCategory}\n\nTracked using ${appName}.\n${referralLink}`;
 }
 
 export function buildViralMomentShareText(state: MoneybookState, referralLink: string) {
