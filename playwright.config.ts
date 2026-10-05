@@ -1,5 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 import { authStatePath } from "./tests/e2e/support/auth-setup";
+import {
+  approvedReleaseScopeName,
+  installApprovedReleaseScope,
+  releaseScopeModeEnv,
+} from "./tests/e2e/support/release-gate-policy";
+
+if (process.env[releaseScopeModeEnv] === approvedReleaseScopeName) {
+  installApprovedReleaseScope();
+}
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const shouldStartWebServer = !process.env.PLAYWRIGHT_BASE_URL;
@@ -13,6 +22,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
+  reporter: [["list"], ["./tests/e2e/support/release-gate-reporter.ts"]],
   use: {
     baseURL,
     trace: "on-first-retry",
