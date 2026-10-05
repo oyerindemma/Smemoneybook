@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 test.setTimeout(180_000);
 
@@ -11,27 +11,40 @@ async function openRecordSheet(page: Page) {
     await page.getByRole("button", { name: "Record money", exact: true }).click();
   }
 
-  await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Add sale", exact: true });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+async function submitSale(page: Page, dialog: Locator) {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === "POST" && url.pathname === "/api/transactions";
+  });
+
+  await dialog.getByRole("button", { name: "Save sale", exact: true }).click();
+  const response = await responsePromise;
+
+  expect(response.status()).toBe(201);
+  await expect(dialog).toBeHidden();
 }
 
 async function saveSale(page: Page, amount: string, note = "Mobile sale") {
-  await openRecordSheet(page);
-  await page.getByLabel("Amount").fill(amount);
-  await page.getByLabel(/Customer or note optional|Short note optional/i).fill(note);
-  await page.getByRole("button", { name: /Save sale|Save money/i }).click();
-  await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeHidden({ timeout: 45_000 });
+  const dialog = await openRecordSheet(page);
+  await dialog.getByLabel("Amount").fill(amount);
+  await dialog.getByLabel(/Customer or note optional|Short note optional/i).fill(note);
+  await submitSale(page, dialog);
   await expect(page.locator("body")).toContainText(new RegExp(amount.replace(/\B(?=(\d{3})+(?!\d))/g, ",")), {
     timeout: 10_000,
   });
 }
 
 async function saveCreditSale(page: Page, amount: string, customerName: string) {
-  await openRecordSheet(page);
-  await page.getByLabel("Amount").fill(amount);
-  await page.getByLabel(/Customer paid now|Paid now/i).uncheck();
-  await page.getByLabel("Customer name").fill(customerName);
-  await page.getByRole("button", { name: /Save sale|Save money/i }).click();
-  await expect(page.getByRole("dialog", { name: /Add sale|Record money/i })).toBeHidden({ timeout: 45_000 });
+  const dialog = await openRecordSheet(page);
+  await dialog.getByLabel("Amount").fill(amount);
+  await dialog.getByLabel(/Customer paid now|Paid now/i).uncheck();
+  await dialog.getByLabel("Customer name").fill(customerName);
+  await submitSale(page, dialog);
 }
 
 test.describe("mobile readiness flows", () => {
@@ -43,7 +56,16 @@ test.describe("mobile readiness flows", () => {
       style.textContent = "nextjs-portal { pointer-events: none !important; }";
       document.documentElement.appendChild(style);
     });
+
+    const dashboardResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === "GET" && url.pathname === "/api/dashboard/summary";
+    });
+
     await page.goto("/money");
+    const dashboardResponse = await dashboardResponsePromise;
+
+    expect(dashboardResponse.status()).toBe(200);
     await expect(page.getByText(/Available (?:balance|Money)/i).first()).toBeVisible({
       timeout: 60_000,
     });
