@@ -61,8 +61,15 @@ describe("WhatsApp send service", () => {
 
     expect(result).toMatchObject({ ok: true, phone: "2348012345678", messageId: "wamid.1" });
     expect(sendText).toHaveBeenCalledWith("2348012345678", "Hello");
-    expect(createMessage).toHaveBeenCalled();
+    expect(createMessage).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        phone: "2348012345678",
+        message: "Hello",
+        externalId: "wamid.1",
+      }),
+    });
     expect(createAudit).toHaveBeenCalled();
+    expect(createAudit.mock.calls[0][0].data.metadata).not.toHaveProperty("phone");
   });
 
   it("returns a typed failure for invalid phone numbers", async () => {

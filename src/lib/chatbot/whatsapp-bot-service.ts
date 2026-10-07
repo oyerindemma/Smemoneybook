@@ -29,7 +29,7 @@ export async function handleIncomingWhatsAppBotMessage({
     message: reply,
     businessId: identity.businessId,
     source: "whatsapp_bot",
-    metadata: { externalId, inboundPhone: phone },
+    metadata: { externalId },
   });
 
   await getPrisma().auditLog.create({
@@ -37,7 +37,7 @@ export async function handleIncomingWhatsAppBotMessage({
       businessId: identity.businessId,
       action: "whatsapp.bot.reply",
       message: "WhatsApp chatbot replied.",
-      metadata: { externalId, phone, resultOk: result.ok },
+      metadata: { externalId, resultOk: result.ok },
     },
   });
 

@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { after } from "next/server";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/env";
+import { isPhase3FeatureEnabled } from "@/lib/phase3/feature-flags";
 import { getPrisma } from "@/lib/prisma";
 import { handleIncomingWhatsAppBotMessage } from "@/lib/chatbot/whatsapp-bot-service";
 
@@ -42,10 +43,19 @@ export async function POST(request: Request) {
       }
 
       const events = parseWebhookPayload(payload);
-      await writeEvent("raw_webhook", sanitizePayload(payload));
+      await writeEvent("webhook_received", summarizeWebhookPayload(payload));
       for (const event of events) {
-        const inserted = await writeEvent(event.eventType, event.payload, event.externalId, event.status);
-        if (inserted && event.eventType === "incoming_message") {
+        const inserted = await writeEvent(
+          event.eventType,
+          event.auditPayload,
+          event.externalId,
+          event.status,
+        );
+        if (
+          inserted &&
+          isEligibleIncomingMessage(event) &&
+          isPhase3FeatureEnabled("whatsappAutomation")
+        ) {
           await routeIncomingMessage(event);
         }
       }
@@ -79,7 +89,7 @@ async function routeIncomingMessage(event: {
   const from = typeof event.payload.from === "string" ? event.payload.from : "";
   const text = typeof event.payload.text === "string" ? event.payload.text : "";
 
-  if (!from || !text) {
+  if (event.payload.type !== "text" || !from || !text.trim()) {
     return;
   }
 
@@ -94,11 +104,12 @@ function parseWebhookPayload(payload: unknown) {
   const events: Array<{
     eventType: string;
     payload: Record<string, unknown>;
+    auditPayload: Record<string, unknown>;
     externalId?: string;
     status?: string;
   }> = [];
 
-  if (!isRecord(payload)) {
+  if (!isRecord(payload) || payload.object !== "whatsapp_business_account") {
     return events;
   }
 
@@ -110,7 +121,7 @@ function parseWebhookPayload(payload: unknown) {
 
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
     for (const change of changes) {
-      if (!isRecord(change) || !isRecord(change.value)) {
+      if (!isRecord(change) || change.field !== "messages" || !isRecord(change.value)) {
         continue;
       }
 
@@ -123,17 +134,25 @@ function parseWebhookPayload(payload: unknown) {
           continue;
         }
 
-        const text = isRecord(message.text) ? String(message.text.body ?? "") : "";
+        const text =
+          isRecord(message.text) && typeof message.text.body === "string"
+            ? message.text.body
+            : "";
+        const messageType = safeLabel(message.type, "unknown");
+        const timestamp = safeTimestamp(message.timestamp);
         events.push({
           eventType: "incoming_message",
-          externalId: typeof message.id === "string" ? message.id : undefined,
-          payload: sanitizePayload({
-            id: message.id,
-            from: message.from,
-            timestamp: message.timestamp,
-            type: message.type,
+          externalId: nonEmptyString(message.id),
+          payload: {
+            from: typeof message.from === "string" ? message.from : "",
+            type: messageType,
             text,
-          }),
+          },
+          auditPayload: {
+            messageType,
+            hasText: Boolean(text.trim()),
+            ...(timestamp ? { timestamp } : {}),
+          },
         });
       }
 
@@ -142,17 +161,19 @@ function parseWebhookPayload(payload: unknown) {
           continue;
         }
 
+        const messageStatus = safeMessageStatus(status.status);
+        const timestamp = safeTimestamp(status.timestamp);
+        const errors = Array.isArray(status.errors) ? status.errors : [];
         events.push({
-          eventType: `message_${String(status.status ?? "status")}`,
-          externalId: typeof status.id === "string" ? status.id : undefined,
-          status: typeof status.status === "string" ? status.status : undefined,
-          payload: sanitizePayload({
-            id: status.id,
-            status: status.status,
-            timestamp: status.timestamp,
-            recipientId: status.recipient_id,
-            errors: status.errors,
-          }),
+          eventType: messageStatus ? `message_${messageStatus}` : "message_status",
+          externalId: nonEmptyString(status.id),
+          status: messageStatus,
+          payload: {},
+          auditPayload: {
+            status: messageStatus ?? "unknown",
+            hasErrors: errors.length > 0,
+            ...(timestamp ? { timestamp } : {}),
+          },
         });
       }
     }
@@ -241,29 +262,55 @@ function safeJson(rawBody: string) {
   }
 }
 
-function sanitizePayload(payload: unknown): Record<string, unknown> {
-  const seen = new WeakSet<object>();
+function summarizeWebhookPayload(payload: unknown): Record<string, unknown> {
+  if (!isRecord(payload)) {
+    return { recognizedObject: false, entryCount: 0, changeCount: 0 };
+  }
 
-  return JSON.parse(
-    JSON.stringify(payload, (key, value) => {
-      if (typeof key === "string" && /token|authorization|secret|password/i.test(key)) {
-        return "[redacted]";
-      }
+  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  const changeCount = entries.reduce((count, entry) => {
+    if (!isRecord(entry) || !Array.isArray(entry.changes)) {
+      return count;
+    }
+    return count + entry.changes.length;
+  }, 0);
 
-      if (typeof value === "string") {
-        return value.slice(0, 2000);
-      }
+  return {
+    recognizedObject: payload.object === "whatsapp_business_account",
+    entryCount: entries.length,
+    changeCount,
+  };
+}
 
-      if (typeof value === "object" && value !== null) {
-        if (seen.has(value)) {
-          return "[circular]";
-        }
-        seen.add(value);
-      }
+function isEligibleIncomingMessage(event: {
+  eventType: string;
+  payload: Record<string, unknown>;
+  externalId?: string;
+}) {
+  return (
+    event.eventType === "incoming_message" &&
+    Boolean(event.externalId) &&
+    event.payload.type === "text" &&
+    Boolean(nonEmptyString(event.payload.from)) &&
+    Boolean(nonEmptyString(event.payload.text))
+  );
+}
 
-      return value;
-    }),
-  ) as Record<string, unknown>;
+function nonEmptyString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function safeLabel(value: unknown, fallback: string) {
+  return typeof value === "string" && /^[a-z0-9_]{1,64}$/i.test(value) ? value : fallback;
+}
+
+function safeTimestamp(value: unknown) {
+  return typeof value === "string" && /^\d{1,20}$/.test(value) ? value : undefined;
+}
+
+function safeMessageStatus(value: unknown) {
+  const status = safeLabel(value, "");
+  return ["sent", "delivered", "read", "failed"].includes(status) ? status : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

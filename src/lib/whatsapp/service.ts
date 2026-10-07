@@ -289,7 +289,6 @@ async function writeOutboundLog(input: WhatsAppAuditContext & {
             action: `whatsapp.${input.status}`,
             message: auditMessage,
             metadata: {
-              phone: input.phone,
               externalId: input.externalId,
               source: input.source,
               templateName: input.templateName,
